@@ -5,12 +5,7 @@
 
 from yarlp.agent.base_agent import Agent
 
-import warnings
 import numpy as np
-
-
-from yarlp.model.tf_model import Model
-from functools import partial
 
 
 class REINFORCEAgent(Agent):
@@ -22,42 +17,24 @@ class REINFORCEAgent(Agent):
 
     Parameters
     ----------
-    policy_model : PolicyModel object where the model is a keras model object
+    policy_model : tf_model.Model
+
+    value_model : tf_model.value_model
 
 
     """
-    def __init__(self, policy_model,
-                 num_training_steps,
-                 num_max_rollout_steps,
-                 discount=1):
-        super().__init__(policy_model._env)
+    def __init__(self, policy_model, value_model=None, *args, **kwargs):
+        super().__init__(policy_model._env, *args, **kwargs)
         self._policy = policy_model
+        self._value_model = value_model
 
-        # Discount factor
-        self._discount = 1
-
-        # Get model shapes
-        self.model_shapes = [w.shape for w in self._policy.get_weights()]
-        self.model_sizes = [w.size for w in self._policy.get_weights()]
-        self.model_total_sizes = sum(self.model_sizes)
-
-        # Maximum number of steps in an episode
-        self.num_max_rollout_steps = num_max_rollout_steps
-
-        # Total number of training steps
-        self.num_training_steps = num_training_steps
-
-        # Number of actions that can be taken on each step
-        self.num_actions = self._env.action_space.n
-
-    def train(self, with_baseline=False):
+    def train(self, num_training_steps, with_baseline=True):
         """
 
         Parameters
         ----------
-        with_baseline : boolean
-            train with or without a baseline value estimator which reduces
-            variance in policy gradient updates
+        num_training_steps : integer
+            Total number of training steps
 
         Returns
         ----------
@@ -65,107 +42,33 @@ class REINFORCEAgent(Agent):
             average reward obtained on each training step
 
         """
+
+        if with_baseline:
+            assert self._value_model is not None,\
+                "Must specify value function model to train with baseline."
+
         avg_reward_per_training_step = []
-        for i in range(self.num_training_steps):
+        for i in range(num_training_steps):
             # execute an episode
-            rollout_rewards, rollout_actions, rollout_states = self.rollout()
+            rollout = self.rollout()
 
             # save average reward for this training step for reporting
-            avg_reward_per_training_step.append(np.mean(rollout_rewards))
-            print('%d Reward is: ' % (i), sum(rollout_rewards))
+            avg_reward_per_training_step.append(np.mean(rollout.rewards))
+            print('%d Reward is: ' % (i), sum(rollout.rewards))
 
-            for t, r in enumerate(rollout_rewards):
+            for t, r in enumerate(rollout.rewards):
                 # update the weights for policy model
                 discounted_rt = self.get_discounted_cumulative_reward(
-                    rollout_rewards[t:])
+                    rollout.rewards[t:])
+
+                baseline = 0
+                if with_baseline:
+                    self._value_model.update(rollout.states[t], discounted_rt)
+                    baseline = self._value_model.predict(
+                        np.array(rollout.states[t])).flatten()[0]
+
+                advantage = discounted_rt - baseline
                 self._policy.update(
-                    rollout_states[t], discounted_rt, rollout_actions[t])
+                    rollout.states[t], advantage, rollout.actions[t])
 
         return avg_reward_per_training_step
-
-    def rollout(self):
-        """
-        Performs actions for num_max_rollout_steps on the environment
-        based on the agent's current weights
-
-        Parameters
-        ----------
-
-        Returns
-        ----------
-        total_reward : float
-        t + 1 : integer
-            number of time steps completed during rollout
-        """
-
-        rewards = []
-        states = []
-        actions = []
-        observation = self._env.reset()
-        for t in range(self.num_max_rollout_steps):
-            states.append(observation)
-            action = self.get_action(observation)
-            (observation, reward, done, _) = self._env.step(action)
-            rewards.append(reward)
-            actions.append(action)
-            if done:
-                break
-
-        return rewards, actions, states
-
-    def do_greedy_episode(self, max_time_steps=1000):
-        t = 0
-        done = False
-        total_reward = 0
-        observation = self._env.reset()
-        while not done and t < max_time_steps:
-            action = self.get_action(observation, greedy=True)
-            (observation, reward, done, _) = self._env.step(action)
-            total_reward += reward
-            t += 1
-        return total_reward
-
-    def get_discounted_cumulative_reward(self, rewards):
-        """
-        Parameters
-        ----------
-        r : list
-
-        Returns
-        ----------
-        cumulative_reward : list
-        """
-        cumulative_reward = [0]
-        for t, r in enumerate(rewards):
-            temp = cumulative_reward[-1] + self._discount ** t * r
-            cumulative_reward.append(temp)
-
-        return np.sum(cumulative_reward[1:])
-
-    def get_action(self, state, greedy=False):
-        """
-        Generate an action from our policy model
-
-        Returns
-        ----------
-        integer indicating the action that should be taken
-        """
-        batch = np.array([state])
-        action = self._policy.predict_on_batch(batch).flatten()
-        if not greedy:
-            return np.random.choice(np.arange(self.num_actions), p=action)
-        return self.argmax_break_ties(action)
-
-    def argmax_break_ties(self, probs):
-        """
-        Breaks ties randomly in an array of probabilities
-
-        Parameters
-        ----------
-        probs : numpy array, shape = (1, ?)
-
-        Returns
-        ----------
-        integer indicating the action that should be taken
-        """
-        return np.random.choice(np.where(probs == probs.max())[0])

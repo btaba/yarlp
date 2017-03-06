@@ -19,13 +19,7 @@ class CEMAgent(Agent):
 
     Parameters
     ----------
-    policy_model : PolicyModel object where the model is a keras model object
-
-    num_training_steps : integer
-        Total number of training steps
-
-    num_max_rollout_steps : integer
-        Maximum number of steps in an episode
+    policy_model : tf_model.Model
 
     num_samples : integer
         Total number of sample weights to draw for each training step
@@ -35,10 +29,9 @@ class CEMAgent(Agent):
     best_pct : float, default 0.2
         The percentage of sample weights to keep that yield the best reward
     """
-    def __init__(self, policy_model, num_training_steps,
-                 num_max_rollout_steps, num_samples,
-                 init_var=0.1, best_pct=0.2):
-        super().__init__(policy_model._env)
+    def __init__(self, policy_model, num_samples,
+                 init_var=0.1, best_pct=0.2, *args, **kwargs):
+        super().__init__(policy_model._env, *args, **kwargs)
         self._policy = policy_model
 
         # Get model shapes
@@ -50,25 +43,12 @@ class CEMAgent(Agent):
         self._theta = np.zeros(self.model_total_sizes)
         self._sigma = np.ones(self.model_total_sizes) * init_var
 
-        # Maximum number of steps in an episode
-        self.num_max_rollout_steps = num_max_rollout_steps
-
-        # Total number of training steps
-        self.num_training_steps = num_training_steps
-
         # Total number of sample weights to draw for each training step
         self.num_samples = num_samples
 
         # Number of best parameters to keep
         assert best_pct <= 1 and best_pct > 0
         self.num_best = int(best_pct * self.num_samples)
-
-        # Number of actions to take
-        self.num_actions = self._env.action_space.n
-
-    @property
-    def policy(self):
-        return self._policy
 
     @property
     def theta(self):
@@ -88,7 +68,7 @@ class CEMAgent(Agent):
         """
         return self.reshape_weights(self._sigma)
 
-    def train(self, with_variance=False, alpha=5, beta=10):
+    def train(self, num_training_steps, with_variance=False, alpha=5, beta=10):
         """
         Learn the most optimal weights for our PolicyModel
             optionally with a variance adjustment as in [1]
@@ -96,6 +76,9 @@ class CEMAgent(Agent):
 
         Parameters
         ----------
+        num_training_steps : integer
+            Total number of training steps
+
         with_variance : boolean
             train with or without a variance adjustment as in [1]
 
@@ -112,7 +95,7 @@ class CEMAgent(Agent):
 
         """
         avg_reward_per_training_step = []
-        for i in range(self.num_training_steps):
+        for i in range(num_training_steps):
             if np.any(self._sigma <= 0):
                 # raise ValueError(
                 #     'Variance for weight is less than or equal to 0')
@@ -130,13 +113,19 @@ class CEMAgent(Agent):
             weight_samples = weight_samples.T
 
             # get the rewards for each mean/variance
-            rollout_rewards = np.array(
-                [self.rollout(w)[0] for w in weight_samples])
+            rollout_rewards = []
+            for w in weight_samples:
+                # add weights to PolicyModel
+                weights_reshaped = self.reshape_weights(w)
+                self._policy.set_weights(weights_reshaped)
+                rollout = self.rollout()
+                rollout_rewards.append(np.sum(rollout.rewards))
 
             # save average reward for this training step
             avg_reward_per_training_step.append(np.mean(rollout_rewards))
 
             # get the num_best mean/var with highest reward
+            rollout_rewards = np.array(rollout_rewards)
             best_idx = rollout_rewards.argsort()[::-1][:self.num_best]
             best_samples = weight_samples[best_idx]
 
@@ -151,50 +140,6 @@ class CEMAgent(Agent):
             self._sigma = var
 
         return avg_reward_per_training_step
-
-    def rollout(self, weights):
-        """
-        Performs actions for num_max_rollout_steps on the environment
-        based on the agent's current weights
-
-        Parameters
-        ----------
-        weights : numpy array of model weights, shape = ??
-
-        Returns
-        ----------
-        total_reward : float
-        t + 1 : integer
-            number of time steps completed during rollout
-        """
-
-        # add weights to PolicyModel
-        weights_reshaped = self.reshape_weights(weights)
-        self._policy.set_weights(weights_reshaped)
-
-        # do rollout
-        total_reward = 0
-        observation = self._env.reset()
-        for t in range(self.num_max_rollout_steps):
-            action = self.get_action(observation)
-            (observation, reward, done, _) = self._env.step(action)
-            total_reward += reward
-            if done:
-                break
-
-        return total_reward, t + 1
-
-    def do_greedy_episode(self, max_time_steps=1000):
-        t = 0
-        done = False
-        total_reward = 0
-        observation = self._env.reset()
-        while not done and t < max_time_steps:
-            action = self.get_action(observation, greedy=True)
-            (observation, reward, done, _) = self._env.step(action)
-            total_reward += reward
-            t += 1
-        return total_reward
 
     def reshape_weights(self, weights_flat):
         """
@@ -217,31 +162,3 @@ class CEMAgent(Agent):
             weights.append(array)
             p += size
         return weights
-
-    def get_action(self, state, greedy=False):
-        """
-        Generate an action from our policy model
-
-        Returns
-        ----------
-        integer indicating the action that should be taken
-        """
-        batch = np.array([state])
-        action = self._policy.predict_on_batch(batch).flatten()
-        if not greedy:
-            return np.random.choice(np.arange(self.num_actions), p=action)
-        return self.argmax_break_ties(action)
-
-    def argmax_break_ties(self, probs):
-        """
-        Breaks ties randomly in an array of probabilities
-
-        Parameters
-        ----------
-        probs : numpy array, shape = (1, ?)
-
-        Returns
-        ----------
-        integer indicating the action that should be taken
-        """
-        return np.random.choice(np.where(probs == probs.max())[0])

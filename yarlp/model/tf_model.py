@@ -72,7 +72,7 @@ class Model:
 
     def update(self, *args):
         # this is where we update the weights
-        return self.update_func(*args)
+        return self.update_func(self, *args)
 
     @property
     def env(self):
@@ -132,41 +132,10 @@ class Model:
             self.G['weight_input_var:' + w.name] = w_input
             self.G['set_weight_op:' + w.name] = w.assign(w_input)
 
-    def get_action(self, data, output_name='output:', input_name='input:'):
-        # this is where we predict the next action to take
+    def predict(self, data, output_name='output:', input_name='input:'):
+        # get the model output for input placeholders
         if len(data.shape) == 1:
             data = np.expand_dims(data, 0)
         output = self.G[output_name]
         feed_dict = {self.G[input_name]: data}
         return self.G(output, feed_dict)
-
-
-def policy_gradient_model_factory(env, learning_rate=0.01):
-
-    def build_network(model):
-        input_node = model.add_input()
-        from functools import partial
-        network = partial(
-            tf.contrib.layers.fully_connected, activation_fn=tf.nn.softmax)
-        output_node = model.add_output(network)
-
-        # Policy gradient stuff
-        model.state = input_node
-        model.action = tf.placeholder(
-            dtype=tf.int32, shape=(None,), name='action')
-        action_probability = tf.gather(tf.squeeze(output_node), model.action)
-        model.Return = tf.placeholder(
-            dtype=tf.float32, shape=(None,), name='return')
-        model.loss = -tf.log(action_probability) * model.Return
-        model.optimizer = tf.train.AdamOptimizer(
-            learning_rate=learning_rate)
-        model.optimize_operation = model.optimizer.minimize(model.loss)
-
-    def update(model, state, return_, action):
-        # this is where we update the weights
-        feed_dict = {model.state: np.array(np.expand_dims(state, 0)),
-                     model.Return: [return_], model.action: [action]}
-        _, loss = model.G([model.optimize_operation, model.loss], feed_dict)
-        return loss
-
-    return Model(env, build_network, update)

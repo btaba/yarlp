@@ -7,7 +7,7 @@ import unittest
 import gym
 import numpy as np
 
-from yarlp.model.softmax_model import TFSoftmaxModel
+from yarlp.model.model_factories import cem_model_factory
 from yarlp.agent.cem_agent import CEMAgent
 
 
@@ -18,37 +18,15 @@ class TestCEMCartPole(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         env = gym.make('CartPole-v0')
-        # cls.lm_keras = KerasSoftmaxModel(env)
-        cls.lm_tf = TFSoftmaxModel(env)
-
-    # def test_cem_keras(self):
-    #     # TODO: consider taking an average reward over several agents
-    #     # TODO: make sure that the trained policy returns an average reward that is high
-    #     # instead of testing on the trained rewards
-    #     agent = CEMAgent(
-    #         self.lm_keras, num_training_steps=50, num_max_rollout_steps=1000,
-    #         num_samples=10, init_var=.1, best_pct=0.2)
-    #     r = agent.train(with_variance=True)
-
-    #     # trained for 30 training steps
-    #     self.assertEqual(len(r), 50)
-
-    #     # last reward must be greater than first reward
-    #     self.assertGreater(r[-1], r[0])
-
-    #     # cart must have survived for more than 500 time steps
-    #     self.assertTrue(r[-1] > 500)
+        cls.lm_tf = cem_model_factory(env)
 
     def test_cem_tf(self):
         # To solve the Cart-Pole we must get avg reward > 195
         # over 100 consecutive trials
         agent = CEMAgent(
-            self.lm_tf, num_training_steps=50, num_max_rollout_steps=1000,
+            self.lm_tf, num_max_rollout_steps=1000,
             num_samples=10, init_var=.1, best_pct=0.2)
-        agent.train(with_variance=True)
-
-        # # check that we trained for the number training steps specified
-        # self.assertEqual(len(r), 50)
+        agent.train(num_training_steps=50, with_variance=True)
 
         sampled_greedy_rewards = []
         for i in range(100):
