@@ -9,6 +9,10 @@ import warnings
 import numpy as np
 
 
+from yarlp.model.tf_model import Model
+from functools import partial
+
+
 class REINFORCEAgent(Agent):
     """
     REINFORCE - Monte Carlo Policy Gradient

@@ -7,7 +7,8 @@ import unittest
 import gym
 import numpy as np
 
-from yarlp.model.softmax_model import TFSoftmaxModel
+# from yarlp.model.softmax_model import TFSoftmaxModel
+from yarlp.model.tf_model import PolicyGradientModel
 from yarlp.agent.reinforce_agent import REINFORCEAgent
 
 
@@ -17,7 +18,8 @@ class TestREINFORCECartPole(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         env = gym.make('CartPole-v0')
-        cls.lm_tf = TFSoftmaxModel(env)
+        # cls.lm_tf = TFSoftmaxModel(env)
+        cls.lm_tf = PolicyGradientModel(env)
 
     def test_reinforce(self):
         agent = REINFORCEAgent(
