@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
     CEM Agent class, which takes in a PolicyModel object
 """
@@ -90,11 +89,11 @@ class CEMAgent(Agent):
 
         Returns
         ----------
-        avg_reward_per_training_step : list
-            average reward obtained on each training step
+        total_reward_per_training_episode : list
+            total reward obtained on each training step
 
         """
-        avg_reward_per_training_step = []
+        total_reward_per_training_episode = []
         for i in range(num_training_steps):
             if np.any(self._sigma <= 0):
                 # raise ValueError(
@@ -103,7 +102,7 @@ class CEMAgent(Agent):
                     ("Variance for at least one weight "
                         "is less than or equal to 0"),
                     Warning)
-                return avg_reward_per_training_step
+                return total_reward_per_training_episode
 
             # generate n_samples each iteration with new mean and stddev
             # according to our current optimal mean and variance
@@ -122,7 +121,7 @@ class CEMAgent(Agent):
                 rollout_rewards.append(np.sum(rollout.rewards))
 
             # save average reward for this training step
-            avg_reward_per_training_step.append(np.mean(rollout_rewards))
+            total_reward_per_training_episode.append(np.sum(rollout_rewards))
 
             # get the num_best mean/var with highest reward
             rollout_rewards = np.array(rollout_rewards)
@@ -139,7 +138,7 @@ class CEMAgent(Agent):
             self._theta = mean
             self._sigma = var
 
-        return avg_reward_per_training_step
+        return total_reward_per_training_episode
 
     def reshape_weights(self, weights_flat):
         """

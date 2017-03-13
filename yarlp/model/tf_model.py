@@ -71,7 +71,7 @@ class Model:
             self.update_func = update_func
 
     def update(self, *args):
-        # this is where we update the weights
+        # this is how we update the weights
         return self.update_func(self, *args)
 
     @property
@@ -115,16 +115,25 @@ class Model:
 
         return self.input_node
 
-    def add_output(self, network, name='', dtype=tf.float32, num_outputs=None):
-        if num_outputs is None:
-            num_outputs = self._env.action_space.n
+    def env_action_space_dimension(self):
+        if hasattr(self._env.action_space, 'n'):
+            return self._env.action_space.n
+        return self._env.action_space.shape[0]
 
-        self.output_node = network(
+    def add_output(self, network, num_outputs=None, name='', dtype=tf.float32):
+        if num_outputs is None:
+            num_outputs = self.env_action_space_dimension()
+
+        output_node = network(
             inputs=self.input_node, num_outputs=num_outputs)
 
-        self.G['output:' + name] = self.output_node
+        self.G['output:' + name] = output_node
 
-        return self.output_node
+        return output_node
+
+    def add_output_node(self, node, name=''):
+        self.G['output:' + name] = node
+        return node
 
     def create_weight_setter_operations(self):
         for w in self.weights:

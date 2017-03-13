@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
     Base Agent class, which takes in a PolicyModel object
 """
@@ -18,7 +17,7 @@ class Agent(ABC):
     def __init__(self, env, num_max_rollout_steps, discount_factor=1):
         """
         num_max_rollout_steps : integer
-            Maximum number of steps in an episode
+            Maximum number of steps executed in an episode
 
         discount_factor : float
             Discount rewards by this factor
@@ -29,14 +28,23 @@ class Agent(ABC):
         self.num_max_rollout_steps = num_max_rollout_steps
 
         # Discount factor
+        assert discount_factor >= 0 and discount_factor <= 1
         self._discount = discount_factor
-
-        # Number of actions to take
-        self.num_actions = self._env.action_space.n
 
     @property
     def env(self):
         return self._env
+
+    @property
+    def num_actions(self):
+        if self.env_is_discrete():
+            return self._env.action_space.n
+        return self._env.action_space.shape[0]
+
+    def env_is_discrete(self):
+        if hasattr(self._env.action_space, 'n'):
+            return True
+        return False
 
     @abstractmethod
     def train(self):
@@ -52,21 +60,20 @@ class Agent(ABC):
         Rollout : named tuple
         """
 
-        rewards = []
-        states = []
-        actions = []
+        Rollout = namedtuple('Rollout', 'rewards actions states')
+        r = Rollout([], [], [])
+
         observation = self._env.reset()
         for t in range(self.num_max_rollout_steps):
-            states.append(observation)
+            r.states.append(observation)
             action = self.get_action(observation)
             (observation, reward, done, _) = self._env.step(action)
-            rewards.append(reward)
-            actions.append(action)
+            r.rewards.append(reward)
+            r.actions.append(action)
             if done:
                 break
 
-        Rollout = namedtuple('Rollout', 'rewards actions states')
-        return Rollout(rewards, actions, states)
+        return r
 
     def do_greedy_episode(self, max_time_steps=1000):
         t = 0
@@ -107,8 +114,13 @@ class Agent(ABC):
         """
         batch = np.array([state])
         action = self._policy.predict(batch).flatten()
+
+        if not self.env_is_discrete():
+            return action
+
         if not greedy:
             return np.random.choice(np.arange(self.num_actions), p=action)
+
         return self.argmax_break_ties(action)
 
     def argmax_break_ties(self, probs):
