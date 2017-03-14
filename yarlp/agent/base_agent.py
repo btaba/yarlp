@@ -31,6 +31,10 @@ class Agent(ABC):
         assert discount_factor >= 0 and discount_factor <= 1
         self._discount = discount_factor
 
+    @abstractmethod
+    def train(self):
+        pass
+
     @property
     def env(self):
         return self._env
@@ -45,10 +49,6 @@ class Agent(ABC):
         if hasattr(self._env.action_space, 'n'):
             return True
         return False
-
-    @abstractmethod
-    def train(self):
-        pass
 
     def rollout(self):
         """

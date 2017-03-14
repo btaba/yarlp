@@ -18,7 +18,7 @@ class TestREINFORCECartPole(unittest.TestCase):
         env = gym.make('CartPole-v0')
         cls.pm = policy_gradient_model_factory(env)
 
-    def test_reinforce_discrete(self):
+    def test_reinforce(self):
         # To solve the Cart-Pole we must get avg reward > 195
         # over 100 consecutive trials
         agent = REINFORCEAgent(
@@ -68,9 +68,9 @@ class TestActorCriticPG(unittest.TestCase):
         pm = policy_gradient_model_factory(
             env, action_space='continuous', learning_rate=0.01)
         agent = OneStepActorCriticPG(
-            pm, num_max_rollout_steps=10000,
+            pm, num_max_rollout_steps=5000,
             discount_factor=.95)
-        agent.train(num_training_steps=60)
+        agent.train(num_training_steps=70)
 
         sampled_greedy_rewards = []
         for i in range(100):
