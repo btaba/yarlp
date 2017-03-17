@@ -32,7 +32,7 @@ def value_function_model_factory(
     """ Minimizes squared error of state-value function
     """
 
-    def build_graph(model, network):
+    def build_graph(model, network, lr):
         input_node = model.add_input()
 
         network = partial(network, activation_fn=None)
@@ -44,14 +44,18 @@ def value_function_model_factory(
             dtype=tf.float32, shape=(None,), name='target_value')
         model.loss = tf.squared_difference(output_node, model.target_value)
         model.optimizer = tf.train.AdamOptimizer(
-            learning_rate=learning_rate)
+            learning_rate=lr)
+        model.learning_rate = lr
+
+        model.value = output_node
+        model.create_gradient_ops_for_node(output_node)
 
     def build_update_feed_dict(model, state, target_value):
         feed_dict = {model.state: np.expand_dims(state, 0),
                      model.target_value: [target_value]}
         return feed_dict
 
-    build_graph = partial(build_graph, network=network)
+    build_graph = partial(build_graph, network=network, lr=learning_rate)
 
     return Model(env, build_graph, build_update_feed_dict)
 
@@ -65,12 +69,13 @@ def policy_gradient_model_factory(
         whether the action space is 'continuous' or 'discrete'
     """
 
-    def build_graph(model, network, action_space):
+    def build_graph(model, network, action_space, lr):
         input_node = model.add_input()
 
         model.state = input_node
         model.Return = tf.placeholder(
             dtype=tf.float32, shape=(None,), name='return')
+        model.learning_rate = lr
 
         # Policy gradient stuff
         if action_space == 'discrete':
@@ -84,6 +89,12 @@ def policy_gradient_model_factory(
                 tf.squeeze(output_node), model.action)
 
             model.loss = -tf.log(action_probability) * model.Return
+
+            model.optimizer = tf.train.AdamOptimizer(
+                learning_rate=lr)
+
+            model.log_pi = tf.log(action_probability)
+            model.create_gradient_ops_for_node(model.log_pi)
         elif action_space == 'continuous':
             # Gaussian policy is natural to use in continuous action spaces
             # http://home.deib.polimi.it/restelli/MyWebSite/pdf/rl7.pdf
@@ -102,18 +113,21 @@ def policy_gradient_model_factory(
             model.loss = -model.normal_dist.log_prob(
                 model.action) * model.Return
             model.loss -= 0.1 * model.normal_dist.entropy()
+
+            model.optimizer = tf.train.AdamOptimizer(
+                learning_rate=lr)
+            model.log_pi = model.normal_dist.log_prob(model.action)
+            model.create_gradient_ops_for_node(model.log_pi)
         else:
             raise ValueError('%s is not a valid action_space' % action_space)
 
-        model.optimizer = tf.train.AdamOptimizer(
-            learning_rate=learning_rate)
-
     def build_update_feed_dict(model, state, return_, action):
-        feed_dict = {model.state: np.array(np.expand_dims(state, 0)),
+        feed_dict = {model.state: np.expand_dims(np.array(state), 0),
                      model.Return: [return_], model.action: [action]}
         return feed_dict
 
     build_graph = partial(build_graph, network=network,
-                          action_space=action_space)
+                          action_space=action_space,
+                          lr=learning_rate)
 
     return Model(env, build_graph, build_update_feed_dict)

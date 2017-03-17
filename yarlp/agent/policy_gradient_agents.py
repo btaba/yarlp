@@ -79,7 +79,7 @@ class REINFORCEAgent(Agent):
                         self._value_model.update(
                             rollout.states[t], discounted_rt)
                         baseline = self._value_model.predict(
-                            np.array(rollout.states[t])).flatten()[0]
+                            np.array(rollout.states[t]))[0]
                     else:
                         baseline = np.mean(rollout.rewards[t:])
 
@@ -90,8 +90,8 @@ class REINFORCEAgent(Agent):
         return total_reward_per_training_episode
 
 
-class OneStepActorCriticPG(Agent):
-    """One-step actor critic with policy gradients.
+class ActorCriticPG(Agent):
+    """Multi-step actor critic with policy gradients.
     Boostrapping returns introduces bias and can be difficult to tune.
 
     Parameters
@@ -99,13 +99,17 @@ class OneStepActorCriticPG(Agent):
     """
 
     def __init__(self, policy_model,
-                 value_model_learning_rate=0.1, *args, **kwargs):
+                 value_model_learning_rate=0.1,
+                 lambda_p=1, lambda_v=1, *args, **kwargs):
         super().__init__(policy_model._env, *args, **kwargs)
         self._policy = policy_model
 
         self._value_model = value_function_model_factory(
             self._policy.env, network=tf.contrib.layers.fully_connected,
             learning_rate=value_model_learning_rate)
+
+        self._lambda_p = lambda_p
+        self._lambda_v = lambda_v
 
     def train(self, num_training_steps, with_baseline=True):
         """
@@ -123,28 +127,55 @@ class OneStepActorCriticPG(Agent):
         """
         total_reward_per_training_episode = []
         for i in range(num_training_steps):
+
+            # Make eligibility traces for each weight
+            e_v = self._value_model.get_weights()
+            e_v = [np.zeros_like(e) for e in e_v]
+            e_p = self._policy.get_weights()
+            e_p = [np.zeros_like(e) for e in e_p]
+
             # execute an episode
+            discount = 0
             total_rewards = 0
             obs = self._env.reset()
             for t in range(self.num_max_rollout_steps):
                 action = self.get_action(obs)
-                (obs_prime, reward, done, _) = self._env.step(action)
 
+                (obs_prime, reward, done, _) = self._env.step(action)
                 total_rewards += reward
 
                 v_prime = 0 if done else self._value_model.predict(
-                    np.array(obs_prime)).flatten()[0]
-                v = self._value_model.predict(np.array(obs)).flatten()[0]
+                    np.array(obs_prime))[0]
+                v = self._value_model.predict(np.array(obs))[0]
 
-                one_step_td_target = reward + self._discount * v_prime
-                td_error = one_step_td_target - v
+                td_target = reward + self._discount * v_prime
+                td_error = td_target - v
 
-                # the state-value function should model the one-step TD reward
-                self._value_model.update(obs, one_step_td_target)
+                feed = {self._value_model.state:
+                        np.expand_dims(np.array(obs), 0)}
+                grads_v = self._value_model.get_gradients(
+                    self._value_model.value.name, feed)
+                e_v = [e * self._lambda_v + discount * g[0]
+                       for e, g in zip(e_v, grads_v)]
+                w_v = self._value_model.get_weights()
 
-                # one-step TD error is advantage in policy update
-                self._policy.update(
-                    obs, td_error * (self._discount ** t), action)
+                w_v = [w + self._value_model.learning_rate * td_error * e
+                       for w, e in zip(w_v, e_v)]
+                self._value_model.set_weights(w_v)
+
+                feed = {self._policy.state: np.expand_dims(np.array(obs), 0),
+                        self._policy.action.name: [action]}
+                grads_p = self._policy.get_gradients(
+                    self._policy.log_pi.name, feed)
+                e_p = [e * self._lambda_p + discount * g[0]
+                       for e, g in zip(e_p, grads_p)]
+                w_p = self._policy.get_weights()
+
+                w_p = [w + self._policy.learning_rate * td_error * e
+                       for w, e in zip(w_p, e_p)]
+                self._policy.set_weights(w_p)
+
+                discount *= self._discount
                 obs = obs_prime
 
                 if done:

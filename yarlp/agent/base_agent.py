@@ -113,7 +113,7 @@ class Agent(ABC):
         integer indicating the action that should be taken
         """
         batch = np.array([state])
-        action = self._policy.predict(batch).flatten()
+        action = self._policy.predict(batch)
 
         if not self.env_is_discrete():
             return action

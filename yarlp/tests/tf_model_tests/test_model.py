@@ -16,7 +16,8 @@ class testModel(unittest.TestCase):
     def build_graph(model):
         # create vars and input
         model.state = model.add_input()
-        network = partial(tf.contrib.layers.fully_connected, weights_initializer=tf.contrib.layers.variance_scaling_initializer())
+        network = partial(tf.contrib.layers.fully_connected,
+            weights_initializer=tf.contrib.layers.variance_scaling_initializer())
         model.output_node = model.add_output(network, num_outputs=1)
         model.target_value = tf.placeholder(
             dtype=tf.float32, shape=(None,), name='target_value')

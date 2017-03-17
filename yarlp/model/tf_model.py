@@ -191,6 +191,9 @@ class Model:
         self.G['gradients_ops:' + node.name] = self.optimizer.apply_gradients(
             self.G['gradients:' + node.name])
 
+    def get_gradients(self, name, feed_dict):
+        return self.G(self.G['gradients:' + name], feed_dict)
+
     def apply_gradient_ops(self, name, feed_dict):
         return self.G(self.G['gradients_ops:' + name], feed_dict)
 
@@ -200,4 +203,4 @@ class Model:
             data = np.expand_dims(data, 0)
         output = self.G[output_name]
         feed_dict = {self.G[input_name]: data}
-        return self.G(output, feed_dict)
+        return self.G(output, feed_dict).flatten()
