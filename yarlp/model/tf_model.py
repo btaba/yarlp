@@ -115,7 +115,7 @@ class Model:
         return [w.name for w in self.G.TRAINABLE_VARIABLES]
 
     def get_weights(self):
-        """ get weight values """
+        """Get weight values"""
         return self.G(self.weights)
 
     def set_weights(self, weights):

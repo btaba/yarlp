@@ -1,10 +1,8 @@
 
-### TODO:
+##### TODO:
 
-- TD(lambda) actor critic PG
-- Refactor PG for continuous vs discrete action spaces
-- Deterministic policy gradient, and DDPG
-- Deep Q-learning, DDQ-learning
-- TRPO
+- Deterministic policy gradient
+- Deep Q-learning, DDQ-learning, DDPG
 - A3C
+- TRPO
 - Classic policy and value based methods

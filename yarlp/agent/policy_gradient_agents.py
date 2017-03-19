@@ -1,5 +1,5 @@
 """
-    REINFORCE Agent class, which takes in a PolicyModel object
+    REINFORCE Agent and Policy Gradient Actor Critic Agent
 """
 
 from yarlp.agent.base_agent import Agent
@@ -111,7 +111,7 @@ class ActorCriticPG(Agent):
         self._lambda_p = lambda_p
         self._lambda_v = lambda_v
 
-    def train(self, num_training_steps, with_baseline=True):
+    def train(self, num_training_steps):
         """
 
         Parameters
@@ -142,6 +142,7 @@ class ActorCriticPG(Agent):
                 action = self.get_action(obs)
 
                 (obs_prime, reward, done, _) = self._env.step(action)
+                # self._env.render()
                 total_rewards += reward
 
                 v_prime = 0 if done else self._value_model.predict(
@@ -157,8 +158,8 @@ class ActorCriticPG(Agent):
                     self._value_model.value.name, feed)
                 e_v = [e * self._lambda_v + discount * g[0]
                        for e, g in zip(e_v, grads_v)]
-                w_v = self._value_model.get_weights()
 
+                w_v = self._value_model.get_weights()
                 w_v = [w + self._value_model.learning_rate * td_error * e
                        for w, e in zip(w_v, e_v)]
                 self._value_model.set_weights(w_v)
@@ -169,8 +170,8 @@ class ActorCriticPG(Agent):
                     self._policy.log_pi.name, feed)
                 e_p = [e * self._lambda_p + discount * g[0]
                        for e, g in zip(e_p, grads_p)]
-                w_p = self._policy.get_weights()
 
+                w_p = self._policy.get_weights()
                 w_p = [w + self._policy.learning_rate * td_error * e
                        for w, e in zip(w_p, e_p)]
                 self._policy.set_weights(w_p)

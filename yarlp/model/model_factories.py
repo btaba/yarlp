@@ -100,7 +100,11 @@ def policy_gradient_model_factory(
             # http://home.deib.polimi.it/restelli/MyWebSite/pdf/rl7.pdf
             network = partial(network, activation_fn=None)
             model.mu = model.add_output(network, name='mean')
+
+            # std dev must always be positive
             model.sigma = model.add_output(network, name='std_dev')
+            model.sigma = tf.exp(model.sigma) + 1e-6
+            # model.sigma = tf.log(tf.exp(model.sigma) + 1) + 1e-6
 
             model.normal_dist = tf.contrib.distributions.Normal(
                 model.mu, model.sigma)
