@@ -11,7 +11,7 @@ def setup_package():
         'author_email': '',
         'url': '',
         'packages': find_packages(exclude=["*.tests", "*.tests.*",
-                                  "tests.*", "tests"])
+                                  "tests.*", "tests", "examples"])
     }
 
     setup(**config)

@@ -1,10 +1,13 @@
 """
     CEM Agent class, which takes in a PolicyModel object
 """
+from functools import partial
 from yarlp.agent.base_agent import Agent
+from yarlp.model.tf_model import Model
 
 import warnings
 import numpy as np
+import tensorflow as tf
 
 
 class CEMAgent(Agent):
@@ -28,10 +31,12 @@ class CEMAgent(Agent):
     best_pct : float, default 0.2
         The percentage of sample weights to keep that yield the best reward
     """
-    def __init__(self, policy_model, num_samples,
-                 init_var=0.1, best_pct=0.2, *args, **kwargs):
-        super().__init__(policy_model._env, *args, **kwargs)
-        self._policy = policy_model
+    def __init__(self, env, num_samples,
+                 init_var=0.1, best_pct=0.2,
+                 policy_network=tf.contrib.layers.fully_connected,
+                 *args, **kwargs):
+        super().__init__(env, *args, **kwargs)
+        self._policy = CEMAgent.policy_model_factory(env, policy_network)
 
         # Get model shapes
         self.model_shapes = [w.shape for w in self._policy.get_weights()]
@@ -48,6 +53,24 @@ class CEMAgent(Agent):
         # Number of best parameters to keep
         assert best_pct <= 1 and best_pct > 0
         self.num_best = int(best_pct * self.num_samples)
+
+    @staticmethod
+    def policy_model_factory(env, network):
+        """ Network for CEM agents
+        """
+
+        def build_graph(model, network):
+            model.add_input()
+            from functools import partial
+            network = partial(network, activation_fn=tf.nn.softmax)
+            model.add_output(network)
+
+        def build_update_feed_dict(model):
+            pass
+
+        build_graph = partial(build_graph, network=network)
+
+        return Model(env, build_graph, build_update_feed_dict)
 
     @property
     def theta(self):
