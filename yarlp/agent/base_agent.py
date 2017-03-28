@@ -14,6 +14,7 @@ class Agent(ABC):
     """
     Abstract class for an agent.
     """
+
     def __init__(self, env, num_max_rollout_steps, discount_factor=1):
         """
         num_max_rollout_steps : integer
@@ -64,10 +65,12 @@ class Agent(ABC):
         r = Rollout([], [], [])
 
         observation = self._env.reset()
+        observation = self.get_state(observation)
         for t in range(self.num_max_rollout_steps):
             r.states.append(observation)
             action = self.get_action(observation)
             (observation, reward, done, _) = self._env.step(action)
+            observation = self.get_state(observation)
             r.rewards.append(reward)
             r.actions.append(action)
             if done:
@@ -80,9 +83,11 @@ class Agent(ABC):
         done = False
         total_reward = 0
         observation = self._env.reset()
+        observation = self.get_state(observation)
         while not done and t < max_time_steps:
             action = self.get_action(observation, greedy=True)
             (observation, reward, done, _) = self._env.step(action)
+            observation = self.get_state(observation)
             total_reward += reward
             t += 1
         return total_reward
@@ -136,3 +141,10 @@ class Agent(ABC):
         integer indicating the action that should be taken
         """
         return np.random.choice(np.where(probs == probs.max())[0])
+
+    def get_state(self, state):
+        """
+        Get the state, allows for building state featurizers here
+        like tile coding
+        """
+        return state

@@ -1,8 +1,7 @@
 
 
 ##### TODO:
-
-- Deterministic policy gradient
+- Deterministic policy gradient, COPDAC-Q
 - Deep Q-learning, DDQ-learning, DDPG
 - A3C
 - TRPO

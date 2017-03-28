@@ -118,8 +118,13 @@ class Model:
         """Get weight values"""
         return self.G(self.weights)
 
+    def run_op(self, var, feed):
+        return self.G(var, feed)
+
     def set_weights(self, weights):
-        """Set weights in model from a list of weight values"""
+        """Set weights in model from a list of weight values.
+        The weight values must be in the same order return from get_weights()
+        """
         weight_dict = {w.name: val for w, val in zip(self.weights, weights)}
         self.weights = weight_dict
 
