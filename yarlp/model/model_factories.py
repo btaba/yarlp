@@ -148,3 +148,71 @@ def continuous_gaussian_pg_model_factory(
     m = ScaledNormal(env, build_graph, build_update_feed_dict)
 
     return m
+
+
+def ddpg_actor_critic_model_factory(
+        env, actor_network, critic_network, actor_learning_rate=0.01,
+        critic_learning_rate=0.01, input_shape=None):
+    """Actor and Critic models for deterministic policy gradient
+    """
+    def build_graph(model, actor_network, critic_network,
+                    actor_learning_rate, critic_learning_rate,
+                    input_shape):
+        model.state = model.add_input(shape=input_shape, name='state')
+
+        # TODO:
+        # Need to add batch_norm
+        # Add the action at a different layer instead of the first layer
+
+        # Actor
+        with tf.variable_scope('actor'):
+            a_network = partial(actor_network, activation_fn=None)
+            model.action = model.add_output(a_network, name='actor')
+
+        # Critic
+        model.action_input = model.add_input(
+            shape=model.action.get_shape(), name='action')
+        q_input = tf.concat([model.action_input, model.state], axis=1)
+        with tf.variable_scope('critic') as s:
+            c_network = partial(
+                critic_network, activation_fn=None, reuse=True,
+                scope=s)
+            model.q_value = model.add_output(
+                c_network, input_node=q_input, name='critic')
+
+        # Critic optimizer
+        model.td_value = tf.placeholder(
+            dtype=tf.float32, shape=(None,), name='td_value')
+        model.critic_loss = tf.reduce_mean(tf.squared_difference(
+            model.q_value, model.td_value))
+        model.critic_optimizer = tf.train.AdamOptimizer(
+            learning_rate=critic_learning_rate)
+        model.critic_optimizer.minimize(
+            model.critic_loss)
+
+        # Actor optimizer
+        q_input2 = tf.concat([model.action, model.state], axis=1)
+        with tf.variable_scope("critic"):
+            model.q_value_w_actor = model.add_output(
+                c_network, input_node=q_input2,
+                name='critic_with_actor_input')
+
+        model.actor_loss = tf.reduce_mean(model.q_value_w_actor)
+        model.actor_optimizer = tf.train.AdamOptimizer(
+            learning_rate=actor_learning_rate)
+        actor_vars = model.G.trainable_variables_for_scope('actor')
+        model.actor_optimizer.minimize(
+            model.actor_loss, var_list=actor_vars)
+
+    def build_update_feed_dict(model, state, action):
+        feed_dict = {model.state: np.expand_dims(np.array(state), 0),
+                     model.action: np.expand_dims(np.array(action), 0)}
+        return feed_dict
+
+    build_graph = partial(build_graph, actor_network=actor_network,
+                          critic_network=critic_network,
+                          actor_learning_rate=actor_learning_rate,
+                          critic_learning_rate=critic_learning_rate,
+                          input_shape=input_shape)
+
+    return Model(env, build_graph, build_update_feed_dict)

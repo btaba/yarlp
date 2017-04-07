@@ -129,8 +129,8 @@ class ActorCriticPG(Agent):
         elif action_space == 'continuous':
             self._policy = continuous_gaussian_pg_model_factory(
                 env, policy_learning_rate, input_shape)
-            warnings.warn('ActorCriticPG may result in numerical instability',
-                          'with Gaussian policy')
+            warnings.warn('ActorCriticPG may result in numerical instability '
+                          'with Gaussian policy', UserWarning)
         else:
             raise ValueError('%s is an invalid action_space' % action_space)
 

@@ -47,6 +47,10 @@ class Graph:
     def __call__(self, ops, feed_dict={}):
         return self._session.run(ops, feed_dict)
 
+    def trainable_variables_for_scope(self, scope):
+        return self._graph.get_collection(
+            tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope)
+
     @property
     def GLOBAL_VARIABLES(self):
         return self._graph.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
@@ -123,7 +127,7 @@ class Model:
 
     def set_weights(self, weights):
         """Set weights in model from a list of weight values.
-        The weight values must be in the same order return from get_weights()
+        The weight values must be in the same order returned from get_weights()
         """
         weight_dict = {w.name: val for w, val in zip(self.weights, weights)}
         self.weights = weight_dict
@@ -159,14 +163,18 @@ class Model:
 
         return self.input_node
 
-    def add_output(self, network, num_outputs=None, name='', dtype=tf.float32):
+    def add_output(self, network, num_outputs=None, name='', dtype=tf.float32,
+                   input_node=None):
         """ Add output node created from network
         """
         if num_outputs is None:
             num_outputs = self.get_env_action_space_dimension()
 
+        if input_node is None:
+            input_node = self.input_node
+
         output_node = network(
-            inputs=self.input_node, num_outputs=num_outputs)
+            inputs=input_node, num_outputs=num_outputs)
 
         self.G['output:' + name] = output_node
 

@@ -7,8 +7,8 @@ import gym
 import numpy as np
 import tensorflow as tf
 
-from yarlp.agent.policy_gradient_agents import REINFORCEAgent
-from yarlp.agent.policy_gradient_agents import ActorCriticPG
+from yarlp.agent.pg_agents import REINFORCEAgent
+# from yarlp.agent.pg_agents import ActorCriticPG
 
 
 class TestREINFORCECartPole(unittest.TestCase):
@@ -93,7 +93,7 @@ class TestREINFORCECartPole(unittest.TestCase):
 #             env, action_space='continuous',
 #             policy_learning_rate=0.001,
 #             num_max_rollout_steps=5000,
-#             discount_factor=0.995, lambda_p=0.5,
+#             discount_factor=0.995, lambda_p=0,
 #             lambda_v=0, state_featurizer=state_featurizer,
 #             value_model_learning_rate=0.5)
 #         agent.train(num_training_steps=30)
