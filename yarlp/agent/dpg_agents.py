@@ -25,7 +25,6 @@ class DDPG(Agent):
                  actor_learning_rate=0.01,
                  critic_network=tf.contrib.layers.fully_connected,
                  critic_learning_rate=0.1,
-                 # replay buffer parameters
                  minibatch_size=100,
                  replay_buffer_size=int(1e6),
                  tau=.001,
@@ -55,7 +54,6 @@ class DDPG(Agent):
         for i in range(num_training_steps):
 
             # Initialize random process for action exploration
-
 
             obs = self.get_state(self._env.reset())
             for t in range(self.num_max_rollout_steps):
