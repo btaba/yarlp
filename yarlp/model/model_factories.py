@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from yarlp.model.tf_model import Model
+from yarlp.model.model import Model
 from functools import partial
 
 

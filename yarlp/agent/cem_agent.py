@@ -3,7 +3,7 @@
 """
 from functools import partial
 from yarlp.agent.base_agent import Agent
-from yarlp.model.tf_model import Model
+from yarlp.model.model import Model
 from yarlp.utils.env_utils import env_action_space_is_discrete
 from yarlp.utils.logger import logger
 
@@ -22,7 +22,7 @@ class CEMAgent(Agent):
 
     Parameters
     ----------
-    policy_model : tf_model.Model
+    policy_model : model.Model
 
     num_samples : integer
         Total number of sample weights to draw for each training step

@@ -1,5 +1,5 @@
 """
-    Regression tests for the Graph in tf_model
+    Regression tests for the Model
 """
 
 import gym
@@ -7,7 +7,7 @@ import unittest
 import numpy as np
 import tensorflow as tf
 from functools import partial
-from yarlp.model.tf_model import Model
+from yarlp.model.model import Model
 
 
 class testModel(unittest.TestCase):

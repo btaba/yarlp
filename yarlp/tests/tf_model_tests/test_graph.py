@@ -1,10 +1,10 @@
 """
-    Regression tests for the Graph in tf_model
+    Regression tests for the Graph
 """
 
 import unittest
 import tensorflow as tf
-from yarlp.model.tf_model import Graph
+from yarlp.model.graph import Graph
 
 
 class TestGraph(unittest.TestCase):

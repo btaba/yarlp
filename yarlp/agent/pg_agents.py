@@ -31,7 +31,7 @@ class REINFORCEAgent(Agent):
 
     Parameters
     ----------
-    policy_model : tf_model.Model
+    policy_model : model.Model
 
     baseline_network : if None, we use average rewards as a baseline
 
@@ -115,9 +115,8 @@ class ActorCriticPG(Agent):
                  baseline_network=tf.contrib.layers.fully_connected,
                  value_model_learning_rate=0.1,
                  lambda_p=0.5, lambda_v=0.9,
-                 state_featurizer=lambda x: x, *args, **kwargs):
+                 *args, **kwargs):
         super().__init__(env, discount_factor=discount_factor, *args, **kwargs)
-        self.state_featurizer = state_featurizer
 
         input_shape = (None, self.get_state(
             env.observation_space.sample()).shape[0])
@@ -142,9 +141,6 @@ class ActorCriticPG(Agent):
         self._lambda_p = lambda_p
         self._lambda_v = lambda_v
         self._action_space = action_space
-
-    def get_state(self, state):
-        return self.state_featurizer(state)
 
     def train(self, num_training_steps):
         """

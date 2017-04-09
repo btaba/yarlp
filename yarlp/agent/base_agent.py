@@ -17,7 +17,8 @@ class Agent(ABC):
     Abstract class for an agent.
     """
 
-    def __init__(self, env, num_max_rollout_steps, discount_factor=1):
+    def __init__(self, env, num_max_rollout_steps, discount_factor=1,
+                 state_featurizer=lambda x: x):
         """
         num_max_rollout_steps : integer
             Maximum number of steps executed in an episode
@@ -33,6 +34,8 @@ class Agent(ABC):
         # Discount factor
         assert discount_factor >= 0 and discount_factor <= 1
         self._discount = discount_factor
+
+        self._state_featurizer = state_featurizer
 
     @abstractmethod
     def train(self):
@@ -146,4 +149,4 @@ class Agent(ABC):
         Get the state, allows for building state featurizers here
         like tile coding
         """
-        return state
+        return self._state_featurizer(state)
