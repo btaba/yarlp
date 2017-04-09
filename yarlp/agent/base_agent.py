@@ -5,6 +5,8 @@
 import numpy as np
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
+from yarlp.utils.env_utils import env_action_space_is_discrete
+from yarlp.utils.env_utils import get_env_action_space_dimension
 
 
 ABC = ABCMeta('ABC', (object,), {})
@@ -42,16 +44,9 @@ class Agent(ABC):
 
     @property
     def num_actions(self):
-        if self.env_is_discrete():
-            return self._env.action_space.n
-        return self._env.action_space.shape[0]
+        return get_env_action_space_dimension(self._env)
 
-    def env_is_discrete(self):
-        if hasattr(self._env.action_space, 'n'):
-            return True
-        return False
-
-    def rollout(self):
+    def rollout(self, render=False, render_freq=5):
         """
         Performs actions for num_max_rollout_steps on the environment
         based on the agent's current weights
@@ -70,6 +65,10 @@ class Agent(ABC):
             r.states.append(observation)
             action = self.get_action(observation)
             (observation, reward, done, _) = self._env.step(action)
+
+            if render and t and t % render_freq == 0:
+                self._env.render()
+
             observation = self.get_state(observation)
             r.rewards.append(reward)
             r.actions.append(action)
@@ -120,7 +119,7 @@ class Agent(ABC):
         batch = np.array([state])
         action = self._policy.predict(batch)
 
-        if not self.env_is_discrete():
+        if not env_action_space_is_discrete(self._env):
             return action
 
         if not greedy:

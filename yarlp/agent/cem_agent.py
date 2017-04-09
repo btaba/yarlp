@@ -4,8 +4,9 @@
 from functools import partial
 from yarlp.agent.base_agent import Agent
 from yarlp.model.tf_model import Model
+from yarlp.utils.env_utils import env_action_space_is_discrete
+from yarlp.utils.logger import logger
 
-import warnings
 import numpy as np
 import tensorflow as tf
 
@@ -54,21 +55,27 @@ class CEMAgent(Agent):
         assert best_pct <= 1 and best_pct > 0
         self.num_best = int(best_pct * self.num_samples)
 
+        logger.info('CEMAgent created.')
+
     @staticmethod
-    def policy_model_factory(env, network):
+    def policy_model_factory(env, policy_network):
         """ Network for CEM agents
         """
 
-        def build_graph(model, network):
+        def build_graph(model, env, network):
             model.add_input()
-            from functools import partial
-            network = partial(network, activation_fn=tf.nn.softmax)
-            model.add_output(network)
+
+            if env_action_space_is_discrete(env):
+                network = partial(network, activation_fn=tf.nn.softmax)
+                model.add_output(network)
+            else:
+                network = partial(network, activation_fn=None)
+                model.add_output(network, clip_action=True)
 
         def build_update_feed_dict(model):
             pass
 
-        build_graph = partial(build_graph, network=network)
+        build_graph = partial(build_graph, env=env, network=policy_network)
 
         return Model(env, build_graph, build_update_feed_dict)
 
@@ -79,7 +86,7 @@ class CEMAgent(Agent):
         ----------
         np.array of weights of policy model
         """
-        return self.reshape_weights(self._theta)
+        return self._reshape_weights(self._theta)
 
     @property
     def sigma(self):
@@ -88,9 +95,10 @@ class CEMAgent(Agent):
         ----------
         np.array of standard deviation of weights of policy model
         """
-        return self.reshape_weights(self._sigma)
+        return self._reshape_weights(self._sigma)
 
-    def train(self, num_training_steps, with_variance=False, alpha=5, beta=10):
+    def train(self, num_training_steps, with_variance=False, alpha=5, beta=10,
+              min_sigma=0.01, render=False, render_freq=5):
         """
         Learn the most optimal weights for our PolicyModel
             optionally with a variance adjustment as in [1]
@@ -112,20 +120,17 @@ class CEMAgent(Agent):
 
         Returns
         ----------
-        total_reward_per_training_episode : list
-            total reward obtained on each training step
-
+        None
         """
-        total_reward_per_training_episode = []
         for i in range(num_training_steps):
+            logger.info('Training step {}'.format(i))
             if np.any(self._sigma <= 0):
-                # raise ValueError(
-                #     'Variance for weight is less than or equal to 0')
-                warnings.warn(
-                    ("Variance for at least one weight "
-                        "is less than or equal to 0"),
-                    Warning)
-                return total_reward_per_training_episode
+                # warnings.warn(
+                #     ("Variance for at least one weight "
+                #         "is less than or equal to 0"),
+                #     Warning)
+                # return total_reward_per_training_episode
+                self._sigma[self._sigma <= 0] = min_sigma
 
             # generate n_samples each iteration with new mean and stddev
             # according to our current optimal mean and variance
@@ -138,16 +143,18 @@ class CEMAgent(Agent):
             rollout_rewards = []
             for w in weight_samples:
                 # add weights to PolicyModel
-                weights_reshaped = self.reshape_weights(w)
+                weights_reshaped = self._reshape_weights(w)
                 self._policy.set_weights(weights_reshaped)
-                rollout = self.rollout()
+                rollout = self.rollout(render=render, render_freq=render_freq)
                 rollout_rewards.append(np.sum(rollout.rewards))
-
-            # save average reward for this training step
-            total_reward_per_training_episode.append(np.sum(rollout_rewards))
 
             # get the num_best mean/var with highest reward
             rollout_rewards = np.array(rollout_rewards)
+            logger.info(
+                'Average rollout rewards: {}'.format(np.mean(rollout_rewards)))
+            logger.info(
+                'Total rollout rewards: {}'.format(np.sum(rollout_rewards)))
+
             best_idx = rollout_rewards.argsort()[::-1][:self.num_best]
             best_samples = weight_samples[best_idx]
 
@@ -156,21 +163,21 @@ class CEMAgent(Agent):
             var = best_samples.var(axis=0)
 
             if with_variance:
-                var += max(alpha - i / beta, 0)
+                var += max(alpha - i / float(beta), 0)
 
             self._theta = mean
             self._sigma = var
 
-        return total_reward_per_training_episode
+        return
 
-    def reshape_weights(self, weights_flat):
+    def _reshape_weights(self, weights_flat):
         """
-        Reshape weights from flat array of numbers to
-        the shape needed by keras model object
+        Reshape weights from flat array to
+        the shape needed by model object
 
         Parameters
         ----------
-        weights_flat : numpy array, shape = ??
+        weights_flat : numpy array
 
         Returns
         ----------

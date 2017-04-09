@@ -14,13 +14,13 @@ class TestCEMCartPole(unittest.TestCase):
     Cart-pole regression test on CEM agent
     """
 
-    def test_cem_tf(self):
+    def test_cem(self):
         # To solve the Cart-Pole we must get avg reward > 195
         # over 100 consecutive trials
         env = gym.make('CartPole-v0')
         agent = CEMAgent(
-            env, num_max_rollout_steps=1000,
-            num_samples=10, init_var=.1, best_pct=0.2)
+            env, num_max_rollout_steps=env.spec.max_episode_steps,
+            num_samples=25, init_var=.1, best_pct=0.2)
         agent.train(num_training_steps=50, with_variance=True)
 
         sampled_greedy_rewards = []
