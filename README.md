@@ -4,9 +4,10 @@
 
 ##### TODO:
 
-- Make an optimizer and test on existing agents CEM/REINFORCE -> make submissions
+- Explore external experiment implementations
+- add random baseline, log metrics, save model to file
+- Make an experiment method with optimizer and test on existing agents in parallel CEM/REINFORCE -> make submissions
 - Optimizer from and to json spec?
-- Simplify regression tests to train 1 epoch only
 
 - Add batch-norm to ddpg, http://ruishu.io/2016/12/27/batchnorm/
 - add action to nth-layer of Q
