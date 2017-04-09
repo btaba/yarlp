@@ -21,7 +21,7 @@ class ReplayBuffer(object):
         return len(self.mem)
 
     def get_random_minibatch(self, batch_size, flatten=True):
-        assert batch_size < self.size
+        assert batch_size <= self.size
 
         # O(N) runtime on get_random_minibatch, which I think is fine
         mem = list(self.mem)
