@@ -18,11 +18,12 @@ REINFORCE Agent and Policy Gradient (PG) Actor Critic Agent
 from yarlp.agent.base_agent import Agent
 from yarlp.model.model_factories import value_function_model_factory
 from yarlp.model.model_factories import discrete_pg_model_factory
-from yarlp.model.model_factories import continuous_gaussian_pg_model_factory
+# from yarlp.model.model_factories import continuous_gaussian_pg_model_factory
+from yarlp.utils.logger import logger
 
 import numpy as np
 import tensorflow as tf
-import warnings
+# import warnings
 
 
 class REINFORCEAgent(Agent):
@@ -33,13 +34,13 @@ class REINFORCEAgent(Agent):
     ----------
     policy_model : model.Model
 
-    baseline_network : if None, we use average rewards as a baseline
+    baseline_network : if None, we us no baseline
 
     """
     def __init__(self, env,
                  policy_network=tf.contrib.layers.fully_connected,
                  policy_learning_rate=0.01, action_space='discrete',
-                 baseline_network=None,
+                 baseline_network=tf.contrib.layers.fully_connected,
                  value_learning_rate=0.01, *args, **kwargs):
         super().__init__(env, *args, **kwargs)
 
@@ -47,7 +48,7 @@ class REINFORCEAgent(Agent):
             env, policy_network, policy_learning_rate)
 
         if not baseline_network:
-            # Classic REINFORCE from [1]
+            # No baseline
             self._baseline_model = None
         else:
             # Baseline can be any function,
@@ -55,92 +56,6 @@ class REINFORCEAgent(Agent):
             self._baseline_model = value_function_model_factory(
                 env, network=baseline_network,
                 learning_rate=value_learning_rate)
-
-    def train(self, num_training_steps, with_baseline=True):
-        """
-
-        Parameters
-        ----------
-        num_training_steps : integer
-            Total number of training steps
-
-        Returns
-        ----------
-        total_reward_per_training_episode : list
-            total reward obtained after each training episode
-
-        """
-        total_reward_per_training_episode = []
-        for i in range(num_training_steps):
-            # execute an episode
-            rollout = self.rollout()
-
-            # save average reward for this training step for reporting
-            total_reward_per_training_episode.append(np.sum(rollout.rewards))
-
-            for t, r in enumerate(rollout.rewards):
-                # update the weights for policy model
-                discounted_rt = self.get_discounted_cumulative_reward(
-                    rollout.rewards[t:])
-
-                baseline = 0
-                if with_baseline:
-                    if self._baseline_model:
-                        self._baseline_model.update(
-                            rollout.states[t], discounted_rt)
-                        baseline = self._baseline_model.predict(
-                            np.array(rollout.states[t]))[0]
-                    else:
-                        baseline = np.mean(rollout.rewards[t:])
-
-                advantage = discounted_rt - baseline
-                self._policy.update(
-                    rollout.states[t], advantage, rollout.actions[t])
-
-        return total_reward_per_training_episode
-
-
-class ActorCriticPG(Agent):
-    """Multi-step actor critic with policy gradients from [3] for
-    continuous and discrete action spaces.
-    Boostrapping returns introduces bias and can be difficult to tune.
-
-    Parameters
-    ----------
-    """
-
-    def __init__(self, env, discount_factor=0.99,
-                 policy_network=tf.contrib.layers.fully_connected,
-                 policy_learning_rate=0.01, action_space='continuous',
-                 baseline_network=tf.contrib.layers.fully_connected,
-                 value_model_learning_rate=0.1,
-                 lambda_p=0.5, lambda_v=0.9,
-                 *args, **kwargs):
-        super().__init__(env, discount_factor=discount_factor, *args, **kwargs)
-
-        input_shape = (None, self.get_state(
-            env.observation_space.sample()).shape[0])
-
-        if action_space == 'discrete':
-            self._policy = discrete_pg_model_factory(
-                env, policy_network,
-                policy_learning_rate, input_shape)
-        elif action_space == 'continuous':
-            self._policy = continuous_gaussian_pg_model_factory(
-                env, policy_learning_rate, input_shape)
-            warnings.warn('ActorCriticPG may result in numerical instability '
-                          'with Gaussian policy', UserWarning)
-        else:
-            raise ValueError('%s is an invalid action_space' % action_space)
-
-        self._value_model = value_function_model_factory(
-            env, network=baseline_network,
-            learning_rate=value_model_learning_rate,
-            input_shape=input_shape)
-
-        self._lambda_p = lambda_p
-        self._lambda_v = lambda_v
-        self._action_space = action_space
 
     def train(self, num_training_steps):
         """
@@ -156,69 +71,162 @@ class ActorCriticPG(Agent):
             total reward obtained after each training episode
 
         """
-        total_reward_per_training_episode = []
         for i in range(num_training_steps):
-
-            # Make eligibility traces for each weight
-            e_v = self._value_model.get_weights()
-            e_v = [np.zeros_like(e) for e in e_v]
-            e_p = self._policy.get_weights()
-            e_p = [np.zeros_like(e) for e in e_p]
-
             # execute an episode
-            total_rewards = 0
-            obs = self._env.reset()
-            obs = self.get_state(obs)
-            for t in range(self.num_max_rollout_steps):
-                action = self.get_action(obs)
+            rollout = self.rollout()
 
-                (obs_prime, reward, done, _) = self._env.step(action)
+            actions = []
+            states = []
+            advantages = []
 
-                total_rewards += reward
-                obs_prime = self.get_state(obs_prime)
+            for t, r in enumerate(rollout.rewards):
+                # update the weights for policy model
+                discounted_rt = self.get_discounted_cumulative_reward(
+                    rollout.rewards[t:])
 
-                # Get the TD error
-                v_prime = 0 if done else self._value_model.predict(
-                    obs_prime)[0]
-                v = self._value_model.predict(obs)[0]
-                td_target = reward + self._discount * v_prime
-                td_error = td_target - v
+                baseline = 0
+                if self._baseline_model:
+                    self._baseline_model.update(
+                        rollout.states[t], discounted_rt)
+                    baseline = self._baseline_model.predict(
+                        np.array(rollout.states[t])).flatten()
 
-                # Update the value function
-                feed = {self._value_model.state:
-                        np.expand_dims(obs, 0)}
-                grads_v = self._value_model.get_gradients(
-                    self._value_model.value.name, feed)
+                advantage = discounted_rt - baseline
+                states.append(rollout.states[t])
+                actions.append(rollout.actions[t])
+                advantages.append(advantage)
 
-                e_v = [e * self._lambda_v * self._discount + g[0]
-                       for e, g in zip(e_v, grads_v)]
-                w_v = self._value_model.get_weights()
-                w_v = [w + self._value_model.learning_rate * td_error * e
-                       for w, e in zip(w_v, e_v)]
-                self._value_model.set_weights(w_v)
+            # batch update the policy
+            self._policy.update(
+                states, advantages, actions)
 
-                # Update the policy function
-                feed = {self._policy.state: np.expand_dims(obs, 0),
-                        self._policy.action.name: [action]}
-                grads_p = self._policy.get_gradients(
-                    self._policy.log_pi.name, feed)
+            logger.info('Training Step {}'.format(i))
+            logger.info('Episode length {}'.format(len(rollout.rewards)))
+            logger.info('Average reward {}'.format(np.mean(rollout.rewards)))
+            logger.info('Total reward {}'.format(np.sum(rollout.rewards)))
 
-                assert np.all([not np.any(np.isnan(g)) and
-                              not np.any(np.isinf(g)) for g in grads_p])
+        return
 
-                e_p = [e * self._lambda_p * self._discount + g[0]
-                       for e, g in zip(e_p, grads_p)]
-                w_p = self._policy.get_weights()
-                w_p = [w + self._policy.learning_rate * td_error * e
-                       for w, e in zip(w_p, e_p)]
-                self._policy.set_weights(w_p)
 
-                obs = obs_prime
-                if done:
-                    break
+# class ActorCriticPG(Agent):
+#     """Multi-step actor critic with policy gradients from [3] for
+#     continuous and discrete action spaces.
+#     Boostrapping returns introduces bias and can be difficult to tune.
 
-            print(t, total_rewards)
+#     Parameters
+#     ----------
+#     """
 
-            total_reward_per_training_episode.append(total_rewards)
+#     def __init__(self, env, discount_factor=0.99,
+#                  policy_network=tf.contrib.layers.fully_connected,
+#                  policy_learning_rate=0.01, action_space='continuous',
+#                  baseline_network=tf.contrib.layers.fully_connected,
+#                  value_model_learning_rate=0.1,
+#                  lambda_p=0.5, lambda_v=0.9,
+#                  *args, **kwargs):
+#         super().__init__(env, discount_factor=discount_factor, *args, **kwargs)
 
-        return total_reward_per_training_episode
+#         input_shape = (None, self.get_state(
+#             env.observation_space.sample()).shape[0])
+
+#         if action_space == 'discrete':
+#             self._policy = discrete_pg_model_factory(
+#                 env, policy_network,
+#                 policy_learning_rate, input_shape)
+#         elif action_space == 'continuous':
+#             self._policy = continuous_gaussian_pg_model_factory(
+#                 env, policy_learning_rate, input_shape)
+#             warnings.warn('ActorCriticPG may result in numerical instability '
+#                           'with Gaussian policy', UserWarning)
+#         else:
+#             raise ValueError('%s is an invalid action_space' % action_space)
+
+#         self._value_model = value_function_model_factory(
+#             env, network=baseline_network,
+#             learning_rate=value_model_learning_rate,
+#             input_shape=input_shape)
+
+#         self._lambda_p = lambda_p
+#         self._lambda_v = lambda_v
+#         self._action_space = action_space
+
+#     def train(self, num_training_steps):
+#         """
+
+#         Parameters
+#         ----------
+#         num_training_steps : integer
+#             Total number of training steps
+
+#         Returns
+#         ----------
+#         total_reward_per_training_episode : list
+#             total reward obtained after each training episode
+
+#         """
+#         total_reward_per_training_episode = []
+#         for i in range(num_training_steps):
+
+#             # Make eligibility traces for each weight
+#             e_v = self._value_model.get_weights()
+#             e_v = [np.zeros_like(e) for e in e_v]
+#             e_p = self._policy.get_weights()
+#             e_p = [np.zeros_like(e) for e in e_p]
+
+#             # execute an episode
+#             total_rewards = 0
+#             obs = self._env.reset()
+#             obs = self.get_state(obs)
+#             for t in range(self.num_max_rollout_steps):
+#                 action = self.get_action(obs)
+
+#                 (obs_prime, reward, done, _) = self._env.step(action)
+
+#                 total_rewards += reward
+#                 obs_prime = self.get_state(obs_prime)
+
+#                 # Get the TD error
+#                 v_prime = 0 if done else self._value_model.predict(
+#                     obs_prime)[0]
+#                 v = self._value_model.predict(obs)[0]
+#                 td_target = reward + self._discount * v_prime
+#                 td_error = td_target - v
+
+#                 # Update the value function
+#                 feed = {self._value_model.state:
+#                         np.expand_dims(obs, 0)}
+#                 grads_v = self._value_model.get_gradients(
+#                     self._value_model.value.name, feed)
+
+#                 e_v = [e * self._lambda_v * self._discount + g[0]
+#                        for e, g in zip(e_v, grads_v)]
+#                 w_v = self._value_model.get_weights()
+#                 w_v = [w + self._value_model.learning_rate * td_error * e
+#                        for w, e in zip(w_v, e_v)]
+#                 self._value_model.set_weights(w_v)
+
+#                 # Update the policy function
+#                 feed = {self._policy.state: np.expand_dims(obs, 0),
+#                         self._policy.action.name: [action]}
+#                 grads_p = self._policy.get_gradients(
+#                     self._policy.log_pi.name, feed)
+
+#                 assert np.all([not np.any(np.isnan(g)) and
+#                               not np.any(np.isinf(g)) for g in grads_p])
+
+#                 e_p = [e * self._lambda_p * self._discount + g[0]
+#                        for e, g in zip(e_p, grads_p)]
+#                 w_p = self._policy.get_weights()
+#                 w_p = [w + self._policy.learning_rate * td_error * e
+#                        for w, e in zip(w_p, e_p)]
+#                 self._policy.set_weights(w_p)
+
+#                 obs = obs_prime
+#                 if done:
+#                     break
+
+#             print(t, total_rewards)
+
+#             total_reward_per_training_episode.append(total_rewards)
+
+#         return total_reward_per_training_episode

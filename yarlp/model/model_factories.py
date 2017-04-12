@@ -56,22 +56,23 @@ def discrete_pg_model_factory(
 
         # Softmax policy for discrete action spaces
         network = partial(network, activation_fn=tf.nn.softmax)
-        output_node = model.add_output(network)
+        model.output_node = model.add_output(network)
         model.action = tf.placeholder(
             dtype=tf.int32, shape=(None,), name='action')
-        action_probability = tf.gather(
-            tf.squeeze(output_node), model.action)
+        action_one_hot = tf.one_hot(model.action, model.output_node.shape[1])
+        model.log_pi = tf.log(tf.reduce_sum(
+            action_one_hot * model.output_node, 1))
 
-        model.loss = -tf.log(action_probability) * model.Return
+        model.loss = -tf.reduce_sum(
+            model.log_pi * model.Return)
         model.optimizer = tf.train.AdamOptimizer(
             learning_rate=lr)
 
-        model.log_pi = tf.log(action_probability)
         model.create_gradient_ops_for_node(model.log_pi)
 
     def build_update_feed_dict(model, state, return_, action):
-        feed_dict = {model.state: np.expand_dims(np.array(state), 0),
-                     model.Return: [return_], model.action: [action]}
+        feed_dict = {model.state: state,
+                     model.Return: np.squeeze([return_]), model.action: action}
         return feed_dict
 
     build_graph = partial(build_graph, network=network,
