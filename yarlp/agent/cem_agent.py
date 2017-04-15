@@ -97,7 +97,7 @@ class CEMAgent(Agent):
         """
         return self._reshape_weights(self._sigma)
 
-    def train(self, num_training_steps, with_variance=False, alpha=5, beta=10,
+    def train(self, num_train_steps, with_variance=False, alpha=5, beta=10,
               min_sigma=0.01, render=False, render_freq=5):
         """
         Learn the most optimal weights for our PolicyModel
@@ -122,7 +122,7 @@ class CEMAgent(Agent):
         ----------
         None
         """
-        for i in range(num_training_steps):
+        for i in range(num_train_steps):
             logger.info('Training step {}'.format(i))
             if np.any(self._sigma <= 0):
                 # warnings.warn(

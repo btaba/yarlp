@@ -17,19 +17,13 @@ class Agent(ABC):
     Abstract class for an agent.
     """
 
-    def __init__(self, env, num_max_rollout_steps, discount_factor=1,
+    def __init__(self, env, discount_factor=1,
                  state_featurizer=lambda x: x):
         """
-        num_max_rollout_steps : integer
-            Maximum number of steps executed in an episode
-
         discount_factor : float
             Discount rewards by this factor
         """
         self._env = env
-
-        # Maximum number of steps in an episode
-        self.num_max_rollout_steps = num_max_rollout_steps
 
         # Discount factor
         assert discount_factor >= 0 and discount_factor <= 1
@@ -51,7 +45,7 @@ class Agent(ABC):
 
     def rollout(self, render=False, render_freq=5):
         """
-        Performs actions for num_max_rollout_steps on the environment
+        Performs actions on the environment
         based on the agent's current weights
 
         Returns
@@ -64,7 +58,7 @@ class Agent(ABC):
 
         observation = self._env.reset()
         observation = self.get_state(observation)
-        for t in range(self.num_max_rollout_steps):
+        for t in range(self._env.spec.timestep_limit):
             r.states.append(observation)
             action = self.get_action(observation)
             (observation, reward, done, _) = self._env.step(action)
@@ -80,13 +74,13 @@ class Agent(ABC):
 
         return r
 
-    def do_greedy_episode(self, max_time_steps=1000):
+    def do_greedy_episode(self):
         t = 0
         done = False
         total_reward = 0
         observation = self._env.reset()
         observation = self.get_state(observation)
-        while not done and t < max_time_steps:
+        while not done and t < self._env.spec.timestep_limit:
             action = self.get_action(observation, greedy=True)
             (observation, reward, done, _) = self._env.step(action)
             observation = self.get_state(observation)

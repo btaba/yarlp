@@ -51,7 +51,7 @@ class testModel(unittest.TestCase):
     def test_gradient_ops(self):
         env = gym.make('CartPole-v0')
         M = Model(env, testModel.build_graph, testModel.build_update_feed_dict)
-        feed_dict = M.build_update_feed([0, 1, 0, 2], 2)
+        feed_dict = M.build_update_feed([0, 2, 0, 4], 1e6)
 
         weights_before = M.get_weights()[0]
         M.apply_gradient_ops(M.output_node.name, feed_dict)

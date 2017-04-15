@@ -39,7 +39,7 @@ class REINFORCEAgent(Agent):
     """
     def __init__(self, env,
                  policy_network=tf.contrib.layers.fully_connected,
-                 policy_learning_rate=0.01, action_space='discrete',
+                 policy_learning_rate=0.01,
                  baseline_network=tf.contrib.layers.fully_connected,
                  value_learning_rate=0.01, *args, **kwargs):
         super().__init__(env, *args, **kwargs)
@@ -57,7 +57,7 @@ class REINFORCEAgent(Agent):
                 env, network=baseline_network,
                 learning_rate=value_learning_rate)
 
-    def train(self, num_training_steps):
+    def train(self, num_train_steps, num_test_steps=0):
         """
 
         Parameters
@@ -71,7 +71,7 @@ class REINFORCEAgent(Agent):
             total reward obtained after each training episode
 
         """
-        for i in range(num_training_steps):
+        for i in range(num_train_steps):
             # execute an episode
             rollout = self.rollout()
 
@@ -100,9 +100,14 @@ class REINFORCEAgent(Agent):
             self._policy.update(
                 states, advantages, actions)
 
+            for t_test in range(num_test_steps):
+                self.do_greedy_episode()
+                # gather stats
+
             logger.info('Training Step {}'.format(i))
             logger.info('Episode length {}'.format(len(rollout.rewards)))
             logger.info('Average reward {}'.format(np.mean(rollout.rewards)))
+            logger.info('Std reward {}'.format(np.std(rollout.rewards)))
             logger.info('Total reward {}'.format(np.sum(rollout.rewards)))
 
         return

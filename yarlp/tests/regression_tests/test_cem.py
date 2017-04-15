@@ -16,6 +16,6 @@ class TestCEMCartPole(unittest.TestCase):
     def test_cem(self):
         env = gym.make('CartPole-v0')
         agent = CEMAgent(
-            env, num_max_rollout_steps=env.spec.max_episode_steps,
+            env,
             num_samples=25, init_var=.1, best_pct=0.2)
-        agent.train(num_training_steps=1, with_variance=True)
+        agent.train(num_train_steps=1, with_variance=True)

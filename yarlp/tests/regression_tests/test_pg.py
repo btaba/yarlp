@@ -17,13 +17,11 @@ class TestREINFORCECartPole(unittest.TestCase):
     def test_reinforce_no_baseline(self):
         agent = REINFORCEAgent(
             self.env, baseline_network=None,
-            num_max_rollout_steps=self.env.spec.timestep_limit,
             discount_factor=.95)
-        agent.train(num_training_steps=1)
+        agent.train(num_train_steps=1)
 
     def test_reinforce_w_baseline(self):
         agent = REINFORCEAgent(
             self.env,
-            num_max_rollout_steps=self.env.spec.timestep_limit,
             discount_factor=.95)
-        agent.train(num_training_steps=1)
+        agent.train(num_train_steps=1)

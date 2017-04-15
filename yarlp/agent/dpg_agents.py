@@ -56,15 +56,15 @@ class DDPG(Agent):
         self.TAU = tau
         self.exploration_noise = exploration_noise
 
-    def train(self, num_training_steps):
+    def train(self, num_train_steps):
         # loop through episodes
-        for i in range(num_training_steps):
+        for i in range(num_train_steps):
 
             self.exploration_noise.reset()
 
             obs = self.get_state(self._env.reset())
 
-            for t in range(self.num_max_rollout_steps):
+            for t in range(self._env.spec.timestep_limit):
                 # get action, take action, store transition in ReplayBuffer
                 a = self._policy.predict(
                     obs, output_name='output:', input_name='input:')
