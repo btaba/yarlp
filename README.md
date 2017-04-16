@@ -5,12 +5,12 @@
 ##### TODO:
 
 - Make an experimentation method
-    - log metrics, save model to file
-    - reload models from files
-    - resume experiment if it fails
+    - log metrics with RandomAgent
+    - save model to file and reload
     - create submission files and videos
-    - multiprocess the experiments instead of threading
-    - add tests
+    - resume experiment if it fails
+    - add tests for experiment
+    - create a schema validator class that loads the schema from json
 
 - Add policy classes continuous gaussian, categorical, and deterministic, random uniform
     - Make generic q-function and policy models handling both continuous/deterministic action spaces

@@ -5,7 +5,7 @@ import copy
 
 from jsonschema import validate
 from itertools import product
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from yarlp.experiment.experiment_schema import schema
 from yarlp.experiment.job import Job
 from yarlp.experiment.experiment_utils import ExperimentUtils
@@ -29,12 +29,13 @@ class Experiment(ExperimentUtils):
         self._validate_agent_names(_spec_list)
         self._spec_list = self._add_validated_env_repeats(_spec_list)
 
-    def run(self):
+        # create log directory and save the full spec to the directory
         self._experiment_dir = self._create_log_dir(
             self._spec_filename)
         Experiment.save_spec_to_dir(self._spec_list, self._experiment_dir)
 
-        with ThreadPoolExecutor(max_workers=self.n_jobs) as ex:
+    def run(self):
+        with ProcessPoolExecutor(max_workers=self.n_jobs) as ex:
             for j in self._jobs:
                 ex.submit(j)
 
@@ -69,19 +70,28 @@ class Experiment(ExperimentUtils):
 
             for r in range(s['envs']['repeats']):
                 s_copy = copy.deepcopy(s)
-                run_name = s['envs']['name'] + '_run{}'.format(r)
-                s_copy['envs']['run_name'] = run_name
+                run_name = '{}_{}_run{}'.format(
+                    s['envs']['name'], s['agents']['type'], r)
+                s_copy['run_name'] = run_name
                 repeated_spec_list.append(s_copy)
 
         return repeated_spec_list
 
     def _validate_agent_names(self, spec):
+        agent_set = set()
         cls_dict = Experiment.get_agent_cls_dict()
         for s in spec:
             agent_name = s['agents']['type']
             assert agent_name in cls_dict,\
                 "{} is not an implemented agent. Select one of {}".format(
                     agent_name, cls_dict.keys())
+
+            assert agent_name not in agent_set,\
+                """{} is duplicated in the experiment spec,
+                please remove it""".format(
+                    agent_name)
+
+            agent_set.add(agent_name)
 
     def _create_log_dir(self, spec_filename):
         base_filename = os.path.basename(spec_filename)

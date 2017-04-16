@@ -13,7 +13,7 @@ class ExperimentUtils:
 
     @staticmethod
     def get_datetime_str():
-        return datetime.now().strftime("_%Y-%m-%d_%H:%M:%S")
+        return datetime.now().strftime("_%Y-%m-%d_%H-%M-%S")
 
     @staticmethod
     def create_log_directory(name, prepend_dir_name):

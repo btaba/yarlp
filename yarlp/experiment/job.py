@@ -6,7 +6,6 @@ class Job(ExperimentUtils):
     def __init__(self, spec_dict, log_dir):
         self._spec_dict = spec_dict
         self._log_dir = log_dir
-        self._load()
 
     def _load(self):
         self._env = self._get_env()
@@ -16,6 +15,7 @@ class Job(ExperimentUtils):
         self._testing_epochs = self._spec_dict['agents']['testing_epochs']
 
     def __call__(self):
+        self._load()
         self._agent.train(self._training_epochs, self._testing_epochs)
         self._env.close()
 
@@ -35,5 +35,5 @@ class Job(ExperimentUtils):
         return agent_cls(env=self._env, **params)
 
     def _create_log_dir(self):
-        dir_name = self._spec_dict['envs']['run_name']
+        dir_name = self._spec_dict['run_name']
         return Job.create_log_directory(dir_name, self._log_dir)
