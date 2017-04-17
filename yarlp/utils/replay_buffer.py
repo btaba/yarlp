@@ -3,6 +3,9 @@ from collections import namedtuple
 from collections import deque
 
 
+Rollout = namedtuple('Rollout', 'rewards actions states')
+
+
 class ReplayBuffer(object):
     def __init__(self, max_size=1000000):
         self.max_size = max_size

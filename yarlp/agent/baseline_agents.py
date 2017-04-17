@@ -3,7 +3,6 @@ Random actions as a baseline
 """
 
 from yarlp.agent.base_agent import Agent
-from yarlp.utils.logger import logger
 
 import numpy as np
 
@@ -29,18 +28,18 @@ class RandomAgent(Agent):
         ----------
         """
         for i in range(num_train_steps):
-            # execute an episode
+
             rollout = self.rollout()
 
-            for t_test in range(num_test_steps):
-                self.do_greedy_episode()
-                # gather stats
+            self.logger.set_metrics_for_rollout(rollout, train=True)
+            self.logger.log()
 
-            logger.info('Training Step {}'.format(i))
-            logger.info('Episode length {}'.format(len(rollout.rewards)))
-            logger.info('Average reward {}'.format(np.mean(rollout.rewards)))
-            logger.info('Std reward {}'.format(np.std(rollout.rewards)))
-            logger.info('Total reward {}'.format(np.sum(rollout.rewards)))
+            r = []
+            for t_test in range(num_test_steps):
+                rollout = self.do_greedy_episode()
+                r.append(rollout)
+            self.logger.set_metrics_for_rollout(r, train=False)
+            self.logger.log()
 
         return
 

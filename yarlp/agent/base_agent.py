@@ -4,9 +4,10 @@
 
 import numpy as np
 from abc import ABCMeta, abstractmethod
-from collections import namedtuple
 from yarlp.utils.env_utils import env_action_space_is_discrete
 from yarlp.utils.env_utils import get_env_action_space_dim
+from yarlp.utils.metric_logger import MetricLogger
+from yarlp.utils.replay_buffer import Rollout
 
 
 ABC = ABCMeta('ABC', (object,), {})
@@ -18,6 +19,7 @@ class Agent(ABC):
     """
 
     def __init__(self, env, discount_factor=1,
+                 logger=None,
                  state_featurizer=lambda x: x):
         """
         discount_factor : float
@@ -28,6 +30,11 @@ class Agent(ABC):
         # Discount factor
         assert discount_factor >= 0 and discount_factor <= 1
         self._discount = discount_factor
+
+        if logger is None:
+            self.logger = MetricLogger()
+        else:
+            self.logger = logger
 
         self._state_featurizer = state_featurizer
 
@@ -52,8 +59,6 @@ class Agent(ABC):
         ----------
         Rollout : named tuple
         """
-
-        Rollout = namedtuple('Rollout', 'rewards actions states')
         r = Rollout([], [], [])
 
         observation = self._env.reset()
@@ -75,18 +80,22 @@ class Agent(ABC):
         return r
 
     def do_greedy_episode(self):
+        r = Rollout([], [], [])
+
         t = 0
         done = False
-        total_reward = 0
         observation = self._env.reset()
         observation = self.get_state(observation)
-        while not done and t < self._env.spec.timestep_limit:
+        while not done:
+            r.states.append(observation)
             action = self.get_action(observation, greedy=True)
             (observation, reward, done, _) = self._env.step(action)
             observation = self.get_state(observation)
-            total_reward += reward
+            r.rewards.append(reward)
+            r.actions.append(action)
             t += 1
-        return total_reward
+
+        return r
 
     def get_discounted_cumulative_reward(self, rewards):
         """
