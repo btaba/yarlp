@@ -26,3 +26,12 @@ class ExperimentUtils:
     def save_spec_to_dir(spec, dir):
         file_path = os.path.join(dir, 'spec.json')
         json.dump(spec, open(file_path, 'w'), indent=4)
+
+    @staticmethod
+    def create_video_callable(video):
+        assert isinstance(video, bool)
+
+        if not video:
+            return False
+
+        return None

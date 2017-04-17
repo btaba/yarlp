@@ -5,6 +5,7 @@ import numpy as np
 class ExplorationNoise(object):
     """Noise that is added to action exploration for deterministic policies.
     """
+
     def __init__(self):
         pass
 
@@ -27,6 +28,7 @@ class ExplorationNoise(object):
 class AnnealedGaussian(ExplorationNoise):
     """Annealed Gaussian Noise
     """
+
     def __init__(self, mu, max_sigma, min_sigma,
                  n_actions=1, n_annealing_steps=1000000):
         super(AnnealedGaussian, self).__init__()
@@ -58,6 +60,7 @@ class OrnsteinUhlenbeck(ExplorationNoise):
     dx_t = theta * (mu - x_t) * dt + sigma dW_t
     where dW_t is a Weiner process
     """
+
     def __init__(self, mu, theta, sigma, n_actions=1, dt=1):
         super(OrnsteinUhlenbeck, self).__init__()
         assert theta > 0

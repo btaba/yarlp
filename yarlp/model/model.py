@@ -43,7 +43,7 @@ class Model:
     def env(self):
         return self._env
 
-    def get_env_action_space_dimension(self):
+    def get_env_action_space_dim(self):
         if hasattr(self._env.action_space, 'n'):
             return self._env.action_space.n
         return self._env.action_space.shape[0]
@@ -114,7 +114,7 @@ class Model:
         """ Add output node created from network
         """
         if num_outputs is None:
-            num_outputs = self.get_env_action_space_dimension()
+            num_outputs = self.get_env_action_space_dim()
 
         if input_node is None:
             input_node = self.input_node

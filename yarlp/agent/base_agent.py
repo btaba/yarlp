@@ -6,7 +6,7 @@ import numpy as np
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 from yarlp.utils.env_utils import env_action_space_is_discrete
-from yarlp.utils.env_utils import get_env_action_space_dimension
+from yarlp.utils.env_utils import get_env_action_space_dim
 
 
 ABC = ABCMeta('ABC', (object,), {})
@@ -41,7 +41,7 @@ class Agent(ABC):
 
     @property
     def num_actions(self):
-        return get_env_action_space_dimension(self._env)
+        return get_env_action_space_dim(self._env)
 
     def rollout(self, render=False, render_freq=5):
         """

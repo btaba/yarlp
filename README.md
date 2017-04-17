@@ -5,7 +5,8 @@
 ##### TODO:
 
 - Make an experimentation method
-    - log metrics with RandomAgent
+    - create logger metric class, which stores tabular data, saves to csv
+        - agent needs to call this class for each training and testing step
     - save model to file and reload
     - create submission files and videos
     - resume experiment if it fails

@@ -12,7 +12,16 @@ from yarlp.experiment.experiment_utils import ExperimentUtils
 
 
 class Experiment(ExperimentUtils):
-    def __init__(self, json_spec_filename, n_jobs=1):
+    def __init__(self, json_spec_filename, n_jobs=1,
+                 video=False):
+        """
+
+        Params
+        ----------
+        video (bool): False disables video recording. otherwise
+            we us the defaul openai gym behavior of taking videos on
+            every cube up until 1000, and then for every 1000 episodes.
+        """
         assert os.path.exists(json_spec_filename) and\
             os.path.isfile(json_spec_filename)
 
@@ -20,6 +29,7 @@ class Experiment(ExperimentUtils):
         spec_file_handle = open(json_spec_filename, 'r')
         self._raw_spec = json.load(spec_file_handle)
         self.n_jobs = n_jobs
+        self.video = video
 
         # validate the json spec using jsonschema
         validate(self._raw_spec, schema)
@@ -42,7 +52,7 @@ class Experiment(ExperimentUtils):
     @property
     def _jobs(self):
         for s in self._spec_list:
-            yield Job(s, self._experiment_dir)
+            yield Job(s, self._experiment_dir, self.video)
 
     def _spec_product(self, spec):
         """Cartesian product of a json spec, list of specs unique by env and agent

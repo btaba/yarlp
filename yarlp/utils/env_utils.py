@@ -10,7 +10,7 @@ def env_action_space_is_discrete(env):
         raise NotImplementedError('Uknown base environment: ', env)
 
 
-def get_env_action_space_dimension(env):
+def get_env_action_space_dim(env):
     if env_action_space_is_discrete(env):
         return env.action_space.n
     return env.action_space.shape[0]
