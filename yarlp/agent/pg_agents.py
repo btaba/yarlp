@@ -19,7 +19,7 @@ from yarlp.agent.base_agent import Agent
 from yarlp.model.model_factories import value_function_model_factory
 from yarlp.model.model_factories import discrete_pg_model_factory
 # from yarlp.model.model_factories import continuous_gaussian_pg_model_factory
-from yarlp.utils.logger import logger
+# from yarlp.utils.logger import logger
 
 import numpy as np
 import tensorflow as tf
@@ -99,16 +99,21 @@ class REINFORCEAgent(Agent):
             # batch update the policy
             self._policy.update(
                 states, advantages, actions)
+            self.logger.set_metrics_for_rollout(rollout, train=True)
+            self.logger.log()
 
+            r = []
             for t_test in range(num_test_steps):
-                self.do_greedy_episode()
-                # gather stats
+                rollout = self.do_greedy_episode()
+                r.append(rollout)
+            self.logger.set_metrics_for_rollout(r, train=False)
+            self.logger.log()
 
-            logger.info('Training Step {}'.format(i))
-            logger.info('Episode length {}'.format(len(rollout.rewards)))
-            logger.info('Average reward {}'.format(np.mean(rollout.rewards)))
-            logger.info('Std reward {}'.format(np.std(rollout.rewards)))
-            logger.info('Total reward {}'.format(np.sum(rollout.rewards)))
+            # logger.info('Training Step {}'.format(i))
+            # logger.info('Episode length {}'.format(len(rollout.rewards)))
+            # logger.info('Average reward {}'.format(np.mean(rollout.rewards)))
+            # logger.info('Std reward {}'.format(np.std(rollout.rewards)))
+            # logger.info('Total reward {}'.format(np.sum(rollout.rewards)))
 
         return
 

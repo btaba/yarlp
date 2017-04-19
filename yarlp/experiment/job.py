@@ -1,12 +1,14 @@
-import gym
 from yarlp.experiment.experiment_utils import ExperimentUtils
+from yarlp.utils.env_utils import GymEnv
+from yarlp.utils.metric_logger import MetricLogger
 
 
 class Job(ExperimentUtils):
     def __init__(self, spec_dict, log_dir, video):
         self._spec_dict = spec_dict
         self._log_dir = log_dir
-        self._video_callable = Job.create_video_callable(video)
+        # self._video_callable = Job.create_video_callable(video)
+        self._video = video
 
     def _load(self):
         self._training_epochs = self._spec_dict['agents']['training_epochs']
@@ -22,9 +24,7 @@ class Job(ExperimentUtils):
 
     def _get_env(self, job_dir):
         env_name = self._spec_dict['envs']['name']
-        env = gym.make(env_name)
-        env = gym.wrappers.Monitor(env, job_dir,
-                                   video_callable=self._video_callable)
+        env = GymEnv(env_name, self._video, job_dir, force_reset=True)
 
         if 'timestep_limit' in self._spec_dict['envs']:
             env.spec.timestep_limit = self._spec_dict['envs']['timestep_limit']
@@ -35,7 +35,8 @@ class Job(ExperimentUtils):
         cls_dict = Job.get_agent_cls_dict()
         params = self._spec_dict['agents']['params']
         agent_cls = cls_dict[self._spec_dict['agents']['type']]
-        return agent_cls(env=self._env, **params)
+        metric_logger = MetricLogger(self._job_dir)
+        return agent_cls(env=self._env, logger=metric_logger, **params)
 
     def _create_log_dir(self):
         dir_name = self._spec_dict['run_name']

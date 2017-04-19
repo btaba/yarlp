@@ -4,8 +4,7 @@
 
 import numpy as np
 from abc import ABCMeta, abstractmethod
-from yarlp.utils.env_utils import env_action_space_is_discrete
-from yarlp.utils.env_utils import get_env_action_space_dim
+from yarlp.utils.env_utils import GymEnv
 from yarlp.utils.metric_logger import MetricLogger
 from yarlp.utils.replay_buffer import Rollout
 
@@ -48,7 +47,7 @@ class Agent(ABC):
 
     @property
     def num_actions(self):
-        return get_env_action_space_dim(self._env)
+        return GymEnv.get_env_action_space_dim(self._env)
 
     def rollout(self, render=False, render_freq=5):
         """
@@ -82,18 +81,19 @@ class Agent(ABC):
     def do_greedy_episode(self):
         r = Rollout([], [], [])
 
-        t = 0
         done = False
         observation = self._env.reset()
         observation = self.get_state(observation)
-        while not done:
+        for t in range(self._env.spec.timestep_limit):
             r.states.append(observation)
             action = self.get_action(observation, greedy=True)
             (observation, reward, done, _) = self._env.step(action)
             observation = self.get_state(observation)
             r.rewards.append(reward)
             r.actions.append(action)
-            t += 1
+
+            if done:
+                break
 
         return r
 
@@ -125,7 +125,7 @@ class Agent(ABC):
         batch = np.array([state])
         action = self._policy.predict(batch)
 
-        if not env_action_space_is_discrete(self._env):
+        if not GymEnv.env_action_space_is_discrete(self._env):
             return action
 
         if not greedy:

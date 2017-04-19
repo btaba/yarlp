@@ -43,7 +43,7 @@ class RandomAgent(Agent):
 
         return
 
-    def get_action(self, states):
+    def get_action(self, states, *args, **kwargs):
         if len(states.shape) == 1:
             return self._env.action_space.sample()
 

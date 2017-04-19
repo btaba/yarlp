@@ -5,13 +5,12 @@
 ##### TODO:
 
 - Make an experimentation method
-    - create logger metric class, which stores tabular data, saves to csv
-        - agent needs to call this class for each training and testing step
+    - add loggers to all agents
     - save model to file and reload
     - create submission files and videos
     - resume experiment if it fails
-    - add tests for experiment
-    - create a schema validator class that loads the schema from json
+    - add tests
+    - normalized env
 
 - Add policy classes continuous gaussian, categorical, and deterministic, random uniform
     - Make generic q-function and policy models handling both continuous/deterministic action spaces

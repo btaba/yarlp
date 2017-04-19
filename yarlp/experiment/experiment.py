@@ -47,7 +47,10 @@ class Experiment(ExperimentUtils):
     def run(self):
         with ProcessPoolExecutor(max_workers=self.n_jobs) as ex:
             for j in self._jobs:
-                ex.submit(j)
+                future = ex.submit(j)
+                res = future.result()
+                if res:
+                    print(res)
 
     @property
     def _jobs(self):
@@ -61,8 +64,8 @@ class Experiment(ExperimentUtils):
         spec_list = [spec[k] for k in keys]
         spec_product = product(*spec_list)
         spec_dicts = [
-            {k: s for k, s in zip(keys, spec)}
-            for spec in spec_product
+            {k: s for k, s in zip(keys, sp)}
+            for sp in spec_product
         ]
         return spec_dicts
 
