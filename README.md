@@ -1,16 +1,15 @@
 
 ## yarlp
 
-
 ##### TODO:
 
 - Make an experimentation method
-    - add loggers to all agents
+    - make plotter and stats aggs at end of experiment
+    - add entropy to REINFORCE
     - save model to file and reload
-    - create submission files and videos
     - resume experiment if it fails
-    - add tests
-    - normalized env
+
+- Add hyper-parameter searches
 
 - Add policy classes continuous gaussian, categorical, and deterministic, random uniform
     - Make generic q-function and policy models handling both continuous/deterministic action spaces

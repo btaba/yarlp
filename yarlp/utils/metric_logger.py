@@ -13,12 +13,9 @@ class MetricLogger:
     """
 
     def __init__(self, log_dir=None, logger_name='yarlp'):
-        # assert isinstance(log_dir, str)
-        # assert isinstance(logger_name, str)
-
         self._log_dir = log_dir
         self._logger = self._create_logger(logger_name)
-        self._metric_dict = {'episode': [0]}
+        self._metric_dict = {'episode': 0}
         self._episode = 0
 
         if self._log_dir is not None:
@@ -26,7 +23,7 @@ class MetricLogger:
 
     def __setitem__(self, metric_name, value):
         self._validate_header_name(metric_name)
-        self._metric_dict[metric_name] = [value]
+        self._metric_dict[metric_name] = value
 
     def __getitem__(self, metric_name):
         return self._metric_dict[metric_name]
@@ -52,7 +49,7 @@ class MetricLogger:
 
     def _reset_metrics(self):
         self._episode += 1
-        self._metric_dict = {'episode': [self._episode]}
+        self._metric_dict = {'episode': self._episode}
 
     def _tabulate(self):
         tabulate_list = list(
@@ -73,26 +70,29 @@ class MetricLogger:
                     w.writerow(self._metric_dict.keys())
             with open(self._stat_file, 'a') as f:
                 w = csv.writer(f)
-                vals = [v[0] for v in self._metric_dict.values()]
+                vals = self._metric_dict.values()
                 w.writerow(vals)
 
         if reset:
             self._reset_metrics()
 
     def set_metrics_for_rollout(self, rollout, train=True):
-
         if isinstance(rollout, list):
             # unroll the rollout
-            self['episode_length'] = np.mean([len(r.rewards) for r in rollout])
+            self['avg_episode_length'] = np.mean(
+                [len(r.rewards) for r in rollout])
+            self['total_episode_length'] = np.sum(
+                [len(r.rewards) for r in rollout])
             self['training'] = train
             self['avg_reward'] = np.mean([np.mean(r.rewards) for r in rollout])
             self['avg_total_reward'] = np.mean(
                 [np.sum(r.rewards) for r in rollout])
-            self['std_reward'] = np.std([np.std(r.rewards) for r in rollout])
+            self['std_reward'] = np.mean([np.std(r.rewards) for r in rollout])
             self['total_reward'] = np.sum([np.sum(r.rewards) for r in rollout])
         else:
             assert isinstance(rollout, Rollout)
-            self['episode_length'] = len(rollout.rewards)
+            self['avg_episode_length'] = len(rollout.rewards)
+            self['total_episode_length'] = len(rollout.rewards)
             self['training'] = train
             self['avg_reward'] = np.mean(rollout.rewards)
             self['avg_total_reward'] = np.sum(rollout.rewards)

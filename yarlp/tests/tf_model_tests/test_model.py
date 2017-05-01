@@ -16,8 +16,10 @@ class testModel(unittest.TestCase):
     def build_graph(model):
         # create vars and input
         model.state = model.add_input()
-        network = partial(tf.contrib.layers.fully_connected,
-            weights_initializer=tf.contrib.layers.variance_scaling_initializer())
+        network = partial(
+            tf.contrib.layers.fully_connected,
+            weights_initializer=tf.contrib.layers.variance_scaling_initializer(),
+            activation_fn=None)
         model.output_node = model.add_output(network, num_outputs=1)
         model.target_value = tf.placeholder(
             dtype=tf.float32, shape=(None,), name='target_value')
@@ -26,10 +28,10 @@ class testModel(unittest.TestCase):
         model.loss = tf.squared_difference(
             model.output_node, model.target_value)
         model.optimizer = tf.train.AdamOptimizer(
-            learning_rate=.1)
+            learning_rate=1)
 
         # make gradient ops
-        model.create_gradient_ops_for_node(model.output_node)
+        model.create_gradient_ops_for_node(model.loss)
 
     @staticmethod
     def build_update_feed_dict(model, state, target_value):
@@ -51,13 +53,13 @@ class testModel(unittest.TestCase):
     def test_gradient_ops(self):
         env = gym.make('CartPole-v0')
         M = Model(env, testModel.build_graph, testModel.build_update_feed_dict)
-        feed_dict = M.build_update_feed([0, 2, 0, 4], 1e6)
+        feed_dict = M.build_update_feed([0, 1, 0, 1], 2)
 
         weights_before = M.get_weights()[0]
-        M.apply_gradient_ops(M.output_node.name, feed_dict)
+        M.apply_gradient_ops(M.loss.name, feed_dict)
         weights_after = M.get_weights()[0]
 
-        self.assertAlmostEqual(weights_after[0], weights_before[0])
-        self.assertAlmostEqual(weights_after[2], weights_before[2])
+        self.assertAlmostEqual(weights_after[0], weights_before[0], places=7)
+        self.assertAlmostEqual(weights_after[2], weights_before[2], places=7)
         self.assertNotEqual(weights_after[1], weights_before[1])
         self.assertNotEqual(weights_after[3], weights_before[3])

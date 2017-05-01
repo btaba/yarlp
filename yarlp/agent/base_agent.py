@@ -49,7 +49,7 @@ class Agent(ABC):
     def num_actions(self):
         return GymEnv.get_env_action_space_dim(self._env)
 
-    def rollout(self, render=False, render_freq=5):
+    def rollout(self, render=False, render_freq=5, greedy=False):
         """
         Performs actions on the environment
         based on the agent's current weights
@@ -64,7 +64,7 @@ class Agent(ABC):
         observation = self.get_state(observation)
         for t in range(self._env.spec.timestep_limit):
             r.states.append(observation)
-            action = self.get_action(observation)
+            action = self.get_action(observation, greedy=greedy)
             (observation, reward, done, _) = self._env.step(action)
 
             if render and t and t % render_freq == 0:
@@ -73,25 +73,6 @@ class Agent(ABC):
             observation = self.get_state(observation)
             r.rewards.append(reward)
             r.actions.append(action)
-            if done:
-                break
-
-        return r
-
-    def do_greedy_episode(self):
-        r = Rollout([], [], [])
-
-        done = False
-        observation = self._env.reset()
-        observation = self.get_state(observation)
-        for t in range(self._env.spec.timestep_limit):
-            r.states.append(observation)
-            action = self.get_action(observation, greedy=True)
-            (observation, reward, done, _) = self._env.step(action)
-            observation = self.get_state(observation)
-            r.rewards.append(reward)
-            r.actions.append(action)
-
             if done:
                 break
 

@@ -2,6 +2,7 @@ import os
 import gym
 import json
 import copy
+import pandas as pd
 
 from jsonschema import validate
 from itertools import product
@@ -15,7 +16,6 @@ class Experiment(ExperimentUtils):
     def __init__(self, json_spec_filename, n_jobs=1,
                  video=False):
         """
-
         Params
         ----------
         video (bool): False disables video recording. otherwise
@@ -52,6 +52,11 @@ class Experiment(ExperimentUtils):
                 if res:
                     print(res)
 
+        # aggregate the stats across all jobs
+        self._merge_stats()
+        self._aggregate_stats_over_runs()
+        self._plot_stats()
+
     @property
     def _jobs(self):
         for s in self._spec_list:
@@ -86,6 +91,7 @@ class Experiment(ExperimentUtils):
                 run_name = '{}_{}_run{}'.format(
                     s['envs']['name'], s['agents']['type'], r)
                 s_copy['run_name'] = run_name
+                s_copy['run'] = r
                 repeated_spec_list.append(s_copy)
 
         return repeated_spec_list
@@ -116,3 +122,45 @@ class Experiment(ExperimentUtils):
 
         return Experiment.create_log_directory(
             experiment_name, experiment_dir)
+
+    def _merge_stats(self):
+        agg_stats_file = os.path.join(self._experiment_dir, 'merged_stats.csv')
+
+        for d in os.listdir(self._experiment_dir):
+            base_path = os.path.join(self._experiment_dir, d)
+            if not os.path.isdir(base_path):
+                continue
+            spec = open(os.path.join(base_path, 'spec.json'), 'r')
+            spec = json.load(spec)
+            stats = pd.read_csv(os.path.join(base_path, 'stats.csv'))
+            stats['run'] = spec['run']
+            stats['run_name'] = spec['run_name']
+            stats['agent'] = spec['agents']['type']
+            stats['env'] = spec['envs']['name']
+            stats['env_timestep_limit'] = spec['envs']['timestep_limit']
+            stats['env_normalize_obs'] = spec['envs']['normalize_obs']
+            stats['agent_params'] = str(spec['agents']['params'])
+
+            header = False
+            if not os.path.exists(agg_stats_file):
+                header = True
+
+            with open(agg_stats_file, 'a') as f:
+                stats.to_csv(f, index=False, header=header)
+
+    def _aggregate_stats_over_runs(self):
+        m = os.path.join(self._experiment_dir, 'merged_stats.csv')
+        assert os.path.exists(m), "Merged stats file must exist"
+        agg_stats_file = os.path.join(self._experiment_dir, 'agg_stats.csv')
+        base_df = pd.read_csv(m)
+        df_avg = base_df.groupby(
+            ['agent', 'env', 'training', 'episode', 'agent_params']
+        ).mean().add_prefix('mean_')
+        df_std = base_df.groupby(
+            ['agent', 'env', 'training', 'episode', 'agent_params']
+        ).std().add_prefix('std_').fillna(0)
+        df = df_avg.join(df_std)
+        df.to_csv(agg_stats_file)
+
+    def _plot_stats(self):
+        pass

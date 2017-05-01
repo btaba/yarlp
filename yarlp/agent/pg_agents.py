@@ -102,18 +102,13 @@ class REINFORCEAgent(Agent):
             self.logger.set_metrics_for_rollout(rollout, train=True)
             self.logger.log()
 
-            r = []
-            for t_test in range(num_test_steps):
-                rollout = self.do_greedy_episode()
-                r.append(rollout)
-            self.logger.set_metrics_for_rollout(r, train=False)
-            self.logger.log()
-
-            # logger.info('Training Step {}'.format(i))
-            # logger.info('Episode length {}'.format(len(rollout.rewards)))
-            # logger.info('Average reward {}'.format(np.mean(rollout.rewards)))
-            # logger.info('Std reward {}'.format(np.std(rollout.rewards)))
-            # logger.info('Total reward {}'.format(np.sum(rollout.rewards)))
+            if num_test_steps > 0:
+                r = []
+                for t_test in range(num_test_steps):
+                    rollout = self.rollout(greedy=True)
+                    r.append(rollout)
+                self.logger.set_metrics_for_rollout(r, train=False)
+                self.logger.log()
 
         return
 

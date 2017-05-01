@@ -1,5 +1,5 @@
 from yarlp.experiment.experiment_utils import ExperimentUtils
-from yarlp.utils.env_utils import GymEnv
+from yarlp.utils.env_utils import NormalizedGymEnv
 from yarlp.utils.metric_logger import MetricLogger
 
 
@@ -24,7 +24,14 @@ class Job(ExperimentUtils):
 
     def _get_env(self, job_dir):
         env_name = self._spec_dict['envs']['name']
-        env = GymEnv(env_name, self._video, job_dir, force_reset=True)
+        if self._spec_dict['envs']['normalize_obs']:
+            env = NormalizedGymEnv(
+                env_name, self._video, job_dir, force_reset=True,
+                normalize_obs=True)
+        else:
+            # the actions will be scaled automatically
+            env = NormalizedGymEnv(
+                env_name, self._video, job_dir, force_reset=True)
 
         if 'timestep_limit' in self._spec_dict['envs']:
             env.spec.timestep_limit = self._spec_dict['envs']['timestep_limit']

@@ -164,12 +164,13 @@ class CEMAgent(Agent):
             self._theta = mean
             self._sigma = var
 
-            r = []
-            for t_test in range(num_test_steps):
-                rollout = self.do_greedy_episode()
-                r.append(rollout)
-            self.logger.set_metrics_for_rollout(r, train=False)
-            self.logger.log()
+            if num_test_steps > 0:
+                r = []
+                for t_test in range(num_test_steps):
+                    rollout = self.rollout(greedy=True)
+                    r.append(rollout)
+                self.logger.set_metrics_for_rollout(r, train=False)
+                self.logger.log()
 
         return
 

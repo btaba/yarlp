@@ -56,6 +56,10 @@ schema = {
                     "type": "integer",
                     "description": "the number of times to run an agent on this environment",
                     "minimum": 1
+                },
+                "normalize_obs": {
+                    "type": "boolean",
+                    "description": "whether to normalize the observation space",
                 }
             },
             "required": ["name", "repeats"]
