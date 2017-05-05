@@ -6,6 +6,7 @@ import pandas as pd
 
 from jsonschema import validate
 from itertools import product
+from matplotlib import pyplot as plt
 from concurrent.futures import ProcessPoolExecutor
 from yarlp.experiment.experiment_schema import schema
 from yarlp.experiment.job import Job
@@ -124,6 +125,9 @@ class Experiment(ExperimentUtils):
             experiment_name, experiment_dir)
 
     def _merge_stats(self):
+        """Loop through all experiments, and write all the stats
+        back to the base repository
+        """
         agg_stats_file = os.path.join(self._experiment_dir, 'merged_stats.csv')
 
         for d in os.listdir(self._experiment_dir):
@@ -149,6 +153,10 @@ class Experiment(ExperimentUtils):
                 stats.to_csv(f, index=False, header=header)
 
     def _aggregate_stats_over_runs(self):
+        """Compute aggregates on the merged_stats.csv file
+        grouped by [agent, env, training, episode, agent_params]
+        so we average over several runs
+        """
         m = os.path.join(self._experiment_dir, 'merged_stats.csv')
         assert os.path.exists(m), "Merged stats file must exist"
         agg_stats_file = os.path.join(self._experiment_dir, 'agg_stats.csv')
@@ -163,4 +171,57 @@ class Experiment(ExperimentUtils):
         df.to_csv(agg_stats_file)
 
     def _plot_stats(self):
-        pass
+        """Take the agg_stats.csv file and make plots
+        """
+        m = os.path.join(self._experiment_dir, 'agg_stats.csv')
+        assert os.path.exists(m), "Aggregated stats file must exist"
+
+        df = pd.read_csv(m)
+        plt_index = df.groupby(
+            ['agent', 'env', 'training', 'agent_params']).count().index
+
+        for idx in plt_index:
+            sub_df = df[
+                (df.agent == idx[0]) & (df.env == idx[1]) &
+                (df.training == idx[2]) & (df.agent_params == idx[3])].copy()
+            sub_df.sort_values('episode', inplace=True)
+            sub_df.reset_index(inplace=True, drop=True)
+
+            plt.figure(figsize=(8, 14))
+
+            plt.subplot(4, 1, 1)
+            plt.errorbar(
+                sub_df.mean_total_episode_length.cumsum(),
+                sub_df.mean_total_reward,
+                sub_df.std_total_reward, sub_df.std_total_episode_length)
+            plt.title(idx)
+            plt.ylabel('Total Reward')
+            plt.xlabel('Steps')
+
+            plt.subplot(4, 1, 2)
+            plt.plot(sub_df.episode, sub_df.mean_total_reward)
+            plt.errorbar(sub_df.episode, sub_df.mean_total_reward,
+                         sub_df.std_total_reward)
+            plt.ylabel('Total Reward')
+            plt.xlabel('Steps')
+
+            plt.subplot(4, 1, 3)
+            plt.errorbar(
+                sub_df.mean_total_episode_length.cumsum(),
+                sub_df.mean_avg_episode_length,
+                sub_df.std_avg_episode_length, sub_df.std_total_episode_length)
+            plt.ylabel('Episode Length')
+            plt.xlabel('Steps')
+
+            plt.subplot(4, 1, 4)
+            plt.errorbar(
+                sub_df.episode, sub_df.mean_avg_episode_length,
+                sub_df.std_avg_episode_length)
+            plt.ylabel('Episode Length')
+            plt.xlabel('Steps')
+
+            png_str = '_'.join(idx[:2])
+            png_str += '_train.png' if idx[2] else '_test.png'
+            png_path = os.path.join(self._experiment_dir, png_str)
+            plt.savefig(png_path)
+            plt.close()
