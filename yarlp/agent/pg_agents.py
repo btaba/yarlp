@@ -41,11 +41,12 @@ class REINFORCEAgent(Agent):
                  policy_network=tf.contrib.layers.fully_connected,
                  policy_learning_rate=0.01,
                  baseline_network=tf.contrib.layers.fully_connected,
-                 value_learning_rate=0.01, *args, **kwargs):
+                 value_learning_rate=0.01, entropy_weight=0.001,
+                 *args, **kwargs):
         super().__init__(env, *args, **kwargs)
 
         self._policy = discrete_pg_model_factory(
-            env, policy_network, policy_learning_rate)
+            env, policy_network, policy_learning_rate, entropy_weight)
 
         if not baseline_network:
             # No baseline

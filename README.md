@@ -4,11 +4,10 @@
 ##### TODO:
 
 - Make an experimentation method
-    - add entropy to REINFORCE
+    - Add hyper-parameter searches
     - save model to file and reload
     - resume experiment if it fails
 
-- Add hyper-parameter searches
 - Add policy classes continuous gaussian, categorical, and deterministic, random uniform
     - Make generic q-function and policy models handling both continuous/deterministic action spaces
 

@@ -43,7 +43,9 @@ def value_function_model_factory(
 
 
 def discrete_pg_model_factory(
-        env, network, learning_rate=0.01, input_shape=None):
+        env, network, learning_rate=0.01,
+        entropy_weight=0.001,
+        input_shape=None):
     """Policy model for discrete action spaces with policy gradient update
     """
     def build_graph(model, network, lr, input_shape):
@@ -60,11 +62,13 @@ def discrete_pg_model_factory(
         model.action = tf.placeholder(
             dtype=tf.int32, shape=(None,), name='action')
         action_one_hot = tf.one_hot(model.action, model.output_node.shape[1])
-        model.log_pi = tf.log(tf.reduce_sum(
-            action_one_hot * model.output_node, 1))
+        model.pi = tf.reduce_sum(
+            action_one_hot * model.output_node, 1)
+        model.log_pi = tf.log(model.pi)
 
         model.loss = -tf.reduce_sum(
-            model.log_pi * model.Return)
+            model.log_pi * model.Return) +\
+            entropy_weight * model.log_pi * model.pi
         model.optimizer = tf.train.AdamOptimizer(
             learning_rate=lr)
 

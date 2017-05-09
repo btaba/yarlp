@@ -128,11 +128,14 @@ class Experiment(ExperimentUtils):
         """Loop through all experiments, and write all the stats
         back to the base repository
         """
-        agg_stats_file = os.path.join(self._experiment_dir, 'merged_stats.csv')
+        statspath = os.path.join(self._experiment_dir, 'stats')
+        if not os.path.exists(statspath):
+            os.makedirs(statspath)
+        agg_stats_file = os.path.join(statspath, 'merged_stats.csv')
 
         for d in os.listdir(self._experiment_dir):
             base_path = os.path.join(self._experiment_dir, d)
-            if not os.path.isdir(base_path):
+            if not os.path.isdir(base_path) or d == 'stats':
                 continue
             spec = open(os.path.join(base_path, 'spec.json'), 'r')
             spec = json.load(spec)
@@ -157,23 +160,44 @@ class Experiment(ExperimentUtils):
         grouped by [agent, env, training, episode, agent_params]
         so we average over several runs
         """
-        m = os.path.join(self._experiment_dir, 'merged_stats.csv')
+        m = os.path.join(self._experiment_dir, 'stats/merged_stats.csv')
         assert os.path.exists(m), "Merged stats file must exist"
-        agg_stats_file = os.path.join(self._experiment_dir, 'agg_stats.csv')
+        agg_episode_stats_file = os.path.join(
+            self._experiment_dir, 'stats/agg_episode_stats.csv')
+        agg_agent_stats_file = os.path.join(
+            self._experiment_dir, 'stats/agg_agent_stats.csv')
         base_df = pd.read_csv(m)
+
+        # episode level stats
         df_avg = base_df.groupby(
             ['agent', 'env', 'training', 'episode', 'agent_params']
         ).mean().add_prefix('mean_')
         df_std = base_df.groupby(
             ['agent', 'env', 'training', 'episode', 'agent_params']
-        ).std().add_prefix('std_').fillna(0)
+        )['avg_episode_length', 'total_reward', 'total_episode_length']
+        df_std = df_std.std().add_prefix('std_').fillna(0)
         df = df_avg.join(df_std)
-        df.to_csv(agg_stats_file)
+        df.to_csv(agg_episode_stats_file)
+
+        # agent level stats
+        df = base_df.groupby(
+            ['agent', 'env', 'training', 'agent_params', 'run']
+        ).apply(lambda x: x.sort_values('episode').mean())
+        df = df[
+            ['avg_episode_length', 'total_reward', 'total_episode_length']]
+        df = df.reset_index()
+        df_avg = df.groupby(
+            ['agent', 'env', 'training', 'agent_params']).mean()
+        df_std = df.groupby(['agent', 'env', 'training', 'agent_params']).std()
+        df_std = df_std.add_prefix('std_').fillna(0)
+        df = df_avg.join(df_std)
+        df.drop(['run', 'std_run'], inplace=True, axis=1)
+        df.to_csv(agg_agent_stats_file)
 
     def _plot_stats(self):
         """Take the agg_stats.csv file and make plots
         """
-        m = os.path.join(self._experiment_dir, 'agg_stats.csv')
+        m = os.path.join(self._experiment_dir, 'stats/agg_episode_stats.csv')
         assert os.path.exists(m), "Aggregated stats file must exist"
 
         df = pd.read_csv(m)
@@ -199,11 +223,10 @@ class Experiment(ExperimentUtils):
             plt.xlabel('Steps')
 
             plt.subplot(4, 1, 2)
-            plt.plot(sub_df.episode, sub_df.mean_total_reward)
             plt.errorbar(sub_df.episode, sub_df.mean_total_reward,
                          sub_df.std_total_reward)
             plt.ylabel('Total Reward')
-            plt.xlabel('Steps')
+            plt.xlabel('Episodes')
 
             plt.subplot(4, 1, 3)
             plt.errorbar(
@@ -218,10 +241,10 @@ class Experiment(ExperimentUtils):
                 sub_df.episode, sub_df.mean_avg_episode_length,
                 sub_df.std_avg_episode_length)
             plt.ylabel('Episode Length')
-            plt.xlabel('Steps')
+            plt.xlabel('Episodes')
 
             png_str = '_'.join(idx[:2])
             png_str += '_train.png' if idx[2] else '_test.png'
-            png_path = os.path.join(self._experiment_dir, png_str)
+            png_path = os.path.join(self._experiment_dir, 'stats', png_str)
             plt.savefig(png_path)
             plt.close()

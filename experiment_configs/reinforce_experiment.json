@@ -10,18 +10,19 @@
     "agents": [
         {
             "type": "REINFORCEAgent",
-            "training_epochs": 100,
-            "testing_epochs": 10,
+            "training_epochs": 200,
+            "testing_epochs": 1,
             "params": {
                 "discount_factor": 0.99,
-                "policy_learning_rate": 0.01,
-                "value_learning_rate": 0.01
+                "policy_learning_rate": 0.001,
+                "value_learning_rate": 0.01,
+                "entropy_weight": 0.001
             }
         },
         {
             "type": "RandomAgent",
-            "training_epochs": 100,
-            "testing_epochs": 10,
+            "training_epochs": 200,
+            "testing_epochs": 1,
             "params": {}
         }
     ]
