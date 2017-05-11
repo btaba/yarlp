@@ -68,7 +68,7 @@ def discrete_pg_model_factory(
 
         model.loss = -tf.reduce_sum(
             model.log_pi * model.Return) +\
-            entropy_weight * model.log_pi * model.pi
+            entropy_weight * tf.reduce_sum(model.log_pi * model.pi)
         model.optimizer = tf.train.AdamOptimizer(
             learning_rate=lr)
 

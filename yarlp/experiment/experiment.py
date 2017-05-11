@@ -37,13 +37,18 @@ class Experiment(ExperimentUtils):
 
         # create a json spec for each env-agent-repeat
         _spec_list = self._spec_product(self._raw_spec)
+
         self._validate_agent_names(_spec_list)
-        self._spec_list = self._add_validated_env_repeats(_spec_list)
+        _spec_list = self._add_validated_env_repeats(_spec_list)
+
+        # if the agent params are lists, then we need to split them up further
+        # since these will be the cross-validation (cv) folds
+        self._spec_list = self._expand_agent_grid(_spec_list)
 
         # create log directory and save the full spec to the directory
         self._experiment_dir = self._create_log_dir(
             self._spec_filename)
-        Experiment.save_spec_to_dir(self._spec_list, self._experiment_dir)
+        Experiment._save_spec_to_dir(self._spec_list, self._experiment_dir)
 
     def run(self):
         with ProcessPoolExecutor(max_workers=self.n_jobs) as ex:
@@ -62,6 +67,10 @@ class Experiment(ExperimentUtils):
     def _jobs(self):
         for s in self._spec_list:
             yield Job(s, self._experiment_dir, self.video)
+
+    @property
+    def spec_list(self):
+        return self._spec_list
 
     def _spec_product(self, spec):
         """Cartesian product of a json spec, list of specs unique by env and agent
@@ -97,9 +106,43 @@ class Experiment(ExperimentUtils):
 
         return repeated_spec_list
 
+    def _expand_agent_grid(self, spec_list):
+        """If the agent params are lists, we need to expand them
+        into one run for each parameter grid...effectively doing a grid search
+        over a list of parameters
+        """
+
+        grid_search = []
+
+        for s in spec_list:
+
+            # expand the grid of params
+            params = s['agents']['params']
+            singleton_params = {
+                k: v for k, v in params.items() if not isinstance(v, list)}
+            grid_params = {
+                k: v for k, v in params.items() if isinstance(v, list)}
+            grid_params = [
+                dict(zip(grid_params.keys(), x))
+                for x in product(*grid_params.values())]
+            grid_params = [{**g, **singleton_params} for g in grid_params]
+
+            # add a spec with each agent param in the grid
+            count = 0
+            for g in grid_params:
+                new_s = copy.deepcopy(s)
+                new_s['agents']['params'] = g
+                new_s['param_run'] = count
+                param_name = '_param{}'.format(count)
+                new_s['run_name'] = new_s['run_name'] + param_name
+                grid_search.append(new_s)
+                count += 1
+
+        return grid_search
+
     def _validate_agent_names(self, spec):
         agent_set = set()
-        cls_dict = Experiment.get_agent_cls_dict()
+        cls_dict = Experiment._get_agent_cls_dict()
         for s in spec:
             agent_name = s['agents']['type']
             assert agent_name in cls_dict,\
@@ -121,7 +164,7 @@ class Experiment(ExperimentUtils):
         experiment_dir = os.path.join(
             home, 'yarlp_experiments', experiment_name)
 
-        return Experiment.create_log_directory(
+        return Experiment._create_log_directory(
             experiment_name, experiment_dir)
 
     def _merge_stats(self):
@@ -141,6 +184,7 @@ class Experiment(ExperimentUtils):
             spec = json.load(spec)
             stats = pd.read_csv(os.path.join(base_path, 'stats.csv'))
             stats['run'] = spec['run']
+            stats['param_run'] = spec['param_run']
             stats['run_name'] = spec['run_name']
             stats['agent'] = spec['agents']['type']
             stats['env'] = spec['envs']['name']
@@ -192,7 +236,7 @@ class Experiment(ExperimentUtils):
         df_std = df_std.add_prefix('std_').fillna(0)
         df = df_avg.join(df_std)
         df.drop(['run', 'std_run'], inplace=True, axis=1)
-        df.to_csv(agg_agent_stats_file)
+        df.to_csv(agg_agent_stats_file, index=True)
 
     def _plot_stats(self):
         """Take the agg_stats.csv file and make plots
@@ -204,7 +248,7 @@ class Experiment(ExperimentUtils):
         plt_index = df.groupby(
             ['agent', 'env', 'training', 'agent_params']).count().index
 
-        for idx in plt_index:
+        for count, idx in enumerate(plt_index):
             sub_df = df[
                 (df.agent == idx[0]) & (df.env == idx[1]) &
                 (df.training == idx[2]) & (df.agent_params == idx[3])].copy()
@@ -244,6 +288,7 @@ class Experiment(ExperimentUtils):
             plt.xlabel('Episodes')
 
             png_str = '_'.join(idx[:2])
+            png_str += '_{}_'.format(count)
             png_str += '_train.png' if idx[2] else '_test.png'
             png_path = os.path.join(self._experiment_dir, 'stats', png_str)
             plt.savefig(png_path)
