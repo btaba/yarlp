@@ -4,8 +4,24 @@ import csv
 import logging
 import numpy as np
 
+from tqdm import tqdm
 from tabulate import tabulate
 from yarlp.utils.replay_buffer import Rollout
+
+
+class TqdmHandler(logging.StreamHandler):
+    def __init__(self):
+        logging.StreamHandler.__init__(self)
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            tqdm.write(msg)
+            self.flush()
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception:
+            self.handleError(record)
 
 
 class MetricLogger:
@@ -33,7 +49,8 @@ class MetricLogger:
 
     def _create_logger(self, name):
         logger = logging.getLogger(name)
-        handler = logging.StreamHandler()
+        # handler = logging.StreamHandler()
+        handler = TqdmHandler()
         handler.setFormatter(
             logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s'))
         logger.addHandler(handler)

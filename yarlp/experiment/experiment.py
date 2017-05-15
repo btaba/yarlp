@@ -4,6 +4,7 @@ import json
 import copy
 import pandas as pd
 
+from tqdm import tqdm
 from jsonschema import validate
 from itertools import product
 from matplotlib import pyplot as plt
@@ -65,7 +66,7 @@ class Experiment(ExperimentUtils):
 
     @property
     def _jobs(self):
-        for s in self._spec_list:
+        for s in tqdm(self._spec_list):
             yield Job(s, self._experiment_dir, self.video)
 
     @property
