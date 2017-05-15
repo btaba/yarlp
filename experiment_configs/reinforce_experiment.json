@@ -17,6 +17,21 @@
                 "policy_learning_rate": [0.01, 0.005],
                 "value_learning_rate": [0.05],
                 "entropy_weight": [0, 0.01, 0.005]
+            },
+            "training_params": {}
+        },
+        {
+            "type": "CEMAgent",
+            "training_epochs": 200,
+            "testing_epochs": 1,
+            "params": {
+                "discount_factor": [0.95],
+                "num_samples": [100],
+                "best_pct": [0.05, 0.1, 0.2],
+                "init_var": [0.01, 0.1]
+            },
+            "training_params": {
+                "with_variance": true
             }
         },
         {

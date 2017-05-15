@@ -19,7 +19,9 @@ class Job(ExperimentUtils):
 
     def __call__(self):
         self._load()
-        self._agent.train(self._training_epochs, self._testing_epochs)
+        training_params = self._spec_dict['agents']['training_params']
+        self._agent.train(self._training_epochs,
+                          self._testing_epochs, **training_params)
         self._env.close()
 
     def _get_env(self, job_dir):

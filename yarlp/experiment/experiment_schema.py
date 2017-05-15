@@ -39,7 +39,8 @@ schema = {
                     "description": "the number of testing epochs",
                     "minimum": 1
                 },
-                "params": {"type": "object"}
+                "params": {"type": "object"},
+                "training_params": {"type": "object"}
             },
             "required": ["type", "training_epochs", "testing_epochs", "params"]
         },
