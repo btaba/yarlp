@@ -4,7 +4,7 @@ import json
 import copy
 import pandas as pd
 
-from tqdm import tqdm
+import tqdm
 from jsonschema import validate
 from itertools import product
 from matplotlib import pyplot as plt
@@ -51,6 +51,8 @@ class Experiment(ExperimentUtils):
             self._spec_filename)
         Experiment._save_spec_to_dir(self._spec_list, self._experiment_dir)
 
+    # make a cls method -> finishes unfinished jobs (check if stats are complete according to what is in the spec)
+
     def run(self):
         with ProcessPoolExecutor(max_workers=self.n_jobs) as ex:
             for j in self._jobs:
@@ -66,7 +68,7 @@ class Experiment(ExperimentUtils):
 
     @property
     def _jobs(self):
-        for s in tqdm(self._spec_list):
+        for s in tqdm.tqdm(self._spec_list):
             yield Job(s, self._experiment_dir, self.video)
 
     @property

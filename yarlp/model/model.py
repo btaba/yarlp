@@ -12,27 +12,40 @@ class Model:
     A Tensorflow model
     """
 
-    def __init__(self, env, build_graph, build_update_feed_dict):
+    def __init__(self, env, build_graph, build_update_feed_dict, path=None):
         """
         """
         self._env = env
         self.G = Graph()
-        self._loss = None
-        self._optimizer = None
-        self._optimizer_op = None
+        # self._loss = None
+        # self._optimizer = None
+        self.build_update_feed_dict = build_update_feed_dict
+
+        if path is not None:
+            self.G.load(path)
+            return
 
         with self.G:
             build_graph(self)
             self.create_weight_setter_ops()
-            self.build_update_feed_dict = build_update_feed_dict
 
-    def update(self, *args):
+    def __setitem__(self, var_name, tf_node):
+        self.G[var_name] = tf_node
+
+    def __getitem__(self, var_name):
+        return self.G[var_name]
+
+    def save(self, path):
+        self.G.save(path)
+
+    def update(self, *args, **kwargs):
         # this is how we update the weights
-        assert self._optimizer_op is not None
+        name = kwargs.get('name', '')
+        optimizer_op = self['optimizer_op:' + name]
+        loss = self['loss:' + name]
 
         feed_dict = self.build_update_feed(*args)
-        _, loss = self.G([self._optimizer_op, self._loss], feed_dict)
-
+        _, loss = self.G([optimizer_op, loss], feed_dict)
         return loss
 
     def build_update_feed(self, *args):
@@ -74,24 +87,33 @@ class Model:
         weight_dict = {w.name: val for w, val in zip(self.weights, weights)}
         self.weights = weight_dict
 
-    @property
-    def loss(self):
-        return self._loss
+    # @property
+    # def loss(self):
+    #     return self._loss
 
-    @loss.setter
-    def loss(self, loss):
-        self._loss = loss
+    # @loss.setter
+    # def loss(self, loss):
+    #     self._loss = loss
 
-    @property
-    def optimizer(self):
-        return self._optimizer
+    # @property
+    # def optimizer(self):
+    #     return self._optimizer
 
-    @optimizer.setter
-    def optimizer(self, optimizer):
-        self._optimizer = optimizer
+    # @optimizer.setter
+    # def optimizer(self, optimizer):
+    #     self._optimizer = optimizer
 
-        assert self._loss is not None
-        self._optimizer_op = self._optimizer.minimize(self._loss)
+    #     assert self._loss is not None
+    #     self._optimizer_op = self._optimizer.minimize(self._loss)
+
+    def add_loss(self, loss, name=''):
+        self['loss:' + name] = loss
+
+    def get_loss(self, name=''):
+        return self['loss:' + name]
+
+    def add_optimizer(self, optimizer, loss, name=''):
+        self['optimizer_op:' + name] = optimizer.minimize(loss)
 
     def add_input(self, name='', dtype=tf.float32, shape=None):
         if shape is None:
@@ -134,17 +156,21 @@ class Model:
             self.G['weight_input_var:' + w.name] = w_input
             self.G['set_weight_op:' + w.name] = w.assign(w_input)
 
-    def create_gradient_ops_for_node(self,
+    def create_gradient_ops_for_node(self, optimizer,
                                      node, transform_grad_func=lambda x: x):
-        grads_and_vars = self.optimizer.compute_gradients(
+
+        grads_and_vars = optimizer.compute_gradients(
             node, self.G.TRAINABLE_VARIABLES)
 
-        self.G['gradients:' + node.name] = [
+        for g, v in grads_and_vars:
+            key = 'gradients:' + node.name + ':' + v.name
+            self.G[key] = transform_grad_func(g)
+        grads_and_vars = [
             (transform_grad_func(g), v)
             for g, v in grads_and_vars]
 
-        self.G['gradients_ops:' + node.name] = self.optimizer.apply_gradients(
-            self.G['gradients:' + node.name])
+        self.G['gradients_ops:' + node.name] = optimizer.apply_gradients(
+            grads_and_vars)
 
     def get_gradients(self, name, feed_dict):
         return self.G(self.G['gradients:' + name], feed_dict)

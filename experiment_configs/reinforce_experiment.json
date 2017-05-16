@@ -10,7 +10,7 @@
     "agents": [
         {
             "type": "REINFORCEAgent",
-            "training_epochs": 200,
+            "training_epochs": 10,
             "testing_epochs": 1,
             "params": {
                 "discount_factor": [0.95],
@@ -22,7 +22,7 @@
         },
         {
             "type": "CEMAgent",
-            "training_epochs": 200,
+            "training_epochs": 10,
             "testing_epochs": 1,
             "params": {
                 "discount_factor": [0.95],
@@ -36,9 +36,10 @@
         },
         {
             "type": "RandomAgent",
-            "training_epochs": 200,
+            "training_epochs": 10,
             "testing_epochs": 1,
-            "params": {}
+            "params": {},
+            "training_params": {}
         }
     ]
 }

@@ -37,6 +37,9 @@ class Agent(ABC):
 
         self._state_featurizer = state_featurizer
 
+    def save_models(self, path):
+        raise NotImplementedError
+
     @abstractmethod
     def train(self):
         pass

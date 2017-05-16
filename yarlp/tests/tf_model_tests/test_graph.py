@@ -2,7 +2,9 @@
     Regression tests for the Graph
 """
 
+import os
 import unittest
+import shutil
 import tensorflow as tf
 from yarlp.model.graph import Graph
 
@@ -46,3 +48,21 @@ class TestGraph(unittest.TestCase):
             g['var'] = var
 
         self.assertEqual(g.TRAINABLE_VARIABLES, [var])
+
+
+class TestGraphSaveLoad(unittest.TestCase):
+
+    def test_load_and_save(self):
+        G = Graph()
+        with G as g:
+            var = tf.Variable(tf.random_normal([10, 10]), trainable=False)
+            g['var'] = var
+
+        G.save('test_load_and_save')
+        G = Graph()
+        G.load('test_load_and_save')
+        assert 'var' in G
+
+    def tearDown(self):
+        if os.path.exists('test_load_and_save'):
+            shutil.rmtree('test_load_and_save')

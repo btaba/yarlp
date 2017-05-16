@@ -16,13 +16,15 @@
                 "discount_factor": 0.99,
                 "policy_learning_rate": 0.01,
                 "value_learning_rate": 0.01
-            }
+            },
+            "training_params": {}
         },
         {
             "type": "RandomAgent",
             "training_epochs": 1,
             "testing_epochs": 1,
-            "params": {}
+            "params": {},
+            "training_params": {}
         }
     ]
 }

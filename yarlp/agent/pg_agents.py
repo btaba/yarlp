@@ -15,6 +15,7 @@ REINFORCE Agent and Policy Gradient (PG) Actor Critic Agent
     2177–2182. doi:10.1109/ACC.2012.6315022
 """
 
+import os
 from yarlp.agent.base_agent import Agent
 from yarlp.model.model_factories import value_function_model_factory
 from yarlp.model.model_factories import discrete_pg_model_factory
@@ -42,11 +43,19 @@ class REINFORCEAgent(Agent):
                  policy_learning_rate=0.01,
                  baseline_network=tf.contrib.layers.fully_connected,
                  value_learning_rate=0.01, entropy_weight=0.001,
+                 model_file_path=None,
                  *args, **kwargs):
         super().__init__(env, *args, **kwargs)
 
+        policy_path = None
+        baseline_path = None
+        if model_file_path:
+            policy_path = os.path.join(model_file_path, 'pg_policy')
+            baseline_path = os.path.join(model_file_path, 'value_model')
+
         self._policy = discrete_pg_model_factory(
-            env, policy_network, policy_learning_rate, entropy_weight)
+            env, policy_network, policy_learning_rate, entropy_weight,
+            model_file_path=policy_path)
 
         if not baseline_network:
             # No baseline
@@ -56,7 +65,15 @@ class REINFORCEAgent(Agent):
             # as long as it does not vary with actions
             self._baseline_model = value_function_model_factory(
                 env, network=baseline_network,
-                learning_rate=value_learning_rate)
+                learning_rate=value_learning_rate,
+                model_file_path=baseline_path)
+
+    def save_models(self, path):
+        ppath = os.path.join(path, 'pg_policy')
+        self._policy.save(ppath)
+        if self._baseline_model is not None:
+            bpath = os.path.join(path, 'value_model')
+            self._baseline_model.save(bpath)
 
     def train(self, num_train_steps, num_test_steps=0):
         """
@@ -110,6 +127,9 @@ class REINFORCEAgent(Agent):
                     r.append(rollout)
                 self.logger.set_metrics_for_rollout(r, train=False)
                 self.logger.log()
+
+            if self.logger._log_dir is not None:
+                self.save_models(self.logger._log_dir)
 
         return
 

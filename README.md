@@ -4,10 +4,8 @@
 ##### TODO:
 
 - Make an experimentation method
-    - compare CEM/REINFORCE on different environments -> compare to other packages
-    - anneal learning rates
-    - save model to file and reload
     - resume experiment if it fails (run unfinished jobs from spec)
+    - compare performance to other packages, rllab
 
 
 - Add policy classes continuous gaussian, categorical, and deterministic, random uniform

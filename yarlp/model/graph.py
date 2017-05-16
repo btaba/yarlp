@@ -1,7 +1,7 @@
 """
 Tensorflow Graph helper class
 """
-
+import os
 import tensorflow as tf
 
 
@@ -13,6 +13,7 @@ class Graph:
     def __init__(self):
         self._graph = tf.Graph()
         self._session = tf.Session('', graph=self._graph)
+        self._saver = None
 
     def __enter__(self):
         self._context = self._graph.as_default()
@@ -20,6 +21,7 @@ class Graph:
         return self
 
     def __exit__(self, *args):
+        self._saver = tf.train.Saver()
         self._session.run(
             tf.variables_initializer(self.GLOBAL_VARIABLES)
         )
@@ -57,3 +59,24 @@ class Graph:
     @property
     def TRAINABLE_VARIABLES(self):
         return self._graph.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+
+    def save(self, path):
+        assert self._graph.finalized
+        path = self._clean_path(path)
+        if not os.path.exists(path):
+            os.makedirs(path)
+        self._saver.save(
+            self._session, path)
+
+    def load(self, path):
+        path = self._clean_path(path)
+        assert os.path.isdir(path)
+        with self._graph.as_default():
+            self._saver = tf.train.import_meta_graph(path + '.meta')
+            self._saver.restore(self._session, path)
+        self._graph.finalize()
+
+    def _clean_path(self, path):
+        path = os.path.abspath(os.path.expanduser(path))
+        path = os.path.join(path, '')
+        return path

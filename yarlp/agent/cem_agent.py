@@ -1,6 +1,7 @@
 """
     CEM Agent class, which takes in a PolicyModel object
 """
+import os
 from functools import partial
 from yarlp.agent.base_agent import Agent
 from yarlp.model.model import Model
@@ -34,9 +35,11 @@ class CEMAgent(Agent):
     def __init__(self, env, num_samples,
                  init_var=0.1, best_pct=0.2,
                  policy_network=tf.contrib.layers.fully_connected,
+                 model_file_path=None,
                  *args, **kwargs):
         super().__init__(env, *args, **kwargs)
-        self._policy = CEMAgent.policy_model_factory(env, policy_network)
+        self._policy = CEMAgent.policy_model_factory(
+            env, policy_network, model_file_path)
 
         # Get model shapes
         self.model_shapes = [w.shape for w in self._policy.get_weights()]
@@ -54,8 +57,12 @@ class CEMAgent(Agent):
         assert best_pct <= 1 and best_pct > 0
         self.num_best = int(best_pct * self.num_samples)
 
+    def save_models(self, path):
+        path = os.path.join(path, 'cem_policy')
+        self._policy.save(path)
+
     @staticmethod
-    def policy_model_factory(env, policy_network):
+    def policy_model_factory(env, policy_network, model_file_path):
         """ Network for CEM agents
         """
 
@@ -74,6 +81,9 @@ class CEMAgent(Agent):
 
         build_graph = partial(build_graph, env=env, network=policy_network)
 
+        if model_file_path is not None:
+            return Model(env, None, build_update_feed_dict,
+                         os.path.join(model_file_path, 'cem_policy'))
         return Model(env, build_graph, build_update_feed_dict)
 
     @property
@@ -171,6 +181,9 @@ class CEMAgent(Agent):
                     r.append(rollout)
                 self.logger.set_metrics_for_rollout(r, train=False)
                 self.logger.log()
+
+            if self.logger._log_dir is not None:
+                self.save_models(self.logger._log_dir)
 
         return
 

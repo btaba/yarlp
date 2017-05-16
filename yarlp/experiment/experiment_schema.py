@@ -42,7 +42,8 @@ schema = {
                 "params": {"type": "object"},
                 "training_params": {"type": "object"}
             },
-            "required": ["type", "training_epochs", "testing_epochs", "params"]
+            "required": ["type", "training_epochs", "testing_epochs",
+                         "params", "training_params"]
         },
         "env": {
             "properties": {
