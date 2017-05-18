@@ -3,6 +3,7 @@
 """
 
 import gym
+import shutil
 import unittest
 import numpy as np
 import tensorflow as tf
@@ -75,3 +76,4 @@ class testModel(unittest.TestCase):
                   'test_load_and_save_model')
         M.build_update_feed([0, 1, 0, 1], 2)
         M.update([0, 0, 0, 0], 2)
+        shutil.rmtree('test_load_and_save_model')

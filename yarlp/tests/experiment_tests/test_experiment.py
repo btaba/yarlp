@@ -10,7 +10,7 @@ class TestExperiment(unittest.TestCase):
     def setUp(self):
         dirname = os.path.dirname(os.path.abspath(__file__))
         file = os.path.join(dirname, 'test_experiment.json')
-        self.e = Experiment(file, n_jobs=4)
+        self.e = Experiment.from_json_spec(file)
 
     def test_run(self):
         self.e.run()

@@ -15,8 +15,7 @@ from yarlp.experiment.experiment_utils import ExperimentUtils
 
 
 class Experiment(ExperimentUtils):
-    def __init__(self, json_spec_filename, n_jobs=1,
-                 video=False):
+    def __init__(self, video=False):
         """
         Params
         ----------
@@ -24,37 +23,94 @@ class Experiment(ExperimentUtils):
             we us the defaul openai gym behavior of taking videos on
             every cube up until 1000, and then for every 1000 episodes.
         """
+        self.video = video
+
+    @classmethod
+    def from_json_spec(cls, json_spec_filename, *args, **kwargs):
+        """
+        Reads in json_spec_filen of experiment, validates the experiment spec,
+        creates a spec for each combination of agent/env/grid-search-params
+        and creates the experiment directory
+        Params
+        ----------
+        json_spec_filename (str): the file path of the json spec file for the
+            complete experiment
+        """
+        cls = cls(*args, **kwargs)
         assert os.path.exists(json_spec_filename) and\
             os.path.isfile(json_spec_filename)
 
-        self._spec_filename = json_spec_filename
+        _spec_filename = json_spec_filename
         spec_file_handle = open(json_spec_filename, 'r')
-        self._raw_spec = json.load(spec_file_handle)
-        self.n_jobs = n_jobs
-        self.video = video
+        _raw_spec = json.load(spec_file_handle)
 
         # validate the json spec using jsonschema
-        validate(self._raw_spec, schema)
+        validate(_raw_spec, schema)
 
         # create a json spec for each env-agent-repeat
-        _spec_list = self._spec_product(self._raw_spec)
+        _spec_list = cls._spec_product(_raw_spec)
 
-        self._validate_agent_names(_spec_list)
-        _spec_list = self._add_validated_env_repeats(_spec_list)
+        cls._validate_agent_names(_spec_list)
+        _spec_list = cls._add_validated_env_repeats(_spec_list)
 
         # if the agent params are lists, then we need to split them up further
         # since these will be the cross-validation (cv) folds
-        self._spec_list = self._expand_agent_grid(_spec_list)
+        cls._spec_list = cls._expand_agent_grid(_spec_list)
 
         # create log directory and save the full spec to the directory
-        self._experiment_dir = self._create_log_dir(
-            self._spec_filename)
-        Experiment._save_spec_to_dir(self._spec_list, self._experiment_dir)
+        cls._experiment_dir = cls._create_log_dir(
+            _spec_filename)
+        Experiment._save_spec_to_dir(cls._spec_list, cls._experiment_dir)
+        return cls
 
-    # make a cls method -> finishes unfinished jobs (check if stats are complete according to what is in the spec)
+    @classmethod
+    def from_unfinished_experiment_dir(cls, path, *args, **kwargs):
+        """
+        Restart experiment from unfinished experiment spec, this assumes that
+        Experiment._save_spec_to_dir was run previously
+        """
+        cls = cls(*args, **kwargs)
+        if not os.path.isdir(path):
+            path = cls._get_experiment_dir(path)
+        assert os.path.isdir(path),\
+            '{} does not exist or is not a directory'.format(path)
+        cls._experiment_dir = path
 
-    def run(self):
-        with ProcessPoolExecutor(max_workers=self.n_jobs) as ex:
+        # get the spec file
+        spec_file_path = os.path.join(path, 'spec.json')
+        assert os.path.isfile(spec_file_path)
+        cls._spec_list = json.load(open(spec_file_path, 'r'))
+        assert isinstance(cls._spec_list, list)
+
+        # walk the file path and dequeue specs that were completed
+        path_walk = [p[0] for p in os.walk(path)
+                     if os.path.isdir(p[0]) and p[0] != path]
+        completed_specs = []
+        for p in path_walk:
+            # did the experiment finish?
+            stat_file = os.path.join(p, 'stats.csv')
+            if not os.path.exists(stat_file):
+                continue
+
+            # check stat_file to see if experiment was run to completion
+            spec_file_path = os.path.join(p, 'spec.json')
+            spec_dict = json.load(open(spec_file_path, 'r'))
+            stat_df = pd.read_csv(stat_file)
+
+            num_training_epochs = spec_dict['agents']['training_epochs']
+            if (stat_df.training == True).sum() < num_training_epochs:
+                continue
+
+            completed_specs.append(spec_dict)
+
+        # dequeue complete experiments
+        cls._spec_list = [sl for sl in cls._spec_list
+                          if sl not in completed_specs]
+
+        return cls
+
+    def run(self, n_jobs=1):
+        with ProcessPoolExecutor(max_workers=n_jobs) as ex:
             for j in self._jobs:
                 future = ex.submit(j)
                 res = future.result()
@@ -159,13 +215,19 @@ class Experiment(ExperimentUtils):
 
             agent_set.add(agent_name)
 
+    @staticmethod
+    def _get_experiment_dir(experiment_name):
+        home = os.path.expanduser('~')
+        experiment_dir = os.path.join(
+            home, 'yarlp_experiments', experiment_name)
+        return experiment_dir
+
     def _create_log_dir(self, spec_filename):
         base_filename = os.path.basename(spec_filename)
         experiment_name = base_filename.split('.')[0]
 
-        home = os.path.expanduser('~')
-        experiment_dir = os.path.join(
-            home, 'yarlp_experiments', experiment_name)
+        experiment_dir = Experiment._get_experiment_dir(
+            experiment_name)
 
         return Experiment._create_log_directory(
             experiment_name, experiment_dir)
