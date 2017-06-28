@@ -153,7 +153,7 @@ class Agent(ABC):
         integer indicating the action that should be taken
         """
         batch = np.array([state])
-        action = self._policy.predict(batch)[0]
+        action = self._policy.predict(batch)
 
         if not GymEnv.env_action_space_is_discrete(self._env):
             return action

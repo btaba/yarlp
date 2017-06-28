@@ -26,18 +26,10 @@ class Job(ExperimentUtils):
 
     def _get_env(self, job_dir):
         env_name = self._spec_dict['envs']['name']
-        if self._spec_dict['envs']['normalize_obs']:
-            env = NormalizedGymEnv(
-                env_name, self._video, job_dir, force_reset=True,
-                normalize_obs=True)
-        else:
-            # the actions will be scaled automatically
-            env = NormalizedGymEnv(
-                env_name, self._video, job_dir, force_reset=True)
-
+        env = NormalizedGymEnv(
+            env_name, self._video, job_dir, force_reset=True)
         if 'timestep_limit' in self._spec_dict['envs']:
             env.spec.timestep_limit = self._spec_dict['envs']['timestep_limit']
-
         return env
 
     def _get_agent(self):

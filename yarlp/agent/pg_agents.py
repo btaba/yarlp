@@ -47,44 +47,13 @@ class REINFORCEAgent(Agent):
                  *args, **kwargs):
         super().__init__(env, *args, **kwargs)
 
-        # policy_path = None
-        # if model_file_path:
-        #     policy_path = os.path.join(model_file_path, 'pg_policy')
+        policy_path = None
+        if model_file_path:
+            policy_path = os.path.join(model_file_path, 'pg_policy')
 
-        # self._policy = discrete_pg_model_factory(
-        #     env, policy_network, policy_learning_rate, entropy_weight,
-        #     model_file_path=policy_path)
-
-        # try to bypass the model_factories
-        # hard-code for cartpole
-        sess = tf.InteractiveSession()
-        # with  as sess:
-
-        from keras import backend as K
-        K.set_session(sess)
-
-        from keras.models import Sequential
-        model = Sequential()
-        from keras.layers import Dense, Activation
-        model.add(Dense(output_dim=32, input_dim=4))
-        model.add(Activation('relu'))
-        model.add(Dense(output_dim=32, input_dim=32))
-        model.add(Activation('relu'))
-        model.add(Dense(output_dim=2))
-        model.add(Activation('softmax'))
-
-        self.returns = tf.placeholder(
-            dtype=tf.float32, shape=(None,), name='return')
-        self.actions = tf.placeholder(
-            dtype=tf.int32, shape=(None,), name='action')
-        self.pi = K.sum(model.output * K.one_hot(self.actions, 2), axis=1)
-        self.log_pi = K.log(self.pi + 1e-8)
-        self.loss = -K.mean(self.log_pi * self.returns)
-        self.train_step = tf.train.AdamOptimizer(.01).minimize(self.loss)
-        self._policy = model
-
-        sess.run(tf.global_variables_initializer())
-        self.sess = sess
+        self._policy = discrete_pg_model_factory(
+            env, policy_network, policy_learning_rate, entropy_weight,
+            model_file_path=policy_path)
 
         if not baseline_model:
             self._baseline_model = None
@@ -150,25 +119,9 @@ class REINFORCEAgent(Agent):
             if self._baseline_model:
                 self._baseline_model.fit(states, discounted_rewards)
 
-            # loss = self._policy.update(
-            #     states, advantages.squeeze(), actions)
-
-            # Run training loop
-
-            # with tf.get_default_session() as sess:
-                # self.sess.run(tf.global_variables_initializer())
-            self.train_step.run(
-                feed_dict={self._policy.input: states,
-                           self.actions: actions, self.returns: advantages})
-
-            loss = self.sess.run(self.loss, feed_dict={self._policy.input: states,
-                                self.actions: actions, self.returns: advantages})
-            # self.sess.run(self.pi, feed_dict={self._policy.input: states,
-            #                     self.actions: actions, self.returns: advantages})
-            print(loss)
-
-
-            # self.logger.add_metric('policy_loss', loss)
+            loss = self._policy.update(
+                states, advantages.squeeze(), actions)
+            self.logger.add_metric('policy_loss', loss)
             self.logger.set_metrics_for_rollout(rollouts, train=True)
             self.logger.log()
 
@@ -177,7 +130,7 @@ class REINFORCEAgent(Agent):
                 for t_test in range(num_test_steps):
                     rollout = self.rollout(greedy=True)
                     r.append(rollout)
-                # self.logger.add_metric('policy_loss', 0)
+                self.logger.add_metric('policy_loss', 0)
                 self.logger.set_metrics_for_rollout(r, train=False)
                 self.logger.log()
 

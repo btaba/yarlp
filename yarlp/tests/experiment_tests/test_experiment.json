@@ -3,8 +3,7 @@
         {
             "name": "CartPole-v1",
             "timestep_limit": 100,
-            "repeats": 1,
-            "normalize_obs": true
+            "repeats": 1
         }
     ],
     "agents": [

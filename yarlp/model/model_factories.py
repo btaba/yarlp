@@ -73,7 +73,7 @@ def discrete_pg_model_factory(
         action_one_hot = tf.one_hot(model.action, model.output_node.shape[1])
         model.pi = tf.reduce_sum(
             action_one_hot * model.output_node, 1)
-        model.log_pi = tf.log(model.pi)
+        model.log_pi = tf.log(model.pi + 1e-8)
 
         model.loss = -tf.reduce_mean(
             model.log_pi * model.Return) +\

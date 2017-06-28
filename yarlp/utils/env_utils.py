@@ -98,53 +98,16 @@ class NormalizedGymEnv(Env):
                  video=False,
                  log_dir=None,
                  force_reset=False,
-                 scale_reward=1.,
-                 normalize_obs=False,
-                 normalize_reward=False,
-                 obs_alpha=0.001,
-                 reward_alpha=0.001):
+                 scale_reward=1.):
         env = GymEnv(env_name, video, log_dir, force_reset)
         self.env = env
         self.env_id = env.spec.id
         self.spec = env.spec
         self.observation_space = env.observation_space
         self._scale_reward = scale_reward
-        self._normalize_obs = normalize_obs
-        self._normalize_reward = normalize_reward
-        self._obs_alpha = obs_alpha
-        self._obs_mean = np.zeros(self.env.observation_space.shape)
-        self._obs_var = np.ones(self.env.observation_space.shape)
-        self._reward_alpha = reward_alpha
-        self._reward_mean = 0.
-        self._reward_var = 1.
-
-    def _update_obs_estimate(self, obs):
-        flat_obs = obs
-        self._obs_mean = (1 - self._obs_alpha) * self._obs_mean +\
-            self._obs_alpha * flat_obs
-        self._obs_var = (1 - self._obs_alpha) * self._obs_var +\
-            self._obs_alpha * np.square(flat_obs - self._obs_mean)
-
-    def _update_reward_estimate(self, reward):
-        self._reward_mean = (1 - self._reward_alpha) * self._reward_mean\
-            + self._reward_alpha * reward
-        self._reward_var = (1 - self._reward_alpha) * self._reward_var +\
-            self._reward_alpha * np.square(reward - self._reward_mean)
-
-    def _apply_normalize_obs(self, obs):
-        self._update_obs_estimate(obs)
-        return (obs - self._obs_mean) / (np.sqrt(self._obs_var) + 1e-8)
-
-    def _apply_normalize_reward(self, reward):
-        self._update_reward_estimate(reward)
-        # rllab does not subtract mean
-        return reward / (np.sqrt(self._reward_var) + 1e-8)
 
     def reset(self):
-        ret = self.env.reset()
-        if self._normalize_obs:
-            return self._apply_normalize_obs(ret)
-        return ret
+        return self.env.reset()
 
     @property
     def action_space(self):
@@ -163,10 +126,6 @@ class NormalizedGymEnv(Env):
             scaled_action = action
         wrapped_step = self.env.step(scaled_action)
         next_obs, reward, done, info = wrapped_step
-        if self._normalize_obs:
-            next_obs = self._apply_normalize_obs(next_obs)
-        if self._normalize_reward:
-            reward = self._apply_normalize_reward(reward)
         return next_obs, reward * self._scale_reward, done, info
 
     def __str__(self):

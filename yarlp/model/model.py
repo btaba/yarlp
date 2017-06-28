@@ -87,25 +87,6 @@ class Model:
         weight_dict = {w.name: val for w, val in zip(self.weights, weights)}
         self.weights = weight_dict
 
-    # @property
-    # def loss(self):
-    #     return self._loss
-
-    # @loss.setter
-    # def loss(self, loss):
-    #     self._loss = loss
-
-    # @property
-    # def optimizer(self):
-    #     return self._optimizer
-
-    # @optimizer.setter
-    # def optimizer(self, optimizer):
-    #     self._optimizer = optimizer
-
-    #     assert self._loss is not None
-    #     self._optimizer_op = self._optimizer.minimize(self._loss)
-
     def add_loss(self, loss, name=''):
         self['loss:' + name] = loss
 

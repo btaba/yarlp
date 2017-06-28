@@ -25,8 +25,7 @@ class TestGymEnv(unittest.TestCase):
 class TestNormalizedGymEnv(unittest.TestCase):
 
     def test_discrete_action_space(self):
-        env = NormalizedGymEnv(
-            'CartPole-v0', normalize_obs=True, normalize_reward=True)
+        env = NormalizedGymEnv('CartPole-v0')
         env.reset()
         env.step(1)
         env.close()
@@ -34,9 +33,7 @@ class TestNormalizedGymEnv(unittest.TestCase):
         self.assertEqual(GymEnv.get_env_action_space_dim(env), 2)
 
     def test_continuous_action_space(self):
-        env = NormalizedGymEnv(
-            'MountainCarContinuous-v0', normalize_obs=True,
-            normalize_reward=True)
+        env = NormalizedGymEnv('MountainCarContinuous-v0')
         env.reset()
         env.step([0.1])
         env.close()

@@ -255,7 +255,6 @@ class Experiment(ExperimentUtils):
             stats['agent'] = spec['agents']['type']
             stats['env'] = spec['envs']['name']
             stats['env_timestep_limit'] = spec['envs']['timestep_limit']
-            stats['env_normalize_obs'] = spec['envs']['normalize_obs']
             stats['agent_params'] = str(spec['agents']['params'])
             stats_list.append(stats)
 
