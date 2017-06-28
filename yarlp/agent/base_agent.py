@@ -52,6 +52,39 @@ class Agent(ABC):
     def num_actions(self):
         return GymEnv.get_env_action_space_dim(self._env)
 
+    def rollout_n_steps(self, n_steps=1000, truncate=False, **kwargs):
+        """
+        Do rollouts until we have have achieved `n_steps` steps in the env.
+
+        Parameters
+        ----------
+        n_steps : int, the number of steps to sample in the environment
+        truncate : bool, whether to truncate the last episode to the
+            exact number of steps specified in `n_steps`. If False, we could
+            have more steps than `n_steps` sampled.
+
+        Returns
+        ----------
+        List(Rollout) : list of Rollout
+        """
+
+        steps_sampled = 0
+        rollouts = []
+        while steps_sampled < n_steps:
+            r = self.rollout(**kwargs)
+            steps_sampled += len(r.rewards)
+            rollouts.append(r)
+
+        if truncate and steps_sampled > 0:
+            steps_to_remove = steps_sampled - n_steps
+            r = Rollout([], [], [])
+            r.rewards.extend(rollouts[-1].rewards[:-steps_to_remove])
+            r.actions.extend(rollouts[-1].actions[:-steps_to_remove])
+            r.states.extend(rollouts[-1].states[:-steps_to_remove])
+            rollouts[-1] = r
+
+        return rollouts
+
     def rollout(self, render=False, render_freq=5, greedy=False):
         """
         Performs actions on the environment
@@ -98,6 +131,19 @@ class Agent(ABC):
 
         return np.sum(cumulative_reward[1:])
 
+    def get_discounted_reward_list(self, rewards):
+        """
+        Given a list of rewards, return the discounted rewards
+        at each time step, in linear time
+        """
+        rt = 0
+        discounted_rewards = []
+        for t in range(len(rewards) - 1, -1, -1):
+            rt = rewards[t] + self._discount * rt
+            discounted_rewards.append(rt)
+
+        return list(reversed(discounted_rewards))
+
     def get_action(self, state, greedy=False):
         """
         Generate an action from our policy model
@@ -107,7 +153,7 @@ class Agent(ABC):
         integer indicating the action that should be taken
         """
         batch = np.array([state])
-        action = self._policy.predict(batch)
+        action = self._policy.predict(batch)[0]
 
         if not GymEnv.env_action_space_is_discrete(self._env):
             return action

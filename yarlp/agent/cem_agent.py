@@ -24,15 +24,15 @@ class CEMAgent(Agent):
     ----------
     policy_model : model.Model
 
-    num_samples : integer
-        Total number of sample weights to draw for each training step
+    n_weight_samples : integer
+        Total number of sample weights to draw during each training step
 
     init_var : float, default 0.1
 
     best_pct : float, default 0.2
         The percentage of sample weights to keep that yield the best reward
     """
-    def __init__(self, env, num_samples,
+    def __init__(self, env, n_weight_samples=100,
                  init_var=0.1, best_pct=0.2,
                  policy_network=tf.contrib.layers.fully_connected,
                  model_file_path=None,
@@ -51,11 +51,11 @@ class CEMAgent(Agent):
         self._sigma = np.ones(self.model_total_sizes) * init_var
 
         # Total number of sample weights to draw for each training step
-        self.num_samples = num_samples
+        self.n_weight_samples = n_weight_samples
 
         # Number of best parameters to keep
         assert best_pct <= 1 and best_pct > 0
-        self.num_best = int(best_pct * self.num_samples)
+        self.num_best = int(best_pct * self.n_weight_samples)
 
     def save_models(self, path):
         path = os.path.join(path, 'cem_policy')
@@ -106,7 +106,7 @@ class CEMAgent(Agent):
 
     def train(self, num_train_steps, num_test_steps=0,
               with_variance=False, alpha=5, beta=10,
-              min_sigma=0.01):
+              min_sigma=1e-2):
         """
         Learn the most optimal weights for our PolicyModel
             optionally with a variance adjustment as in [1]
@@ -133,32 +133,29 @@ class CEMAgent(Agent):
         for i in range(num_train_steps):
             # logger.info('Training step {}'.format(i))
             if np.any(self._sigma <= 0):
-                # warnings.warn(
-                #     ("Variance for at least one weight "
-                #         "is less than or equal to 0"),
-                #     Warning)
-                # return total_reward_per_training_episode
                 self._sigma[self._sigma <= 0] = min_sigma
 
             # generate n_samples each iteration with new mean and stddev
             # according to our current optimal mean and variance
             weight_samples = np.array(
-                [np.random.normal(mean, np.sqrt(var), self.num_samples)
+                [np.random.normal(mean, np.sqrt(var), self.n_weight_samples)
                  for mean, var in zip(self._theta, self._sigma)])
             weight_samples = weight_samples.T
 
             # get the rewards for each mean/variance
+            rollouts = []
             rollout_rewards = []
             for w in weight_samples:
                 # add weights to PolicyModel
                 weights_reshaped = self._reshape_weights(w)
                 self._policy.set_weights(weights_reshaped)
                 rollout = self.rollout()
+                rollouts.append(rollout)
                 rollout_rewards.append(np.sum(rollout.rewards))
 
             # get the num_best mean/var with highest reward
             rollout_rewards = np.array(rollout_rewards)
-            self.logger.set_metrics_for_rollout(rollout, train=True)
+            self.logger.set_metrics_for_rollout(rollouts, train=True)
             self.logger.log()
 
             best_idx = rollout_rewards.argsort()[::-1][:self.num_best]

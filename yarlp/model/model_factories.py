@@ -14,28 +14,32 @@ def value_function_model_factory(
     def build_graph(model, network, lr, shape):
         input_node = model.add_input(shape=shape)
 
-        vsi = tf.contrib.layers.variance_scaling_initializer()
-        network = partial(network, activation_fn=None,
-                          weights_initializer=vsi)
+        # vsi = tf.contrib.layers.variance_scaling_initializer()
+        # network = partial(network, activation_fn=None,
+        #                   weights_initializer=vsi)
+        network = partial(network, activation_fn=None)
         output_node = model.add_output(network, num_outputs=1)
+        model.value = output_node
 
         # Value function estimation stuff
         model.state = input_node
         model.target_value = tf.placeholder(
             dtype=tf.float32, shape=(None,), name='target_value')
-        loss = tf.squared_difference(output_node, model.target_value)
+        loss = tf.reduce_mean(
+            tf.squared_difference(output_node, model.target_value))
         optimizer = tf.train.AdamOptimizer(
             learning_rate=lr)
         model.add_loss(loss)
         model.add_optimizer(optimizer, loss)
         model.learning_rate = lr
 
-        model.value = output_node
         model.create_gradient_ops_for_node(optimizer, output_node)
 
     def build_update_feed_dict(model, state, target_value):
-        feed_dict = {model.state: np.expand_dims(state, 0),
-                     model.target_value: [target_value]}
+        if len(state.shape) == 1:
+            state = np.expand_dims(state, 0)
+        feed_dict = {model.state: state,
+                     model.target_value: target_value}
         return feed_dict
 
     build_graph = partial(build_graph, network=network,
@@ -50,7 +54,8 @@ def discrete_pg_model_factory(
         env, network, learning_rate=0.01,
         entropy_weight=0.001,
         input_shape=None, model_file_path=None):
-    """Policy model for discrete action spaces with policy gradient update
+    """
+    Policy model for discrete action spaces with policy gradient update
     """
     def build_graph(model, network, lr, input_shape):
         input_node = model.add_input(shape=input_shape)
@@ -70,9 +75,9 @@ def discrete_pg_model_factory(
             action_one_hot * model.output_node, 1)
         model.log_pi = tf.log(model.pi)
 
-        model.loss = -tf.reduce_sum(
+        model.loss = -tf.reduce_mean(
             model.log_pi * model.Return) +\
-            entropy_weight * tf.reduce_sum(model.log_pi * model.pi)
+            entropy_weight * tf.reduce_mean(model.log_pi * model.pi)
         model.optimizer = tf.train.AdamOptimizer(
             learning_rate=lr)
         model.add_loss(model.loss)

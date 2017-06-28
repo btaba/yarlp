@@ -95,7 +95,7 @@ class Experiment(ExperimentUtils):
             # check stat_file to see if experiment was run to completion
             spec_file_path = os.path.join(p, 'spec.json')
             spec_dict = json.load(open(spec_file_path, 'r'))
-            stat_df = pd.read_csv(stat_file)
+            stat_df = pd.read_csv(stat_file, sep='\t')
 
             num_training_epochs = spec_dict['agents']['training_epochs']
             if (stat_df.training == True).sum() < num_training_epochs:
@@ -241,13 +241,14 @@ class Experiment(ExperimentUtils):
             os.makedirs(statspath)
         agg_stats_file = os.path.join(statspath, 'merged_stats.csv')
 
+        stats_list = []
         for d in os.listdir(self._experiment_dir):
             base_path = os.path.join(self._experiment_dir, d)
             if not os.path.isdir(base_path) or d == 'stats':
                 continue
             spec = open(os.path.join(base_path, 'spec.json'), 'r')
             spec = json.load(spec)
-            stats = pd.read_csv(os.path.join(base_path, 'stats.csv'))
+            stats = pd.read_csv(os.path.join(base_path, 'stats.csv'), sep='\t')
             stats['run'] = spec['run']
             stats['param_run'] = spec['param_run']
             stats['run_name'] = spec['run_name']
@@ -256,13 +257,14 @@ class Experiment(ExperimentUtils):
             stats['env_timestep_limit'] = spec['envs']['timestep_limit']
             stats['env_normalize_obs'] = spec['envs']['normalize_obs']
             stats['agent_params'] = str(spec['agents']['params'])
+            stats_list.append(stats)
 
-            header = False
-            if not os.path.exists(agg_stats_file):
-                header = True
+        stats = stats_list[0]
+        for s in stats_list[1:]:
+            stats.append(s)
 
-            with open(agg_stats_file, 'a') as f:
-                stats.to_csv(f, index=False, header=header)
+        with open(agg_stats_file, 'a') as f:
+            stats.to_csv(f, index=False, header=True, sep='\t')
 
     def _aggregate_stats_over_runs(self):
         """Compute aggregates on the merged_stats.csv file
@@ -275,7 +277,7 @@ class Experiment(ExperimentUtils):
             self._experiment_dir, 'stats/agg_episode_stats.csv')
         agg_agent_stats_file = os.path.join(
             self._experiment_dir, 'stats/agg_agent_stats.csv')
-        base_df = pd.read_csv(m)
+        base_df = pd.read_csv(m, sep='\t')
 
         # episode level stats
         df_avg = base_df.groupby(
@@ -283,17 +285,17 @@ class Experiment(ExperimentUtils):
         ).mean().add_prefix('mean_')
         df_std = base_df.groupby(
             ['agent', 'env', 'training', 'episode', 'agent_params']
-        )['avg_episode_length', 'total_reward', 'total_episode_length']
+        )['avg_episode_length', 'total_reward', 'steps']
         df_std = df_std.std().add_prefix('std_').fillna(0)
         df = df_avg.join(df_std)
-        df.to_csv(agg_episode_stats_file)
+        df.to_csv(agg_episode_stats_file, sep='\t')
 
         # agent level stats
         df = base_df.groupby(
             ['agent', 'env', 'training', 'agent_params', 'run']
         ).apply(lambda x: x.sort_values('episode').mean())
         df = df[
-            ['avg_episode_length', 'total_reward', 'total_episode_length']]
+            ['avg_episode_length', 'total_reward', 'steps']]
         df = df.reset_index()
         df_avg = df.groupby(
             ['agent', 'env', 'training', 'agent_params']).mean()
@@ -301,7 +303,7 @@ class Experiment(ExperimentUtils):
         df_std = df_std.add_prefix('std_').fillna(0)
         df = df_avg.join(df_std)
         df.drop(['run', 'std_run'], inplace=True, axis=1)
-        df.to_csv(agg_agent_stats_file, index=True)
+        df.to_csv(agg_agent_stats_file, index=True, sep='\t')
 
     def _plot_stats(self):
         """Take the agg_stats.csv file and make plots
@@ -309,7 +311,7 @@ class Experiment(ExperimentUtils):
         m = os.path.join(self._experiment_dir, 'stats/agg_episode_stats.csv')
         assert os.path.exists(m), "Aggregated stats file must exist"
 
-        df = pd.read_csv(m)
+        df = pd.read_csv(m, sep='\t')
         plt_index = df.groupby(
             ['agent', 'env', 'training', 'agent_params']).count().index
 
@@ -324,9 +326,9 @@ class Experiment(ExperimentUtils):
 
             plt.subplot(4, 1, 1)
             plt.errorbar(
-                sub_df.mean_total_episode_length.cumsum(),
+                sub_df.mean_steps.cumsum(),
                 sub_df.mean_total_reward,
-                sub_df.std_total_reward, sub_df.std_total_episode_length)
+                sub_df.std_total_reward, sub_df.std_steps)
             plt.title(idx)
             plt.ylabel('Total Reward')
             plt.xlabel('Steps')
@@ -339,9 +341,9 @@ class Experiment(ExperimentUtils):
 
             plt.subplot(4, 1, 3)
             plt.errorbar(
-                sub_df.mean_total_episode_length.cumsum(),
+                sub_df.mean_steps.cumsum(),
                 sub_df.mean_avg_episode_length,
-                sub_df.std_avg_episode_length, sub_df.std_total_episode_length)
+                sub_df.std_avg_episode_length, sub_df.std_steps)
             plt.ylabel('Episode Length')
             plt.xlabel('Steps')
 

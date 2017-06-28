@@ -14,8 +14,7 @@
             "testing_epochs": 1,
             "params": {
                 "discount_factor": 0.99,
-                "policy_learning_rate": 0.01,
-                "value_learning_rate": 0.01
+                "policy_learning_rate": 0.01
             },
             "training_params": {}
         },

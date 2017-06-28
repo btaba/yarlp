@@ -17,7 +17,7 @@ class TestREINFORCECartPole(unittest.TestCase):
 
     def test_reinforce_no_baseline(self):
         agent = REINFORCEAgent(
-            self.env, baseline_network=None,
+            self.env, baseline_model=None,
             discount_factor=.95)
         agent.train(num_train_steps=1)
 
@@ -33,5 +33,6 @@ class TestREINFORCECartPole(unittest.TestCase):
             discount_factor=.95)
         agent.save_models('testy_reinforce')
         agent = REINFORCEAgent(
-            self.env, model_file_path='testy_reinforce')
+            self.env,
+            model_file_path='testy_reinforce')
         shutil.rmtree('testy_reinforce')

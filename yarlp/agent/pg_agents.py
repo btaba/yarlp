@@ -17,14 +17,11 @@ REINFORCE Agent and Policy Gradient (PG) Actor Critic Agent
 
 import os
 from yarlp.agent.base_agent import Agent
-from yarlp.model.model_factories import value_function_model_factory
 from yarlp.model.model_factories import discrete_pg_model_factory
-# from yarlp.model.model_factories import continuous_gaussian_pg_model_factory
-# from yarlp.utils.logger import logger
+from yarlp.model.linear_baseline import LinearFeatureBaseline
 
 import numpy as np
 import tensorflow as tf
-# import warnings
 
 
 class REINFORCEAgent(Agent):
@@ -33,91 +30,146 @@ class REINFORCEAgent(Agent):
 
     Parameters
     ----------
-    policy_model : model.Model
-
-    baseline_network : if None, we us no baseline
-
+    env : gym.env
+    policy_network : model.Model
+    policy_learning_rate : float, the learning rate for the policy_network
+    baseline_model : if None, we us no baseline
+        otherwise we use a LinearFeatureBaseline
+    entropy_weight : float, coefficient on entropy in the policy gradient loss
+    model_file_path : str, file path for the policy_network
     """
     def __init__(self, env,
                  policy_network=tf.contrib.layers.fully_connected,
                  policy_learning_rate=0.01,
-                 baseline_network=tf.contrib.layers.fully_connected,
-                 value_learning_rate=0.01, entropy_weight=0.001,
+                 baseline_model=LinearFeatureBaseline(),
+                 entropy_weight=0,
                  model_file_path=None,
                  *args, **kwargs):
         super().__init__(env, *args, **kwargs)
 
-        policy_path = None
-        baseline_path = None
-        if model_file_path:
-            policy_path = os.path.join(model_file_path, 'pg_policy')
-            baseline_path = os.path.join(model_file_path, 'value_model')
+        # policy_path = None
+        # if model_file_path:
+        #     policy_path = os.path.join(model_file_path, 'pg_policy')
 
-        self._policy = discrete_pg_model_factory(
-            env, policy_network, policy_learning_rate, entropy_weight,
-            model_file_path=policy_path)
+        # self._policy = discrete_pg_model_factory(
+        #     env, policy_network, policy_learning_rate, entropy_weight,
+        #     model_file_path=policy_path)
 
-        if not baseline_network:
-            # No baseline
+        # try to bypass the model_factories
+        # hard-code for cartpole
+        sess = tf.InteractiveSession()
+        # with  as sess:
+
+        from keras import backend as K
+        K.set_session(sess)
+
+        from keras.models import Sequential
+        model = Sequential()
+        from keras.layers import Dense, Activation
+        model.add(Dense(output_dim=32, input_dim=4))
+        model.add(Activation('relu'))
+        model.add(Dense(output_dim=32, input_dim=32))
+        model.add(Activation('relu'))
+        model.add(Dense(output_dim=2))
+        model.add(Activation('softmax'))
+
+        self.returns = tf.placeholder(
+            dtype=tf.float32, shape=(None,), name='return')
+        self.actions = tf.placeholder(
+            dtype=tf.int32, shape=(None,), name='action')
+        self.pi = K.sum(model.output * K.one_hot(self.actions, 2), axis=1)
+        self.log_pi = K.log(self.pi + 1e-8)
+        self.loss = -K.mean(self.log_pi * self.returns)
+        self.train_step = tf.train.AdamOptimizer(.01).minimize(self.loss)
+        self._policy = model
+
+        sess.run(tf.global_variables_initializer())
+        self.sess = sess
+
+        if not baseline_model:
             self._baseline_model = None
         else:
-            # Baseline can be any function,
-            # as long as it does not vary with actions
-            self._baseline_model = value_function_model_factory(
-                env, network=baseline_network,
-                learning_rate=value_learning_rate,
-                model_file_path=baseline_path)
+            self._baseline_model = baseline_model
 
     def save_models(self, path):
         ppath = os.path.join(path, 'pg_policy')
         self._policy.save(ppath)
-        if self._baseline_model is not None:
-            bpath = os.path.join(path, 'value_model')
-            self._baseline_model.save(bpath)
 
-    def train(self, num_train_steps, num_test_steps=0):
+    def train(self, num_train_steps=10, num_test_steps=0, n_steps=1000):
         """
 
         Parameters
         ----------
-        num_training_steps : integer
-            Total number of training steps
+        n_steps : integer
+            Total number of samples from the environment for each
+            training iteration.
+        num_train_steps : integer
+            Total number of training iterations.
+        num_test_steps : integer
+            Number of testing iterations per training iteration.
 
         Returns
         ----------
-        total_reward_per_training_episode : list
-            total reward obtained after each training episode
-
         """
         for i in range(num_train_steps):
             # execute an episode
-            rollout = self.rollout()
+            rollouts = self.rollout_n_steps(n_steps)
 
             actions = []
             states = []
             advantages = []
+            discounted_rewards = []
+            baseline_preds = []
 
-            for t, r in enumerate(rollout.rewards):
-                # update the weights for policy model
-                discounted_rt = self.get_discounted_cumulative_reward(
-                    rollout.rewards[t:])
+            for rollout in rollouts:
+                discounted_reward = self.get_discounted_reward_list(
+                    rollout.rewards)
 
-                baseline = 0
+                baseline_pred = np.zeros_like(discounted_reward)
                 if self._baseline_model:
-                    self._baseline_model.update(
-                        rollout.states[t], discounted_rt)
-                    baseline = self._baseline_model.predict(
-                        np.array(rollout.states[t])).flatten()
+                    baseline_pred = self._baseline_model.predict(
+                        np.array(rollout.states)).flatten()
 
-                advantage = discounted_rt - baseline
-                states.append(rollout.states[t])
-                actions.append(rollout.actions[t])
-                advantages.append(advantage)
+                # calculate and whiten the advantages
+                advantage = discounted_reward - baseline_pred
+                advantage = (advantage - np.mean(advantage)) /\
+                    (np.std(advantage) + 1e-8)
 
-            # batch update the policy
-            self._policy.update(
-                states, advantages, actions)
-            self.logger.set_metrics_for_rollout(rollout, train=True)
+                baseline_preds = np.concatenate(
+                    [baseline_preds, baseline_pred])
+                advantages = np.concatenate([advantages, advantage])
+                states.append(rollout.states)
+                actions.append(rollout.actions)
+                discounted_rewards = np.concatenate(
+                    [discounted_rewards, discounted_reward])
+
+            states = np.concatenate([s for s in states]).squeeze()
+            actions = np.concatenate([a for a in actions])
+
+            # batch update the baseline and the policy
+            if self._baseline_model:
+                self._baseline_model.fit(states, discounted_rewards)
+
+            # loss = self._policy.update(
+            #     states, advantages.squeeze(), actions)
+
+            # Run training loop
+
+            # with tf.get_default_session() as sess:
+                # self.sess.run(tf.global_variables_initializer())
+            self.train_step.run(
+                feed_dict={self._policy.input: states,
+                           self.actions: actions, self.returns: advantages})
+
+            loss = self.sess.run(self.loss, feed_dict={self._policy.input: states,
+                                self.actions: actions, self.returns: advantages})
+            # self.sess.run(self.pi, feed_dict={self._policy.input: states,
+            #                     self.actions: actions, self.returns: advantages})
+            print(loss)
+
+
+            # self.logger.add_metric('policy_loss', loss)
+            self.logger.set_metrics_for_rollout(rollouts, train=True)
             self.logger.log()
 
             if num_test_steps > 0:
@@ -125,6 +177,7 @@ class REINFORCEAgent(Agent):
                 for t_test in range(num_test_steps):
                     rollout = self.rollout(greedy=True)
                     r.append(rollout)
+                # self.logger.add_metric('policy_loss', 0)
                 self.logger.set_metrics_for_rollout(r, train=False)
                 self.logger.log()
 

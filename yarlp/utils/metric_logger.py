@@ -33,10 +33,22 @@ class MetricLogger:
 
     def _create_logger(self, name):
         logger = logging.getLogger(name)
-        handler = logging.StreamHandler()
-        handler.setFormatter(
-            logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s'))
-        logger.addHandler(handler)
+
+        # remove old handlers
+        for handler in logger.handlers:  # remove all old handlers
+            logger.removeHandler(handler)
+
+        # add new handlers
+        handlers = [logging.StreamHandler()]
+        if self._log_dir:
+            log_file = os.path.join(self._log_dir, 'logs.log')
+            handlers.append(logging.FileHandler(log_file))
+
+        for handler in handlers:
+            handler.setFormatter(
+                logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s'))
+            logger.addHandler(handler)
+
         logger.setLevel(20)
         logger.propagate = False
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -55,6 +67,7 @@ class MetricLogger:
         tabulate_list = list(
             zip(list(self._metric_dict),
                 self._metric_dict.values()))
+        tabulate_list = sorted(tabulate_list, key=lambda x: x[0])
         return tabulate(tabulate_list, floatfmt=".4f")
 
     def log(self, reset=True):
@@ -66,10 +79,10 @@ class MetricLogger:
             self._logger.info('Writing stats to {}'.format(self._stat_file))
             if not os.path.isfile(self._stat_file):
                 with open(self._stat_file, 'w') as f:
-                    w = csv.writer(f)
+                    w = csv.writer(f, delimiter='\t')
                     w.writerow(self._metric_dict.keys())
             with open(self._stat_file, 'a') as f:
-                w = csv.writer(f)
+                w = csv.writer(f, delimiter='\t')
                 vals = self._metric_dict.values()
                 w.writerow(vals)
 
@@ -81,18 +94,22 @@ class MetricLogger:
             # unroll the rollout
             self['avg_episode_length'] = np.mean(
                 [len(r.rewards) for r in rollout])
-            self['total_episode_length'] = np.sum(
+            self['steps'] = np.sum(
                 [len(r.rewards) for r in rollout])
+            self['min_reward'] = np.min([np.sum(r.rewards) for r in rollout])
+            self['max_reward'] = np.max([np.sum(r.rewards) for r in rollout])
             self['training'] = train
             self['avg_reward'] = np.mean([np.mean(r.rewards) for r in rollout])
             self['avg_total_reward'] = np.mean(
                 [np.sum(r.rewards) for r in rollout])
-            self['std_reward'] = np.mean([np.std(r.rewards) for r in rollout])
+            self['std_reward'] = np.std([np.sum(r.rewards) for r in rollout])
             self['total_reward'] = np.sum([np.sum(r.rewards) for r in rollout])
         else:
             assert isinstance(rollout, Rollout)
             self['avg_episode_length'] = len(rollout.rewards)
-            self['total_episode_length'] = len(rollout.rewards)
+            self['steps'] = len(rollout.rewards)
+            self['min_reward'] = np.min(rollout.rewards)
+            self['max_reward'] = np.max(rollout.rewards)
             self['training'] = train
             self['avg_reward'] = np.mean(rollout.rewards)
             self['avg_total_reward'] = np.sum(rollout.rewards)
