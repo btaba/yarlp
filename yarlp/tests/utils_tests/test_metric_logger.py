@@ -17,7 +17,7 @@ class TestMetricLogger(unittest.TestCase):
         self.assertEqual(self.logger._episode, 1)
 
         # check that csv was created
-        self.assertTrue(os.path.exists('stats.csv'))
+        self.assertTrue(os.path.exists('stats.tsv'))
 
     def tearDown(self):
-        os.remove('stats.csv')
+        os.remove('stats.tsv')
