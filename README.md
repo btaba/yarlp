@@ -3,15 +3,13 @@
 
 ##### TODO:
 
-- Make an experimentation method
-    - compare performance to other packages for cem/reinforce
-        - add network args to Experiment method
-        - submit CEM and REINFORCE stuff
-    - add continuous action spaces for CEM/Reinforce
+- Make cem sample n_steps instead of fixed number of sample weights
+    - submit
 
-- make a method to load model from file with all the args (including models)
+- add continuous action spaces for CEM/Reinforce, and try different envs
 - Add policy classes continuous gaussian, categorical, and deterministic, random uniform
-    - Make generic q-function and policy models handling both continuous/deterministic action/state spaces
+    - Make generic q-function and policy models handling all state/action spaces
+- make a method to load model from file with all the args (including models)
 
 - DQ, DDQ
 - TRPO

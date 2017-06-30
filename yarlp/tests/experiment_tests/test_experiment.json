@@ -13,7 +13,11 @@
             "testing_epochs": 1,
             "params": {
                 "discount_factor": 0.99,
-                "policy_learning_rate": 0.01
+                "policy_learning_rate": 0.01,
+                "policy_network": "mlp",
+                "policy_network_params": {
+                    "hidden_units": [32, 32]
+                }
             },
             "training_params": {}
         },

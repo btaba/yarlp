@@ -1,7 +1,10 @@
 import os
 import json
 import inspect
+import importlib
+
 from datetime import datetime
+from functools import partial
 
 
 class ExperimentUtils:
@@ -27,11 +30,21 @@ class ExperimentUtils:
         file_path = os.path.join(dir, 'spec.json')
         json.dump(spec, open(file_path, 'w'), indent=4)
 
-    # @staticmethod
-    # def create_video_callable(video):
-    #     assert isinstance(video, bool)
 
-    #     if not video:
-    #         return False
+def _get_model_from_str(x):
+    """
+    Loads a model from a string
+    Parameters
+    --------------
+    x : str, must exist in yarlp.models
+    """
+    m = importlib.import_module("yarlp.model")
+    return getattr(m, x)
 
-    #     return None
+
+def get_network(network, params):
+        if isinstance(network, str):
+            network = _get_model_from_str(network)
+
+        network = partial(network, **params)
+        return network

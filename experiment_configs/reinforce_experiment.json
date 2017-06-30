@@ -15,10 +15,14 @@
             "params": {
                 "discount_factor": [0.99],
                 "policy_learning_rate": [0.01, 0.1],
-                "entropy_weight": [0, 0.1]
+                "entropy_weight": [0, 0.1],
+                "policy_network": "mlp",
+                "policy_network_params": {
+                    "hidden_units": [32, 32]
+                }
             },
             "training_params": {
-                "n_steps": 4000
+                "n_steps": 500
             }
         },
         {
@@ -29,7 +33,11 @@
                 "discount_factor": [0.99],
                 "n_weight_samples": [100],
                 "best_pct": [0.1],
-                "init_var": [0.1]
+                "init_var": [0.1],
+                "policy_network": "mlp",
+                "policy_network_params": {
+                    "hidden_units": [32, 32]
+                }
             },
             "training_params": {
                 "with_variance": true

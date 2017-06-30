@@ -6,6 +6,7 @@ from functools import partial
 from yarlp.agent.base_agent import Agent
 from yarlp.model.model import Model
 from yarlp.utils.env_utils import GymEnv
+from yarlp.utils.experiment_utils import get_network
 
 import numpy as np
 import tensorflow as tf
@@ -35,9 +36,11 @@ class CEMAgent(Agent):
     def __init__(self, env, n_weight_samples=100,
                  init_var=0.1, best_pct=0.2,
                  policy_network=tf.contrib.layers.fully_connected,
+                 policy_network_params={},
                  model_file_path=None,
                  *args, **kwargs):
         super().__init__(env, *args, **kwargs)
+        policy_network = get_network(policy_network, policy_network_params)
         self._policy = CEMAgent.policy_model_factory(
             env, policy_network, model_file_path)
 

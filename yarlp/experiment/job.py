@@ -1,4 +1,4 @@
-from yarlp.experiment.experiment_utils import ExperimentUtils
+from yarlp.utils.experiment_utils import ExperimentUtils
 from yarlp.utils.env_utils import NormalizedGymEnv
 from yarlp.utils.metric_logger import MetricLogger
 

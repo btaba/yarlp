@@ -22,6 +22,7 @@ from yarlp.model.linear_baseline import LinearFeatureBaseline
 
 import numpy as np
 import tensorflow as tf
+from yarlp.utils.experiment_utils import get_network
 
 
 class REINFORCEAgent(Agent):
@@ -33,15 +34,16 @@ class REINFORCEAgent(Agent):
     env : gym.env
     policy_network : model.Model
     policy_learning_rate : float, the learning rate for the policy_network
-    baseline_model : if None, we us no baseline
+    use_baseline : if None, we us no baseline
         otherwise we use a LinearFeatureBaseline
     entropy_weight : float, coefficient on entropy in the policy gradient loss
     model_file_path : str, file path for the policy_network
     """
     def __init__(self, env,
                  policy_network=tf.contrib.layers.fully_connected,
+                 policy_network_params={},
                  policy_learning_rate=0.01,
-                 baseline_model=LinearFeatureBaseline(),
+                 use_baseline=True,
                  entropy_weight=0,
                  model_file_path=None,
                  *args, **kwargs):
@@ -51,14 +53,16 @@ class REINFORCEAgent(Agent):
         if model_file_path:
             policy_path = os.path.join(model_file_path, 'pg_policy')
 
+        policy_network = get_network(policy_network, policy_network_params)
+
         self._policy = discrete_pg_model_factory(
             env, policy_network, policy_learning_rate, entropy_weight,
             model_file_path=policy_path)
 
-        if not baseline_model:
-            self._baseline_model = None
+        if use_baseline:
+            self._baseline_model = LinearFeatureBaseline()
         else:
-            self._baseline_model = baseline_model
+            self._baseline_model = None
 
     def save_models(self, path):
         ppath = os.path.join(path, 'pg_policy')
@@ -69,16 +73,17 @@ class REINFORCEAgent(Agent):
 
         Parameters
         ----------
-        n_steps : integer
-            Total number of samples from the environment for each
-            training iteration.
         num_train_steps : integer
             Total number of training iterations.
         num_test_steps : integer
             Number of testing iterations per training iteration.
+        n_steps : integer
+            Total number of samples from the environment for each
+            training iteration.
 
         Returns
         ----------
+        None
         """
         for i in range(num_train_steps):
             # execute an episode

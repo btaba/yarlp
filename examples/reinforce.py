@@ -2,7 +2,6 @@
 Sample run with reinforce agent
 """
 
-# from yarlp.experiment.experiment import Experiment
 from yarlp.agent.pg_agents import REINFORCEAgent
 from yarlp.utils.env_utils import NormalizedGymEnv
 from yarlp.model.networks import mlp

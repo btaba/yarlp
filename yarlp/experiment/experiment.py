@@ -1,7 +1,9 @@
 import os
 import gym
+import sys
 import json
 import copy
+import click
 import pandas as pd
 
 import tqdm
@@ -11,7 +13,7 @@ from matplotlib import pyplot as plt
 from concurrent.futures import ProcessPoolExecutor
 from yarlp.experiment.experiment_schema import schema
 from yarlp.experiment.job import Job
-from yarlp.experiment.experiment_utils import ExperimentUtils
+from yarlp.utils.experiment_utils import ExperimentUtils
 
 
 class Experiment(ExperimentUtils):
@@ -37,10 +39,10 @@ class Experiment(ExperimentUtils):
             complete experiment
         """
         cls = cls(*args, **kwargs)
+        assert json_spec_filename is not None
         assert os.path.exists(json_spec_filename) and\
             os.path.isfile(json_spec_filename)
 
-        _spec_filename = json_spec_filename
         spec_file_handle = open(json_spec_filename, 'r')
         _raw_spec = json.load(spec_file_handle)
 
@@ -59,7 +61,7 @@ class Experiment(ExperimentUtils):
 
         # create log directory and save the full spec to the directory
         cls._experiment_dir = cls._create_log_dir(
-            _spec_filename)
+            json_spec_filename)
         Experiment._save_spec_to_dir(cls._spec_list, cls._experiment_dir)
         return cls
 
@@ -88,7 +90,7 @@ class Experiment(ExperimentUtils):
         completed_specs = []
         for p in path_walk:
             # did the experiment finish?
-            stat_file = os.path.join(p, 'stats.csv')
+            stat_file = os.path.join(p, 'stats.tsv')
             if not os.path.exists(stat_file):
                 continue
 
@@ -103,19 +105,24 @@ class Experiment(ExperimentUtils):
 
             completed_specs.append(spec_dict)
 
-        # dequeue complete experiments
+        # de-queue complete experiments
         cls._spec_list = [sl for sl in cls._spec_list
                           if sl not in completed_specs]
 
         return cls
 
     def run(self, n_jobs=1):
-        with ProcessPoolExecutor(max_workers=n_jobs) as ex:
+        if self.video:
+            # GUI operations don't play nice with parallel execution
             for j in self._jobs:
-                future = ex.submit(j)
-                res = future.result()
-                if res:
-                    print(res)
+                j()
+        else:
+            with ProcessPoolExecutor(max_workers=n_jobs) as ex:
+                for j in self._jobs:
+                    future = ex.submit(j)
+                    res = future.result()
+                    if res:
+                        print(res)
 
         # aggregate the stats across all jobs
         self._merge_stats()
@@ -132,7 +139,8 @@ class Experiment(ExperimentUtils):
         return self._spec_list
 
     def _spec_product(self, spec):
-        """Cartesian product of a json spec, list of specs unique by env and agent
+        """
+        Cartesian product of a json spec, list of specs unique by env and agent
         """
         keys = spec.keys()
         spec_list = [spec[k] for k in keys]
@@ -144,7 +152,8 @@ class Experiment(ExperimentUtils):
         return spec_dicts
 
     def _add_validated_env_repeats(self, spec_list):
-        """Validates the environment names and adds a json spec
+        """
+        Validates the environment names and adds a json spec
         for each repeat with a 'run_name'
         """
         env_list = [x.id for x in gym.envs.registry.all()]
@@ -166,7 +175,8 @@ class Experiment(ExperimentUtils):
         return repeated_spec_list
 
     def _expand_agent_grid(self, spec_list):
-        """If the agent params are lists, we need to expand them
+        """
+        If the agent params are lists, we need to expand them
         into one run for each parameter grid...effectively doing a grid search
         over a list of parameters
         """
@@ -233,13 +243,14 @@ class Experiment(ExperimentUtils):
             experiment_name, experiment_dir)
 
     def _merge_stats(self):
-        """Loop through all experiments, and write all the stats
+        """
+        Loop through all experiments, and write all the stats
         back to the base repository
         """
         statspath = os.path.join(self._experiment_dir, 'stats')
         if not os.path.exists(statspath):
             os.makedirs(statspath)
-        agg_stats_file = os.path.join(statspath, 'merged_stats.csv')
+        agg_stats_file = os.path.join(statspath, 'merged_stats.tsv')
 
         stats_list = []
         for d in os.listdir(self._experiment_dir):
@@ -248,7 +259,7 @@ class Experiment(ExperimentUtils):
                 continue
             spec = open(os.path.join(base_path, 'spec.json'), 'r')
             spec = json.load(spec)
-            stats = pd.read_csv(os.path.join(base_path, 'stats.csv'), sep='\t')
+            stats = pd.read_csv(os.path.join(base_path, 'stats.tsv'), sep='\t')
             stats['run'] = spec['run']
             stats['param_run'] = spec['param_run']
             stats['run_name'] = spec['run_name']
@@ -258,24 +269,26 @@ class Experiment(ExperimentUtils):
             stats['agent_params'] = str(spec['agents']['params'])
             stats_list.append(stats)
 
+        assert len(stats_list) > 0, "No stats were found."
         stats = stats_list[0]
         for s in stats_list[1:]:
-            stats.append(s)
+            stats = stats.append(s)
 
-        with open(agg_stats_file, 'a') as f:
+        with open(agg_stats_file, 'w') as f:
             stats.to_csv(f, index=False, header=True, sep='\t')
 
     def _aggregate_stats_over_runs(self):
-        """Compute aggregates on the merged_stats.csv file
+        """
+        Compute aggregates on the merged_stats.tsv file
         grouped by [agent, env, training, episode, agent_params]
         so we average over several runs
         """
-        m = os.path.join(self._experiment_dir, 'stats/merged_stats.csv')
+        m = os.path.join(self._experiment_dir, 'stats/merged_stats.tsv')
         assert os.path.exists(m), "Merged stats file must exist"
         agg_episode_stats_file = os.path.join(
-            self._experiment_dir, 'stats/agg_episode_stats.csv')
+            self._experiment_dir, 'stats/agg_episode_stats.tsv')
         agg_agent_stats_file = os.path.join(
-            self._experiment_dir, 'stats/agg_agent_stats.csv')
+            self._experiment_dir, 'stats/agg_agent_stats.tsv')
         base_df = pd.read_csv(m, sep='\t')
 
         # episode level stats
@@ -305,9 +318,10 @@ class Experiment(ExperimentUtils):
         df.to_csv(agg_agent_stats_file, index=True, sep='\t')
 
     def _plot_stats(self):
-        """Take the agg_stats.csv file and make plots
         """
-        m = os.path.join(self._experiment_dir, 'stats/agg_episode_stats.csv')
+        Take the agg_stats.tsv file and make plots
+        """
+        m = os.path.join(self._experiment_dir, 'stats/agg_episode_stats.tsv')
         assert os.path.exists(m), "Aggregated stats file must exist"
 
         df = pd.read_csv(m, sep='\t')
@@ -359,3 +373,20 @@ class Experiment(ExperimentUtils):
             png_path = os.path.join(self._experiment_dir, 'stats', png_str)
             plt.savefig(png_path)
             plt.close()
+
+
+@click.command()
+@click.option('--log-dir',
+              default='./experiment_configs/reinforce_experiment.json',
+              help=('Path to json file spec if continue=False'
+                    ', else path to experiment'))
+@click.option('--video', default=False, type=bool,
+              help='Whether to record video or not')
+@click.option('--continue-run', default=False, type=bool,
+              help='Whether to continue running experiment or start a new one')
+def run_experiment(log_dir, video, continue_run):
+    if continue_run:
+        e = Experiment.from_unfinished_experiment_dir(log_dir)
+    else:
+        e = Experiment.from_json_spec(log_dir, video=video)
+    e.run()

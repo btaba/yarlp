@@ -19,7 +19,7 @@ class MetricLogger:
         self._episode = 0
 
         if self._log_dir is not None:
-            self._stat_file = os.path.join(self._log_dir, 'stats.csv')
+            self._stat_file = os.path.join(self._log_dir, 'stats.tsv')
 
     def __setitem__(self, metric_name, value):
         self._validate_header_name(metric_name)
