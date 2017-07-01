@@ -37,7 +37,7 @@ schema = {
                 "testing_epochs": {
                     "type": "integer",
                     "description": "the number of testing epochs",
-                    "minimum": 1
+                    "minimum": 0
                 },
                 "params": {"type": "object"},
                 "training_params": {"type": "object"}

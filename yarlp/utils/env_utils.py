@@ -17,14 +17,6 @@ class NoVideoSchedule(object):
         return False
 
 
-# class FixedIntervalVideoSchedule(object):
-#     def __init__(self, interval):
-#         self.interval = interval
-
-#     def __call__(self, count):
-#         return count % self.interval == 0
-
-
 class GymEnv(Env):
     """Taken from rllab gym_env.py
     """
@@ -34,7 +26,6 @@ class GymEnv(Env):
         env = gym.envs.make(env_name)
         self.env = env
         self.env_id = env.spec.id
-        self.spec = env.spec
         self.observation_space = env.observation_space
         self.action_space = env.action_space
 
@@ -87,6 +78,10 @@ class GymEnv(Env):
     def close(self):
         self.env.close()
 
+    @property
+    def spec(self):
+        return self.env.spec
+
     def __str__(self):
         return "GymEnv: %s" % self.env
 
@@ -101,8 +96,7 @@ class NormalizedGymEnv(Env):
                  scale_reward=1.):
         env = GymEnv(env_name, video, log_dir, force_reset)
         self.env = env
-        self.env_id = env.spec.id
-        self.spec = env.spec
+        self.env_id = env.env_id
         self.observation_space = env.observation_space
         self._scale_reward = scale_reward
 
@@ -127,6 +121,10 @@ class NormalizedGymEnv(Env):
         wrapped_step = self.env.step(scaled_action)
         next_obs, reward, done, info = wrapped_step
         return next_obs, reward * self._scale_reward, done, info
+
+    @property
+    def spec(self):
+        return self.env.spec
 
     def __str__(self):
         return "Normalized GymEnv: %s" % self.env

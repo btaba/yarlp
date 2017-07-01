@@ -265,7 +265,6 @@ class Experiment(ExperimentUtils):
             stats['run_name'] = spec['run_name']
             stats['agent'] = spec['agents']['type']
             stats['env'] = spec['envs']['name']
-            stats['env_timestep_limit'] = spec['envs']['timestep_limit']
             stats['agent_params'] = str(spec['agents']['params'])
             stats_list.append(stats)
 
@@ -382,11 +381,15 @@ class Experiment(ExperimentUtils):
                     ', else path to experiment'))
 @click.option('--video', default=False, type=bool,
               help='Whether to record video or not')
-@click.option('--continue-run', default=False, type=bool,
-              help='Whether to continue running experiment or start a new one')
-def run_experiment(log_dir, video, continue_run):
-    if continue_run:
-        e = Experiment.from_unfinished_experiment_dir(log_dir)
-    else:
-        e = Experiment.from_json_spec(log_dir, video=video)
+def run_experiment(log_dir, video):
+    e = Experiment.from_json_spec(log_dir, video=video)
     e.run()
+
+
+@click.command()
+@click.option(
+    '--experiment-dir',
+    help='Path to experiment directory, must contain a spec.json file')
+def continue_experiment(experiment_dir):
+    e = Experiment.from_unfinished_experiment_dir(experiment_dir)
+    r.run()

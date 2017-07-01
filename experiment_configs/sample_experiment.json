@@ -2,20 +2,18 @@
     "envs": [
         {
             "name": "CartPole-v1",
-            "timestep_limit": 100,
-            "repeats": 2,
-            "normalize_obs": true
+            "repeats": 1
         }
     ],
     "agents": [
         {
             "type": "REINFORCEAgent",
-            "training_epochs": 100,
+            "training_epochs": 200,
             "testing_epochs": 1,
             "params": {
                 "discount_factor": [0.99],
-                "policy_learning_rate": [0.01, 0.1],
-                "entropy_weight": [0, 0.1],
+                "policy_learning_rate": [0.01],
+                "entropy_weight": [0.1],
                 "policy_network": "mlp",
                 "policy_network_params": {
                     "hidden_units": [32, 32]

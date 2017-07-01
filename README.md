@@ -3,9 +3,6 @@
 
 ##### TODO:
 
-- Make cem sample n_steps instead of fixed number of sample weights
-    - submit
-
 - add continuous action spaces for CEM/Reinforce, and try different envs
 - Add policy classes continuous gaussian, categorical, and deterministic, random uniform
     - Make generic q-function and policy models handling all state/action spaces
