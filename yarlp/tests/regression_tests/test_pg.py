@@ -17,7 +17,7 @@ class TestREINFORCECartPole(unittest.TestCase):
 
     def test_reinforce_no_baseline(self):
         agent = REINFORCEAgent(
-            self.env, use_baseline=False,
+            self.env, baseline_network=None,
             discount_factor=.95)
         agent.train(num_train_steps=1)
 

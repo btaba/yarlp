@@ -27,7 +27,6 @@ class GymEnv(Env):
         self.env = env
         self.env_id = env.spec.id
         self.observation_space = env.observation_space
-        self.action_space = env.action_space
 
         assert isinstance(video, bool)
         if log_dir is None:
@@ -44,6 +43,10 @@ class GymEnv(Env):
 
         self._log_dir = log_dir
         self._force_reset = force_reset
+
+    @property
+    def action_space(self):
+        return self.env.action_space
 
     @staticmethod
     def env_action_space_is_discrete(env):
@@ -86,7 +89,7 @@ class GymEnv(Env):
         return "GymEnv: %s" % self.env
 
 
-class NormalizedGymEnv(Env):
+class NormalizedGymEnv(GymEnv):
     """Taken from rllab normalized_env.py
     """
     def __init__(self, env_name,
@@ -94,14 +97,9 @@ class NormalizedGymEnv(Env):
                  log_dir=None,
                  force_reset=False,
                  scale_reward=1.):
-        env = GymEnv(env_name, video, log_dir, force_reset)
-        self.env = env
-        self.env_id = env.env_id
-        self.observation_space = env.observation_space
+        super().__init__(env_name=env_name, video=video,
+                         log_dir=log_dir, force_reset=force_reset)
         self._scale_reward = scale_reward
-
-    def reset(self):
-        return self.env.reset()
 
     @property
     def action_space(self):
@@ -121,10 +119,6 @@ class NormalizedGymEnv(Env):
         wrapped_step = self.env.step(scaled_action)
         next_obs, reward, done, info = wrapped_step
         return next_obs, reward * self._scale_reward, done, info
-
-    @property
-    def spec(self):
-        return self.env.spec
 
     def __str__(self):
         return "Normalized GymEnv: %s" % self.env

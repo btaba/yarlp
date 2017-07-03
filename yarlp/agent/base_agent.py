@@ -90,6 +90,8 @@ class Agent(ABC):
         Performs actions on the environment
         based on the agent's current weights
 
+        render: bool, whether to render episodes in a video
+
         Returns
         ----------
         Rollout : named tuple
@@ -153,15 +155,17 @@ class Agent(ABC):
         integer indicating the action that should be taken
         """
         batch = np.array([state])
-        action = self._policy.predict(batch)
 
         if not GymEnv.env_action_space_is_discrete(self._env):
-            return action
+            if greedy:
+                return self._policy.predict(batch, output_name='output:greedy')
+            return self._policy.predict(batch)
 
-        if not greedy:
-            return np.random.choice(np.arange(self.num_actions), p=action)
+        action = self._policy.predict(batch)
+        if greedy:
+            return self.argmax_break_ties(action)
 
-        return self.argmax_break_ties(action)
+        return np.random.choice(np.arange(self.num_actions), p=action)
 
     def argmax_break_ties(self, probs):
         """

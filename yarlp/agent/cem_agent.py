@@ -1,5 +1,9 @@
 """
     CEM Agent class, which takes in a PolicyModel object
+
+[1] Learning Tetris with the Noisy Cross-Entropy Method
+    (Szita, Lorincz 2006)
+    pdf: http://nipg.inf.elte.hu/publications/szita06learning.pdf
 """
 import os
 from functools import partial
@@ -15,9 +19,6 @@ import tensorflow as tf
 class CEMAgent(Agent):
     """
     Cross Entropy Method
-    [1] Learning Tetris with the Noisy Cross-Entropy Method
-        (Szita, Lorincz 2006)
-        pdf: http://nipg.inf.elte.hu/publications/szita06learning.pdf
 
     where Z_t = max(alpha - t / beta) from equation (2.5)
 
@@ -74,10 +75,9 @@ class CEMAgent(Agent):
 
             if GymEnv.env_action_space_is_discrete(env):
                 network = partial(network, activation_fn=tf.nn.softmax)
-                model.add_output(network)
             else:
                 network = partial(network, activation_fn=None)
-                model.add_output(network, clip_action=True)
+            model.add_output(network)
 
         def build_update_feed_dict(model):
             pass
@@ -109,7 +109,7 @@ class CEMAgent(Agent):
 
     def train(self, num_train_steps, num_test_steps=0,
               with_variance=False, alpha=5, beta=10,
-              min_sigma=1e-2):
+              min_sigma=1e-2, render=False):
         """
         Learn the most optimal weights for our PolicyModel
             optionally with a variance adjustment as in [1]
@@ -128,6 +128,8 @@ class CEMAgent(Agent):
 
         beta : float, default 10
             parameter for variance adjustment (Z_t = max(alpha - t / beta))
+
+        render : bool, whether to render episodes in a video
 
         Returns
         ----------
@@ -152,7 +154,7 @@ class CEMAgent(Agent):
                 # add weights to PolicyModel
                 weights_reshaped = self._reshape_weights(w)
                 self._policy.set_weights(weights_reshaped)
-                rollout = self.rollout()
+                rollout = self.rollout(render=render)
                 rollouts.append(rollout)
                 rollout_rewards.append(np.sum(rollout.rewards))
 

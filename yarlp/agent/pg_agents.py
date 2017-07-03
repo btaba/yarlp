@@ -16,13 +16,16 @@ REINFORCE Agent and Policy Gradient (PG) Actor Critic Agent
 """
 
 import os
-from yarlp.agent.base_agent import Agent
-from yarlp.model.model_factories import discrete_pg_model_factory
-from yarlp.model.linear_baseline import LinearFeatureBaseline
-
 import numpy as np
 import tensorflow as tf
+
+from yarlp.agent.base_agent import Agent
+from yarlp.model.model_factories import discrete_pg_model_factory
+from yarlp.model.model_factories import value_function_model_factory
+from yarlp.model.model_factories import continuous_gaussian_pg_model_factory
+from yarlp.model.linear_baseline import LinearFeatureBaseline
 from yarlp.utils.experiment_utils import get_network
+from yarlp.utils.env_utils import GymEnv
 
 
 class REINFORCEAgent(Agent):
@@ -32,20 +35,29 @@ class REINFORCEAgent(Agent):
     Parameters
     ----------
     env : gym.env
+
     policy_network : model.Model
+
     policy_learning_rate : float, the learning rate for the policy_network
-    use_baseline : if None, we us no baseline
-        otherwise we use a LinearFeatureBaseline
+
+    baseline_network : if None, we us no baseline
+        otherwise we use a LinearFeatureBaseline as default
+        you can also pass in a function as a tensorflow network which
+        gets built by the value_function_model_factory
+
     entropy_weight : float, coefficient on entropy in the policy gradient loss
+
     model_file_path : str, file path for the policy_network
     """
     def __init__(self, env,
                  policy_network=tf.contrib.layers.fully_connected,
                  policy_network_params={},
                  policy_learning_rate=0.01,
-                 use_baseline=True,
+                 baseline_network=LinearFeatureBaseline(),
+                 baseline_model_learning_rate=0.01,
                  entropy_weight=0,
                  model_file_path=None,
+                 adaptive_std=False,
                  *args, **kwargs):
         super().__init__(env, *args, **kwargs)
 
@@ -55,31 +67,47 @@ class REINFORCEAgent(Agent):
 
         policy_network = get_network(policy_network, policy_network_params)
 
-        self._policy = discrete_pg_model_factory(
-            env, policy_network, policy_learning_rate, entropy_weight,
-            model_file_path=policy_path)
-
-        if use_baseline:
-            self._baseline_model = LinearFeatureBaseline()
+        if GymEnv.env_action_space_is_discrete(env):
+            self._policy = discrete_pg_model_factory(
+                env, policy_network, policy_learning_rate, entropy_weight,
+                model_file_path=policy_path)
         else:
-            self._baseline_model = None
+            self._policy = continuous_gaussian_pg_model_factory(
+                env, policy_network, policy_learning_rate, entropy_weight,
+                adaptive_std=adaptive_std,
+                model_file_path=policy_path)
+
+        if isinstance(baseline_network, LinearFeatureBaseline)\
+                or baseline_network is None:
+            self._baseline_model = baseline_network
+        else:
+            self._baseline_model = value_function_model_factory(
+                env, policy_network,
+                learning_rate=baseline_model_learning_rate)
 
     def save_models(self, path):
         ppath = os.path.join(path, 'pg_policy')
         self._policy.save(ppath)
 
-    def train(self, num_train_steps=10, num_test_steps=0, n_steps=1000):
+    def train(self, num_train_steps=10, num_test_steps=0,
+              n_steps=1000, render=False, whiten_advantages=True):
         """
 
         Parameters
         ----------
         num_train_steps : integer
             Total number of training iterations.
+
         num_test_steps : integer
             Number of testing iterations per training iteration.
+
         n_steps : integer
             Total number of samples from the environment for each
             training iteration.
+
+        whiten_advantages : bool, whether to whiten the advantages
+
+        render : bool, whether to render episodes in a video
 
         Returns
         ----------
@@ -87,13 +115,12 @@ class REINFORCEAgent(Agent):
         """
         for i in range(num_train_steps):
             # execute an episode
-            rollouts = self.rollout_n_steps(n_steps)
+            rollouts = self.rollout_n_steps(n_steps, render=render)
 
             actions = []
             states = []
             advantages = []
             discounted_rewards = []
-            baseline_preds = []
 
             for rollout in rollouts:
                 discounted_reward = self.get_discounted_reward_list(
@@ -104,13 +131,13 @@ class REINFORCEAgent(Agent):
                     baseline_pred = self._baseline_model.predict(
                         np.array(rollout.states)).flatten()
 
-                # calculate and whiten the advantages
-                advantage = discounted_reward - baseline_pred
-                advantage = (advantage - np.mean(advantage)) /\
-                    (np.std(advantage) + 1e-8)
+                baseline_pred = np.append(baseline_pred, 0)
+                advantage = rollout.rewards + self._discount *\
+                    baseline_pred[1:] - baseline_pred[:-1]
+                advantage = self.get_discounted_reward_list(
+                    advantage)
+                # advantage = discounted_reward - baseline_pred
 
-                baseline_preds = np.concatenate(
-                    [baseline_preds, baseline_pred])
                 advantages = np.concatenate([advantages, advantage])
                 states.append(rollout.states)
                 actions.append(rollout.actions)
@@ -120,12 +147,20 @@ class REINFORCEAgent(Agent):
             states = np.concatenate([s for s in states]).squeeze()
             actions = np.concatenate([a for a in actions])
 
-            # batch update the baseline and the policy
-            if self._baseline_model:
-                self._baseline_model.fit(states, discounted_rewards)
+            if whiten_advantages:
+                advantages = (advantages - np.mean(advantages)) /\
+                    (np.std(advantages) + 1e-8)
 
+            # batch update the baseline model
+            if isinstance(self._baseline_model, LinearFeatureBaseline):
+                self._baseline_model.fit(states, discounted_rewards)
+            elif hasattr(self._baseline_model, 'G'):
+                self._baseline_model.update(
+                    states, discounted_rewards)
+
+            # update the policy
             loss = self._policy.update(
-                states, advantages.squeeze(), actions)
+                states, advantages.squeeze(), actions.squeeze())
             self.logger.add_metric('policy_loss', loss)
             self.logger.set_metrics_for_rollout(rollouts, train=True)
             self.logger.log()

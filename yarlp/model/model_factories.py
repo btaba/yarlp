@@ -71,9 +71,13 @@ def discrete_pg_model_factory(
         model.action = tf.placeholder(
             dtype=tf.int32, shape=(None,), name='action')
         action_one_hot = tf.one_hot(model.action, model.output_node.shape[1])
-        model.pi = tf.reduce_sum(
-            action_one_hot * model.output_node, 1)
-        model.log_pi = tf.log(model.pi + 1e-8)
+
+        model.pi = tf.squeeze(tf.reduce_sum(
+            action_one_hot * model.output_node, 1))
+        model.log_pi = tf.squeeze(tf.log(model.pi + 1e-8))
+        # model.pi = tf.reduce_sum(
+        #     action_one_hot * model.output_node, 1)
+        # model.log_pi = tf.log(model.pi + 1e-8)
 
         model.loss = -tf.reduce_mean(
             model.log_pi * model.Return) +\
@@ -98,74 +102,68 @@ def discrete_pg_model_factory(
     return Model(env, build_graph, build_update_feed_dict)
 
 
-# def continuous_gaussian_pg_model_factory(
-#         env, learning_rate=0.01, input_shape=None):
-#     """Policy model for continuous action spaces with scaled policy gradient update
+def continuous_gaussian_pg_model_factory(
+        env, network, learning_rate=0.01, entropy_weight=0.001,
+        min_std=1e-6, init_std=1.0, adaptive_std=False,
+        input_shape=None, model_file_path=None):
+    """
+    Policy model for continuous action spaces with policy gradient update
+    """
+    def build_graph(model, network, lr, input_shape):
+        input_node = model.add_input(shape=input_shape)
 
-#     [1] Degris, T., Pilarski, P., & Sutton, R. (2012). Model-free reinforcement
-#     learning with continuous action in practice. … Control Conference (ACC),
-#     2177–2182. doi:10.1109/ACC.2012.6315022
+        model.state = input_node
+        model.Return = tf.placeholder(
+            dtype=tf.float32, shape=(None,), name='return')
+        model.learning_rate = lr
 
-#     Gradients are scaled with sigma**2
-#     due to numerical instability mentioned in [1]
-#     """
-#     def build_graph(model, learning_rate, input_shape):
-#         network = tf.contrib.layers.fully_connected
-#         input_node = model.add_input(shape=input_shape)
+        network = partial(network, activation_fn=None)
+        model.mean = model.add_output(network, name='greedy')
+        model.mean = tf.squeeze(model.mean)
 
-#         model.state = input_node
-#         model.Return = tf.placeholder(
-#             dtype=tf.float32, shape=(None,), name='return')
-#         model.learning_rate = learning_rate
+        if adaptive_std:
+            model.log_std = model.add_output(network, name='log_std')
+        else:
+            model.log_std = tf.log(init_std)
+        model.std = tf.maximum(tf.exp(model.log_std), min_std)
+        model.std = tf.squeeze(model.std)
 
-#         network = partial(network, activation_fn=None)
-#         model.mu = model.add_output(network, name='mean')
+        model.normal_dist = tf.contrib.distributions.Normal(
+            model.mean, model.std)
 
-#         model.sigma = model.add_output(network, name='std_dev')
-#         model.sigma = tf.exp(model.sigma) + 1e-5
+        model.output = tf.squeeze(model.normal_dist.sample([1]))
 
-#         model.normal_dist = tf.contrib.distributions.Normal(
-#             model.mu, model.sigma)
-#         model.action = tf.squeeze(model.normal_dist.sample([1]))
-#         model.action = tf.clip_by_value(
-#             model.action, model._env.action_space.low[0],
-#             model._env.action_space.high[0])
-#         model.add_output_node(model.action)
+        # model.action = tf.clip_by_value(
+        #     model.action, model._env.action_space.low[0],
+        #     model._env.action_space.high[0])
 
-#         model.log_pi = model.normal_dist.log_prob(model.action)
-#         model.loss = -model.log_pi * model.Return
+        model.add_output_node(model.output)
 
-#         model.optimizer = tf.train.AdamOptimizer(
-#             learning_rate=learning_rate)
+        model.action = tf.placeholder(
+            dtype=tf.float32, shape=(None,), name='action')
 
-#     def build_update_feed_dict(model, state, return_, action):
-#         feed_dict = {model.state: np.expand_dims(np.array(state), 0),
-#                      model.Return: [return_], model.action: [action]}
-#         return feed_dict
+        model.log_pi = tf.squeeze(model.normal_dist.log_prob(model.action))
+        model.pi = tf.squeeze(model.normal_dist.prob(model.action))
+        model.loss = -tf.reduce_mean(model.log_pi * model.Return) +\
+            entropy_weight * tf.reduce_mean(model.log_pi * model.pi)
 
-#     class ScaledNormal(Model):
-#         def get_gradients(self, node_name, feed):
-#             weights = self.get_weights()
-#             mu = self.run_op(self.mu, feed)
-#             sigma = self.run_op(self.sigma, feed)
-#             state = feed[self.state]
-#             action = feed[self.action.name]
+        model.optimizer = tf.train.AdamOptimizer(
+            learning_rate=learning_rate)
 
-#             grads = [
-#                 (action - mu) * state.T,
-#                 weights[1] * 0 + (action - mu),
-#                 ((action - mu)**2 - sigma**2) * state.T,
-#                 weights[3] * 0 + ((action - mu)**2 - sigma**2)
-#             ]
-#             return grads
+        model.add_loss(model.loss)
+        model.add_optimizer(model.optimizer, model.loss)
 
-#     build_graph = partial(build_graph,
-#                           learning_rate=learning_rate,
-#                           input_shape=input_shape)
-#     # m = Model(env, build_graph, build_update_feed_dict)
-#     m = ScaledNormal(env, build_graph, build_update_feed_dict)
+    def build_update_feed_dict(model, state, return_, action):
+        feed_dict = {model.state: state,
+                     model.Return: np.squeeze([return_]), model.action: action}
+        return feed_dict
 
-#     return m
+    build_graph = partial(build_graph, network=network,
+                          lr=learning_rate, input_shape=input_shape)
+
+    if model_file_path is not None:
+        return Model(env, None, build_update_feed_dict, model_file_path)
+    return Model(env, build_graph, build_update_feed_dict)
 
 
 # def ddpg_actor_critic_model_factory(
