@@ -5,7 +5,7 @@ import tensorflow as tf
 
 
 def mlp(inputs, num_outputs, activation_fn=tf.nn.softmax,
-        hidden_units=(10, 10),
+        hidden_units=(32, 32),
         weights_initializer=tf.contrib.layers.xavier_initializer()):
     """
     Multi-Layer Perceptron

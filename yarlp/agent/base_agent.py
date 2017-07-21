@@ -77,10 +77,11 @@ class Agent(ABC):
 
         if truncate and steps_sampled > 0:
             steps_to_remove = steps_sampled - n_steps
-            r = Rollout([], [], [])
+            r = Rollout([], [], [], [])
             r.rewards.extend(rollouts[-1].rewards[:-steps_to_remove])
             r.actions.extend(rollouts[-1].actions[:-steps_to_remove])
             r.states.extend(rollouts[-1].states[:-steps_to_remove])
+            r.action_probs.extend(rollouts[-1].action_probs[:-steps_to_remove])
             rollouts[-1] = r
 
         return rollouts
@@ -88,7 +89,7 @@ class Agent(ABC):
     def rollout(self, render=False, render_freq=5, greedy=False):
         """
         Performs actions on the environment
-        based on the agent's current weights
+        based on the agent's current weights for 1 single rollout
 
         render: bool, whether to render episodes in a video
 
@@ -96,12 +97,13 @@ class Agent(ABC):
         ----------
         Rollout : named tuple
         """
-        r = Rollout([], [], [])
+        r = Rollout([], [], [], [])
 
         observation = self._env.reset()
         observation = self.get_state(observation)
         for t in range(self._env.spec.timestep_limit):
             r.states.append(observation)
+            action_prob = self.get_action_prob(observation)
             action = self.get_action(observation, greedy=greedy)
             (observation, reward, done, _) = self._env.step(action)
 
@@ -111,6 +113,7 @@ class Agent(ABC):
             observation = self.get_state(observation)
             r.rewards.append(reward)
             r.actions.append(action)
+            r.action_probs.append(action_prob)
             if done:
                 break
 
@@ -145,6 +148,10 @@ class Agent(ABC):
             discounted_rewards.append(rt)
 
         return list(reversed(discounted_rewards))
+
+    def get_action_prob(self, state):
+        batch = np.array([state])
+        return self._policy.predict(batch)
 
     def get_action(self, state, greedy=False):
         """

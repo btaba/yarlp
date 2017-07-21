@@ -3,6 +3,7 @@ import tensorflow as tf
 
 from yarlp.model.model import Model
 from functools import partial
+from yarlp.utils import tf_utils
 
 
 def value_function_model_factory(
@@ -14,9 +15,6 @@ def value_function_model_factory(
     def build_graph(model, network, lr, shape):
         input_node = model.add_input(shape=shape)
 
-        # vsi = tf.contrib.layers.variance_scaling_initializer()
-        # network = partial(network, activation_fn=None,
-        #                   weights_initializer=vsi)
         network = partial(network, activation_fn=None)
         output_node = model.add_output(network, num_outputs=1)
         model.value = output_node
@@ -74,14 +72,11 @@ def discrete_pg_model_factory(
 
         model.pi = tf.squeeze(tf.reduce_sum(
             action_one_hot * model.output_node, 1))
-        model.log_pi = tf.squeeze(tf.log(model.pi + 1e-8))
-        # model.pi = tf.reduce_sum(
-        #     action_one_hot * model.output_node, 1)
-        # model.log_pi = tf.log(model.pi + 1e-8)
+        model.log_pi = tf.squeeze(tf.log(model.pi + tf_utils.EPSILON))
 
         model.loss = -tf.reduce_mean(
             model.log_pi * model.Return) +\
-            entropy_weight * tf.reduce_mean(model.log_pi * model.pi)
+            entropy_weight * tf.reduce_sum(model.log_pi * model.pi)
         model.optimizer = tf.train.AdamOptimizer(
             learning_rate=lr)
         model.add_loss(model.loss)
@@ -132,11 +127,6 @@ def continuous_gaussian_pg_model_factory(
             model.mean, model.std)
 
         model.output = tf.squeeze(model.normal_dist.sample([1]))
-
-        # model.action = tf.clip_by_value(
-        #     model.action, model._env.action_space.low[0],
-        #     model._env.action_space.high[0])
-
         model.add_output_node(model.output)
 
         model.action = tf.placeholder(
@@ -145,7 +135,7 @@ def continuous_gaussian_pg_model_factory(
         model.log_pi = tf.squeeze(model.normal_dist.log_prob(model.action))
         model.pi = tf.squeeze(model.normal_dist.prob(model.action))
         model.loss = -tf.reduce_mean(model.log_pi * model.Return) +\
-            entropy_weight * tf.reduce_mean(model.log_pi * model.pi)
+            entropy_weight * tf.reduce_sum(model.log_pi * model.pi)
 
         model.optimizer = tf.train.AdamOptimizer(
             learning_rate=learning_rate)
@@ -156,6 +146,98 @@ def continuous_gaussian_pg_model_factory(
     def build_update_feed_dict(model, state, return_, action):
         feed_dict = {model.state: state,
                      model.Return: np.squeeze([return_]), model.action: action}
+        return feed_dict
+
+    build_graph = partial(build_graph, network=network,
+                          lr=learning_rate, input_shape=input_shape)
+
+    if model_file_path is not None:
+        return Model(env, None, build_update_feed_dict, model_file_path)
+    return Model(env, build_graph, build_update_feed_dict)
+
+
+def discrete_trpo_model_factory(
+        env, network, learning_rate=0.01,
+        input_shape=None, model_file_path=None):
+    """
+    Policy model for discrete action spaces with policy gradient update
+    """
+    def build_graph(model, network, lr, input_shape):
+
+        input_node = model.add_input(shape=input_shape)
+
+        model.state = input_node
+        model.Return = tf.placeholder(
+            dtype=tf.float32, shape=(None,), name='return')
+        model.learning_rate = lr
+
+        # Softmax policy for discrete action spaces
+        network = partial(network, activation_fn=tf.nn.softmax)
+        model.output_node = model.add_output(network)
+        model.action = tf.placeholder(
+            dtype=tf.int32, shape=(None,), name='action')
+        action_one_hot = tf.one_hot(model.action, model.output_node.shape[1])
+        model.action_one_hot = action_one_hot
+
+        model.pi = tf.squeeze(tf.reduce_sum(
+            action_one_hot * model.output_node, 1))
+        model.log_pi = tf.squeeze(tf.log(model.pi + tf_utils.EPSILON))
+
+        shape = model.output_node.get_shape().as_list()
+        model.old_pi_placeholder = tf.placeholder(
+            dtype=tf.float32, shape=shape, name='old_pi')
+        model.old_pi = tf.squeeze(tf.reduce_sum(
+            action_one_hot * model.old_pi_placeholder, 1))
+        model.logli_old = tf.squeeze(tf.log(model.old_pi + tf_utils.EPSILON))
+        model.lr = tf.minimum(tf.exp(model.log_pi - model.logli_old), 1000)
+
+        model.surr_loss = -tf.reduce_mean(
+            model.lr * model.Return)
+
+        # get KL
+        # tf.reduce_sum(self.probabilities * tf.log((self.probabilities + util.epsilon) / (other.probabilities + util.epsilon)), axis=[0])
+        model.kl = tf.reduce_sum(
+            model.pi * (
+                tf.log(model.pi + tf_utils.EPSILON) -
+                tf.log(model.old_pi + tf_utils.EPSILON)),
+            axis=0)
+        var_list = list(tf.trainable_variables())
+
+        ent = -tf.reduce_sum(model.pi * tf.log(model.pi + tf_utils.EPSILON), axis=0)
+        model.losses = [model.surr_loss, model.kl, ent]
+        model.pg = tf_utils.flatgrad(model.surr_loss, var_list)
+
+        # KL divergence where first arg is fixed
+        model.pi_fixed = tf.stop_gradient(model.pi)
+        model.kl_firstfixed = tf.reduce_sum(model.pi_fixed * (
+            tf.log(model.pi_fixed + tf_utils.EPSILON) -
+            tf.log(model.pi + tf_utils.EPSILON)), axis=0)
+        model.grads = tf.gradients(model.kl_firstfixed, var_list)
+        model.flat_tangent = tf.placeholder(dtype=tf.float32, shape=[None])
+
+        shapes = map(tf_utils.var_shape, var_list)
+        start = 0
+        tangents = []
+        for shape in shapes:
+            size = np.prod(shape)
+            param = tf.reshape(model.flat_tangent[start:(start + size)], shape)
+            tangents.append(param)
+            start += size
+
+        shapes = map(tf_utils.var_shape, var_list)
+        total_size = sum(np.prod(shape) for shape in shapes)
+        model.theta = tf.placeholder(tf.float32, [total_size])
+
+        # gradient vector product
+        gvp = [tf.reduce_sum(g * t) for (g, t) in zip(model.grads, tangents)]
+        model.fvp = tf_utils.flatgrad(gvp, var_list)
+        model.gf = tf_utils.flatten_vars(var_list)
+        model.sff = tf_utils.setfromflat(var_list, model.theta)
+
+    def build_update_feed_dict(model, state, return_, action, old_pi):
+        feed_dict = {model.state: state,
+                     model.Return: np.squeeze([return_]), model.action: action,
+                     model.old_pi_placeholder: old_pi}
         return feed_dict
 
     build_graph = partial(build_graph, network=network,

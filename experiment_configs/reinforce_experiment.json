@@ -1,0 +1,35 @@
+{
+    "envs": [
+        {
+            "name": "MountainCarContinuous-v0",
+            "repeats": 1
+        }
+    ],
+    "agents": [
+        {
+            "type": "REINFORCEAgent",
+            "training_epochs": 400,
+            "testing_epochs": 0,
+            "params": {
+                "discount_factor": [0.99],
+                "policy_learning_rate": [0.01],
+                "entropy_weight": [0.0001],
+                "policy_network": "mlp",
+                "policy_network_params": {
+                    "hidden_units": [32, 32]
+                },
+                "adaptive_std": [false]
+            },
+            "training_params": {
+                "n_steps": 4000
+            }
+        },
+        {
+            "type": "RandomAgent",
+            "training_epochs": 10,
+            "testing_epochs": 0,
+            "params": {},
+            "training_params": {}
+        }
+    ]
+}

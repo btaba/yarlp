@@ -6,12 +6,14 @@ Yet Another Reinforcement Learning Package
 ##### TODO:
 
 * TRPO
+    - implement
+    - policy agnostic model factories
+* separate update from agent training code
 * DQ, DDQ
-* A3C
-* ddpg, dpg, COPDAC-Q
+
+* load model from file with args and model weights
 * Classic policy and value based methods
-* Covariance Matrix Adaptation
-* parallel sampler
+* ddpg, dpg, COPDAC-Q
+* parallel sampler for rollouts
 * handle reshaping of arrays for different action/obs spaces
 * black box optimizer on params
-* load model from file with all the args (including models)

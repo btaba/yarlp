@@ -118,9 +118,14 @@ class Experiment(ExperimentUtils):
                 j()
         else:
             with ProcessPoolExecutor(max_workers=n_jobs) as ex:
+                fs = []
                 for j in self._jobs:
-                    future = ex.submit(j)
-                    res = future.result()
+                    fs.append(ex.submit(j))
+                    # res = future.result()
+                    # if res:
+                    #     print(res)
+                for f in fs:
+                    res = f.result()
                     if res:
                         print(res)
 
@@ -292,10 +297,10 @@ class Experiment(ExperimentUtils):
 
         # episode level stats
         df_avg = base_df.groupby(
-            ['agent', 'env', 'training', 'episode', 'agent_params']
+            ['run_name', 'training', 'episode', 'agent_params']
         ).mean().add_prefix('mean_')
         df_std = base_df.groupby(
-            ['agent', 'env', 'training', 'episode', 'agent_params']
+            ['run_name', 'training', 'episode', 'agent_params']
         )['avg_episode_length', 'total_reward', 'steps']
         df_std = df_std.std().add_prefix('std_').fillna(0)
         df = df_avg.join(df_std)
@@ -303,17 +308,16 @@ class Experiment(ExperimentUtils):
 
         # agent level stats
         df = base_df.groupby(
-            ['agent', 'env', 'training', 'agent_params', 'run']
+            ['run_name', 'training', 'agent_params']
         ).apply(lambda x: x.sort_values('episode').mean())
         df = df[
             ['avg_episode_length', 'total_reward', 'steps']]
         df = df.reset_index()
         df_avg = df.groupby(
-            ['agent', 'env', 'training', 'agent_params']).mean()
-        df_std = df.groupby(['agent', 'env', 'training', 'agent_params']).std()
+            ['run_name', 'training', 'agent_params']).mean()
+        df_std = df.groupby(['run_name', 'training', 'agent_params']).std()
         df_std = df_std.add_prefix('std_').fillna(0)
         df = df_avg.join(df_std)
-        df.drop(['run', 'std_run'], inplace=True, axis=1)
         df.to_csv(agg_agent_stats_file, index=True, sep='\t')
 
     def _plot_stats(self):
@@ -325,12 +329,12 @@ class Experiment(ExperimentUtils):
 
         df = pd.read_csv(m, sep='\t')
         plt_index = df.groupby(
-            ['agent', 'env', 'training', 'agent_params']).count().index
+            ['run_name', 'training', 'agent_params']).count().index
 
         for count, idx in enumerate(plt_index):
             sub_df = df[
-                (df.agent == idx[0]) & (df.env == idx[1]) &
-                (df.training == idx[2]) & (df.agent_params == idx[3])].copy()
+                (df.run_name == idx[0]) & (df.training == idx[1]) &
+                (df.agent_params == idx[2])].copy()
             sub_df.sort_values('episode', inplace=True)
             sub_df.reset_index(inplace=True, drop=True)
 
@@ -366,30 +370,43 @@ class Experiment(ExperimentUtils):
             plt.ylabel('Episode Length')
             plt.xlabel('Episodes')
 
-            png_str = '_'.join(idx[:2])
+            png_str = idx[0]
             png_str += '_{}_'.format(count)
-            png_str += '_train.png' if idx[2] else '_test.png'
+            png_str += '_train.png' if idx[1] else '_test.png'
             png_path = os.path.join(self._experiment_dir, 'stats', png_str)
             plt.savefig(png_path)
             plt.close()
 
 
 @click.command()
-@click.option('--log-dir',
+@click.option('--spec-file',
               default='./experiment_configs/reinforce_experiment.json',
               help=('Path to json file spec if continue=False'
                     ', else path to experiment'))
 @click.option('--video', default=False, type=bool,
               help='Whether to record video or not')
-def run_experiment(log_dir, video):
-    e = Experiment.from_json_spec(log_dir, video=video)
-    e.run()
+@click.option('--n-jobs', default=1, type=int,
+              help='number of cpu cores to use when running experiments')
+def run_experiment(spec_file, video, n_jobs):
+    e = Experiment.from_json_spec(spec_file, video=video)
+    e.run(n_jobs=n_jobs)
 
 
 @click.command()
 @click.option(
     '--experiment-dir',
     help='Path to experiment directory, must contain a spec.json file')
-def continue_experiment(experiment_dir):
+@click.option('--n-jobs', default=1, type=int,
+              help='number of cpu cores to use when running experiments')
+def continue_experiment(experiment_dir, n_jobs):
     e = Experiment.from_unfinished_experiment_dir(experiment_dir)
-    r.run()
+    e.run(n_jobs=n_jobs)
+
+
+@click.command()
+@click.option(
+    '--upload-dir',
+    help='Path of openai gym session to upload')
+def upload_to_openai(upload_dir):
+    gym.scoreboard.api_key = os.environ.get('OPENAI_GYM_API_KEY', None)
+    gym.upload(upload_dir)
