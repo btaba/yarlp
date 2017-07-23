@@ -11,7 +11,6 @@ from yarlp.model.model_factories import discrete_trpo_model_factory
 from yarlp.model.linear_baseline import LinearFeatureBaseline
 from yarlp.utils.experiment_utils import get_network
 from yarlp.utils.env_utils import GymEnv
-from yarlp.utils import tf_utils
 
 
 class TRPOAgent(Agent):
@@ -89,8 +88,8 @@ class TRPOAgent(Agent):
         """
 
         # config
-        cg_damping = 1e-3
-        max_kl = 1e-2
+        cg_damping = 1e-5   # reg coeff
+        max_kl = 1e-2   # step size
 
         for i in range(num_train_steps):
             # execute an episode
@@ -148,38 +147,69 @@ class TRPOAgent(Agent):
                 return self._policy.G(self._policy.fvp, feed) + cg_damping * p
 
             g = self._policy.G(self._policy.pg, feed)
-
             if np.allclose(g, np.zeros_like(g)):
                 print('Gradient zero, skipping update.')
                 continue
 
-            stepdir = conjugate_gradient(fisher_vector_product, -g)
-            shs = .5 * stepdir.dot(fisher_vector_product(stepdir))
-            if shs < 0:
-                print('Computing search direction failed, skipping update.')
-                continue
-            lm = np.sqrt(shs / max_kl)
-            fullstep = stepdir / (lm + tf_utils.EPSILON)
-            neggdotstepdir = -g.dot(stepdir)
+            # descent direciton
+            stepdir = conjugate_gradient(fisher_vector_product, g)
+            initial_step_size = np.sqrt(
+                2.0 * max_kl *
+                (1. / (stepdir.dot(fisher_vector_product(stepdir)) + 1e-8))
+            )
 
-            def loss(th):
+            print('initial_step_size is ', initial_step_size)
+            if np.isnan(initial_step_size):
+                print('NAN initial_step_size')
+                initial_step_size = 1.
+            flat_descent_step = initial_step_size * stepdir
+
+            def get_loss(th):
                 feed[self._policy.theta] = th
                 self._policy.G(self._policy.sff, feed)
                 return self._policy.G(self._policy.losses[0], feed)
-            lossbefore = loss(thprev)
+            lossbefore = get_loss(thprev)
 
-            success, theta = linesearch(loss, thprev, fullstep, neggdotstepdir / (lm + tf_utils.EPSILON))
-            print('linesearch success: {}'.format(success))
-            feed[self._policy.theta] = theta
-            self._policy.G(self._policy.sff, feed)
+            backtrack_ratio = 0.8
+            max_backtracks = 15
+            for n_iter, ratio in\
+                    enumerate(backtrack_ratio ** np.arange(max_backtracks)):
+                cur_step = ratio * flat_descent_step
+                cur_theta = thprev - cur_step
+
+                # set the theta and compute the loss
+                feed[self._policy.theta] = cur_theta
+                self._policy.G(self._policy.sff, feed)
+                loss = get_loss(cur_theta)
+                constraint_val = self._policy.G(
+                    self._policy.kl, feed)
+                if loss < lossbefore and constraint_val <= max_kl:
+                    break
+            if (np.isnan(loss) or np.isnan(constraint_val) or
+                    loss >= lossbefore or constraint_val >= max_kl):
+                print("Line search condition violated. Rejecting the step!")
+                if np.isnan(loss):
+                    print("Violated because loss is NaN")
+                if np.isnan(constraint_val):
+                    print("Violated because constraint is NaN")
+                if loss >= lossbefore:
+                    print("Violated because loss not improving")
+                if constraint_val >= max_kl:
+                    print("Violated because constraint is violated")
+                get_loss(thprev)
+            else:
+                assert not np.isclose(
+                    (self._policy.G(self._policy.theta, feed) -
+                     thprev).sum(), 0.)
 
             surrafter, kloldnew, entropy = self._policy.G(
                 self._policy.losses, feed_dict=feed)
 
             print("Entropy", entropy)
             print("KL between old and new distribution", kloldnew)
-            print("Surrogate loss after", surrafter)
             print("Surrogate loss before", lossbefore)
+            print("Surrogate loss after", surrafter)
+
             self.logger.set_metrics_for_rollout(rollouts, train=True)
             self.logger.log()
 
@@ -198,114 +228,60 @@ class TRPOAgent(Agent):
         return
 
 
-def conjugate_gradient(f_Ax, b, cg_iters=10, residual_tol=1e-10,
-                       callback=None, verbose=False):
+def conjugate_gradient(f_Ax, b, cg_iters=10,
+                       callback=None, verbose=False, residual_tol=1e-10):
     """
     Demmel p 312
     """
-    # if np.any(np.isnan(b)):
-    #     print('THERE are NANS in b!!!!!!!')
-    # p = b.copy()
-    # r = b.copy()
-    # x = np.zeros_like(b)
-    # rdotr = r.dot(r)
-
-    # # fmtstr =  "%10i %10.3g %10.3g"
-    # # titlestr =  "%10s %10s %10s"
-    # # if verbose: print titlestr % ("iter", "residual norm", "soln norm")
-
-    # for i in range(cg_iters):
-    #     if callback is not None:
-    #         callback(x)
-    #     # if verbose: print fmtstr % (i, rdotr, np.linalg.norm(x))
-    #     z = f_Ax(p)
-    #     v = rdotr / p.dot(z)
-    #     x += v*p
-    #     r -= v*z
-    #     newrdotr = r.dot(r)
-    #     mu = newrdotr/rdotr
-    #     p = r + mu*p
-
-    #     rdotr = newrdotr
-    #     if rdotr < residual_tol:
-    #         break
-
-    # if callback is not None:
-    #     callback(x)
-
-    # if np.any(np.isnan(x)):
-    #     print('THERE are NANS in x!!!!!!!')
-    # # if verbose: print fmtstr % (i+1, rdotr, np.linalg.norm(x))  # pylint: disable=W0631
-    # return x
-
-    b = np.nan_to_num(b)
-    cg_vector_p = b.copy()
-    residual = b.copy()
+    if np.any(np.isnan(b)):
+        print('THERE are NANS in b!')
+    p = b.copy()
+    r = b.copy()
     x = np.zeros_like(b)
-    residual_dot_residual = residual.dot(residual)
+    rdotr = r.dot(r)
 
     for i in range(cg_iters):
-        z = f_Ax(cg_vector_p)
-        cg_vector_p_dot_z = cg_vector_p.dot(z)
-        if abs(cg_vector_p_dot_z) < tf_utils.EPSILON:
-            cg_vector_p_dot_z = tf_utils.EPSILON
-        v = residual_dot_residual / cg_vector_p_dot_z
-        x += v * cg_vector_p
+        if callback is not None:
+            callback(x)
+        z = f_Ax(p)
+        v = rdotr / p.dot(z)
+        x += v * p
+        r -= v * z
+        newrdotr = r.dot(r)
+        mu = newrdotr / rdotr
+        p = r + mu * p
 
-        residual -= v * z
-        new_residual_dot_residual = residual.dot(residual)
-        alpha = new_residual_dot_residual / (residual_dot_residual + tf_utils.EPSILON)
-
-        cg_vector_p = residual + alpha * cg_vector_p
-        residual_dot_residual = new_residual_dot_residual
-
-        if residual_dot_residual < residual_tol:
-            print('Approximate cg solution found after {:d} iterations'.format(i + 1))
+        rdotr = newrdotr
+        if rdotr < residual_tol:
             break
 
-    return np.nan_to_num(x)
+    if callback is not None:
+        callback(x)
 
-def linesearch(f, initial_x, full_step, expected_improve_rate, max_backtracks=15, accept_ratio=0.1):
-    """
-    Line search for TRPO where a full step is taken first and then backtracked to
-    find optimal step size.
+    if np.any(np.isnan(x)):
+        print('THERE are NANS in x!')
+    return x
 
-    :param f:
-    :param initial_x:
-    :param full_step:
-    :param expected_improve_rate:
-    :param max_backtracks:
-    :param accept_ratio:
-    :return:
-    """
 
-    function_value = f(initial_x)
+def test_cg():
+    A = np.random.randn(5, 5)
+    A = A.T.dot(A)
+    b = np.random.randn(5)
+    x = conjugate_gradient(lambda x: A.dot(x), b, cg_iters=5, verbose=True)  # pylint: disable=W0108
+    assert np.allclose(A.dot(x), b)
 
-    for _, step_fraction in enumerate(0.5 ** np.arange(max_backtracks)):
-        updated_x = initial_x + step_fraction * full_step
-        new_function_value = f(updated_x)
 
-        actual_improve = function_value - new_function_value
-        expected_improve = expected_improve_rate * step_fraction
-
-        improve_ratio = actual_improve / (expected_improve + tf_utils.EPSILON)
-
-        if improve_ratio > accept_ratio and actual_improve > 0:
-            return True, updated_x
-
-    return False, initial_x
-
-# def linesearch(f, x, fullstep, expected_improve_rate):
-#     backtrack_ratio = 0.8
-#     accept_ratio = .1
-#     max_backtracks = 15
-#     fval = f(x)
-#     for (_n_backtracks, stepfrac) in enumerate(backtrack_ratio ** np.arange(max_backtracks)):
-#         xnew = x + stepfrac * fullstep
-#         newfval = f(xnew)
-#         actual_improve = fval - newfval
-#         expected_improve = expected_improve_rate * stepfrac
-#         ratio = actual_improve / expected_improve
-#         if ratio > accept_ratio and actual_improve > 0:
-#             return True, xnew
-#     return False, x
+def linesearch(f, x, fullstep, expected_improve_rate):
+    backtrack_ratio = 0.8
+    accept_ratio = .1
+    max_backtracks = 15
+    fval = f(x)
+    for (_n_backtracks, stepfrac) in enumerate(backtrack_ratio ** np.arange(max_backtracks)):
+        xnew = x + stepfrac * fullstep
+        newfval = f(xnew)
+        actual_improve = fval - newfval
+        expected_improve = expected_improve_rate * stepfrac
+        ratio = actual_improve / expected_improve
+        if ratio > accept_ratio and actual_improve > 0:
+            return True, xnew
+    return False, x

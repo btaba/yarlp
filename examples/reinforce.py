@@ -9,7 +9,6 @@ from yarlp.model.networks import mlp
 
 def main():
     env = NormalizedGymEnv('CartPole-v1')
-    # env = NormalizedGymEnv("CartPole-v1")
     # env = NormalizedGymEnv('MountainCarContinuous-v0')
     # env = NormalizedGymEnv('Acrobot-v1')
     # env = NormalizedGymEnv('Pendulum-v0')

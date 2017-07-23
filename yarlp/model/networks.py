@@ -19,15 +19,18 @@ def mlp(inputs, num_outputs, activation_fn=tf.nn.softmax,
 
     x = tf.contrib.layers.fully_connected(
         inputs, num_outputs=hidden_units[0],
-        weights_initializer=weights_initializer)
+        weights_initializer=weights_initializer,
+        biases_initializer=tf.zeros_initializer())
 
     for h in hidden_units[1:]:
         x = tf.contrib.layers.fully_connected(
             x, num_outputs=h,
-            weights_initializer=weights_initializer)
+            weights_initializer=weights_initializer,
+            biases_initializer=tf.zeros_initializer())
 
     x = tf.contrib.layers.fully_connected(
         x, num_outputs=num_outputs,
         activation_fn=activation_fn,
-        weights_initializer=weights_initializer)
+        weights_initializer=weights_initializer,
+        biases_initializer=tf.zeros_initializer())
     return x

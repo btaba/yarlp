@@ -6,8 +6,9 @@ Yet Another Reinforcement Learning Package
 ##### TODO:
 
 * TRPO
-    - implement
+    - check kl is correct and all other calculations with known functions in numpy
     - policy agnostic model factories
+    - check entropy calc, with scipy
 * separate update from agent training code
 * DQ, DDQ
 

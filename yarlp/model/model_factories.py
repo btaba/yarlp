@@ -74,9 +74,14 @@ def discrete_pg_model_factory(
             action_one_hot * model.output_node, 1))
         model.log_pi = tf.squeeze(tf.log(model.pi + tf_utils.EPSILON))
 
+        entropy = -tf.reduce_mean(
+            tf.reduce_sum(
+                model.output_node *
+                tf.log(model.output_node + tf_utils.EPSILON), axis=-1)
+        )
         model.loss = -tf.reduce_mean(
             model.log_pi * model.Return) +\
-            entropy_weight * tf.reduce_sum(model.log_pi * model.pi)
+            entropy_weight * entropy
         model.optimizer = tf.train.AdamOptimizer(
             learning_rate=lr)
         model.add_loss(model.loss)
@@ -134,8 +139,14 @@ def continuous_gaussian_pg_model_factory(
 
         model.log_pi = tf.squeeze(model.normal_dist.log_prob(model.action))
         model.pi = tf.squeeze(model.normal_dist.prob(model.action))
+
+        entropy = -tf.reduce_mean(
+            tf.reduce_sum(
+                model.output_node *
+                tf.log(model.output_node + tf_utils.EPSILON), axis=-1)
+        )
         model.loss = -tf.reduce_mean(model.log_pi * model.Return) +\
-            entropy_weight * tf.reduce_sum(model.log_pi * model.pi)
+            entropy_weight * entropy
 
         model.optimizer = tf.train.AdamOptimizer(
             learning_rate=learning_rate)
@@ -174,6 +185,7 @@ def discrete_trpo_model_factory(
         # Softmax policy for discrete action spaces
         network = partial(network, activation_fn=tf.nn.softmax)
         model.output_node = model.add_output(network)
+        model.probs = model.output_node
         model.action = tf.placeholder(
             dtype=tf.int32, shape=(None,), name='action')
         action_one_hot = tf.one_hot(model.action, model.output_node.shape[1])
@@ -186,34 +198,39 @@ def discrete_trpo_model_factory(
         shape = model.output_node.get_shape().as_list()
         model.old_pi_placeholder = tf.placeholder(
             dtype=tf.float32, shape=shape, name='old_pi')
+
         model.old_pi = tf.squeeze(tf.reduce_sum(
             action_one_hot * model.old_pi_placeholder, 1))
         model.logli_old = tf.squeeze(tf.log(model.old_pi + tf_utils.EPSILON))
-        model.lr = tf.minimum(tf.exp(model.log_pi - model.logli_old), 1000)
 
+        model.lr = tf.exp(model.log_pi - model.logli_old)
         model.surr_loss = -tf.reduce_mean(
             model.lr * model.Return)
 
-        # get KL
-        # tf.reduce_sum(self.probabilities * tf.log((self.probabilities + util.epsilon) / (other.probabilities + util.epsilon)), axis=[0])
-        model.kl = tf.reduce_sum(
-            model.pi * (
-                tf.log(model.pi + tf_utils.EPSILON) -
-                tf.log(model.old_pi + tf_utils.EPSILON)),
-            axis=0)
+        model.kl = tf.reduce_mean(
+            tf.reduce_sum(model.old_pi_placeholder * (
+                tf.log(model.old_pi_placeholder + tf_utils.EPSILON) -
+                tf.log(model.probs + tf_utils.EPSILON)), axis=-1)
+        )
+
+        # get surrogate loss function
         var_list = list(tf.trainable_variables())
-
-        ent = -tf.reduce_sum(model.pi * tf.log(model.pi + tf_utils.EPSILON), axis=0)
-        model.losses = [model.surr_loss, model.kl, ent]
-        model.pg = tf_utils.flatgrad(model.surr_loss, var_list)
-
+        entropy = -tf.reduce_mean(
+            tf.reduce_sum(
+                model.probs * tf.log(model.probs + tf_utils.EPSILON), axis=-1)
+        )
         # KL divergence where first arg is fixed
-        model.pi_fixed = tf.stop_gradient(model.pi)
-        model.kl_firstfixed = tf.reduce_sum(model.pi_fixed * (
-            tf.log(model.pi_fixed + tf_utils.EPSILON) -
-            tf.log(model.pi + tf_utils.EPSILON)), axis=0)
+        model.probs_fixed = tf.stop_gradient(model.probs)
+        model.kl_firstfixed = tf.reduce_mean(
+            tf.reduce_sum(model.probs_fixed * (
+                tf.log(model.probs_fixed + tf_utils.EPSILON) -
+                tf.log(model.probs + tf_utils.EPSILON)), axis=-1)
+        )
         model.grads = tf.gradients(model.kl_firstfixed, var_list)
         model.flat_tangent = tf.placeholder(dtype=tf.float32, shape=[None])
+        model.pg = tf_utils.flatgrad(model.surr_loss, var_list)
+
+        model.losses = [model.surr_loss, model.kl, entropy]
 
         shapes = map(tf_utils.var_shape, var_list)
         start = 0
@@ -229,8 +246,9 @@ def discrete_trpo_model_factory(
         model.theta = tf.placeholder(tf.float32, [total_size])
 
         # gradient vector product
-        gvp = [tf.reduce_sum(g * t) for (g, t) in zip(model.grads, tangents)]
-        model.fvp = tf_utils.flatgrad(gvp, var_list)
+        model.gvp = tf.reduce_sum(
+            [tf.reduce_sum(g * t) for (g, t) in zip(model.grads, tangents)])
+        model.fvp = tf_utils.flatgrad(model.gvp, var_list)
         model.gf = tf_utils.flatten_vars(var_list)
         model.sff = tf_utils.setfromflat(var_list, model.theta)
 
