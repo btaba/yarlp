@@ -11,6 +11,7 @@ from yarlp.model.model_factories import discrete_trpo_model_factory
 from yarlp.model.linear_baseline import LinearFeatureBaseline
 from yarlp.utils.experiment_utils import get_network
 from yarlp.utils.env_utils import GymEnv
+from yarlp.model.model_factories import value_function_model_factory
 
 
 class TRPOAgent(Agent):
@@ -36,10 +37,11 @@ class TRPOAgent(Agent):
                  policy_network=tf.contrib.layers.fully_connected,
                  policy_network_params={},
                  policy_learning_rate=0.01,
-                 baseline_network=LinearFeatureBaseline(),
-                 baseline_model_learning_rate=0.01,
+                 baseline_network=None,
+                 baseline_model_learning_rate=0.001,
                  model_file_path=None,
                  adaptive_std=False,
+                 gae_lambda=0.98,
                  *args, **kwargs):
         super().__init__(env, *args, **kwargs)
 
@@ -56,7 +58,16 @@ class TRPOAgent(Agent):
         else:
             raise NotImplementedError()
 
-        self._baseline_model = baseline_network
+        # self._baseline_model = baseline_network
+        self._gae_lambda = gae_lambda
+
+        if isinstance(baseline_network, LinearFeatureBaseline)\
+                or baseline_network is None:
+            self._baseline_model = baseline_network
+        else:
+            self._baseline_model = value_function_model_factory(
+                env, policy_network,
+                learning_rate=baseline_model_learning_rate)
 
     def save_models(self, path):
         ppath = os.path.join(path, 'pg_policy')
@@ -88,7 +99,8 @@ class TRPOAgent(Agent):
         """
 
         # config
-        cg_damping = 1e-5   # reg coeff
+        # cg_damping = 1e-5   # reg coeff
+        cg_damping = 1e-1
         max_kl = 1e-2   # step size
 
         for i in range(num_train_steps):
@@ -114,14 +126,16 @@ class TRPOAgent(Agent):
                 advantage = rollout.rewards + self._discount *\
                     baseline_pred[1:] - baseline_pred[:-1]
                 advantage = self.get_discounted_reward_list(
-                    advantage)
+                    advantage, discount=self._discount * self._gae_lambda)
 
                 advantages = np.concatenate([advantages, advantage])
                 states.append(rollout.states)
                 actions.append(rollout.actions)
                 action_probs.append(rollout.action_probs)
+                # discounted_rewards = np.concatenate(
+                #     [discounted_rewards, discounted_reward])
                 discounted_rewards = np.concatenate(
-                    [discounted_rewards, discounted_reward])
+                    [discounted_rewards, advantage + baseline_pred[:-1]])
 
             states = np.concatenate([s for s in states]).squeeze()
             actions = np.concatenate([a for a in actions])
@@ -131,9 +145,16 @@ class TRPOAgent(Agent):
                 advantages = (advantages - np.mean(advantages)) /\
                     (np.std(advantages) + 1e-8)
 
-            # batch update the baseline model
-            if self._baseline_model:
+            # # batch update the baseline model
+            # if self._baseline_model:
+            #     self._baseline_model.fit(states, discounted_rewards)
+
+            if isinstance(self._baseline_model, LinearFeatureBaseline):
                 self._baseline_model.fit(states, discounted_rewards)
+            elif hasattr(self._baseline_model, 'G'):
+                for _ in range(5):
+                    self._baseline_model.update(
+                        states, discounted_rewards)
 
             # update the policy
             feed = self._policy.build_update_feed_dict(
@@ -147,22 +168,21 @@ class TRPOAgent(Agent):
                 return self._policy.G(self._policy.fvp, feed) + cg_damping * p
 
             g = self._policy.G(self._policy.pg, feed)
-            if np.allclose(g, np.zeros_like(g)):
+            if np.allclose(g, 0):
                 print('Gradient zero, skipping update.')
                 continue
 
             # descent direciton
             stepdir = conjugate_gradient(fisher_vector_product, g)
-            initial_step_size = np.sqrt(
-                2.0 * max_kl *
-                (1. / (stepdir.dot(fisher_vector_product(stepdir)) + 1e-8))
-            )
+            # initial_step_size = np.sqrt(
+            #     2.0 * max_kl *
+            #     (1. / (stepdir.dot(fisher_vector_product(stepdir)) + 1e-8))
+            # )
 
-            print('initial_step_size is ', initial_step_size)
-            if np.isnan(initial_step_size):
-                print('NAN initial_step_size')
-                initial_step_size = 1.
-            flat_descent_step = initial_step_size * stepdir
+            # print('initial_step_size is ', initial_step_size)
+            # if np.isnan(initial_step_size):
+            #     print('NAN initial_step_size')
+            #     initial_step_size = 1.
 
             def get_loss(th):
                 feed[self._policy.theta] = th
@@ -170,37 +190,71 @@ class TRPOAgent(Agent):
                 return self._policy.G(self._policy.losses[0], feed)
             lossbefore = get_loss(thprev)
 
-            backtrack_ratio = 0.8
-            max_backtracks = 15
-            for n_iter, ratio in\
-                    enumerate(backtrack_ratio ** np.arange(max_backtracks)):
-                cur_step = ratio * flat_descent_step
-                cur_theta = thprev - cur_step
+            assert np.isfinite(stepdir).all()
+            shs = .5 * stepdir.dot(fisher_vector_product(stepdir))
+            lm = np.sqrt(shs / max_kl)
+            fullstep = stepdir / lm
+            expectedimprove = g.dot(fullstep)
+            surrbefore = lossbefore
+            stepsize = 1.0
 
-                # set the theta and compute the loss
-                feed[self._policy.theta] = cur_theta
+            for _ in range(10):
+                thnew = thprev - fullstep * stepsize
+
+                feed[self._policy.theta] = thnew
                 self._policy.G(self._policy.sff, feed)
-                loss = get_loss(cur_theta)
-                constraint_val = self._policy.G(
+                surr = get_loss(thnew)
+                kl = self._policy.G(
                     self._policy.kl, feed)
-                if loss < lossbefore and constraint_val <= max_kl:
+
+                improve = surrbefore - surr
+                print("Expected: %.3f Actual: %.3f"%(expectedimprove, improve))
+                if not np.isfinite(surr).all():
+                    print("Got non-finite value of losses -- bad!")
+                elif kl > max_kl * 1.5:
+                    print("violated KL constraint. shrinking step.")
+                elif improve < 0:
+                    print("surrogate didn't improve. shrinking step.")
+                else:
+                    print("Stepsize OK!")
                     break
-            if (np.isnan(loss) or np.isnan(constraint_val) or
-                    loss >= lossbefore or constraint_val >= max_kl):
-                print("Line search condition violated. Rejecting the step!")
-                if np.isnan(loss):
-                    print("Violated because loss is NaN")
-                if np.isnan(constraint_val):
-                    print("Violated because constraint is NaN")
-                if loss >= lossbefore:
-                    print("Violated because loss not improving")
-                if constraint_val >= max_kl:
-                    print("Violated because constraint is violated")
-                get_loss(thprev)
+                stepsize *= .5
             else:
-                assert not np.isclose(
-                    (self._policy.G(self._policy.theta, feed) -
-                     thprev).sum(), 0.)
+                print("couldn't compute a good step")
+                get_loss(thprev)
+
+            # flat_descent_step = initial_step_size * stepdir
+            # backtrack_ratio = 0.8
+            # max_backtracks = 15
+            # for n_iter, ratio in\
+            #         enumerate(backtrack_ratio ** np.arange(max_backtracks)):
+            #     cur_step = ratio * flat_descent_step
+            #     cur_theta = thprev - cur_step
+
+            #     # set the theta and compute the loss
+            #     feed[self._policy.theta] = cur_theta
+            #     self._policy.G(self._policy.sff, feed)
+            #     loss = get_loss(cur_theta)
+            #     constraint_val = self._policy.G(
+            #         self._policy.kl, feed)
+            #     if loss < lossbefore and constraint_val <= max_kl:
+            #         break
+            # if (np.isnan(loss) or np.isnan(constraint_val) or
+            #         loss >= lossbefore or constraint_val >= max_kl):
+            #     print("Line search condition violated. Rejecting the step!")
+            #     if np.isnan(loss):
+            #         print("Violated because loss is NaN")
+            #     if np.isnan(constraint_val):
+            #         print("Violated because constraint is NaN")
+            #     if loss >= lossbefore:
+            #         print("Violated because loss not improving")
+            #     if constraint_val >= max_kl:
+            #         print("Violated because constraint is violated")
+            #     get_loss(thprev)
+            # else:
+            #     assert not np.isclose(
+            #         (self._policy.G(self._policy.theta, feed) -
+            #          thprev).sum(), 0.)
 
             surrafter, kloldnew, entropy = self._policy.G(
                 self._policy.losses, feed_dict=feed)

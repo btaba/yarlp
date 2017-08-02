@@ -136,22 +136,27 @@ class Agent(ABC):
 
         return np.sum(cumulative_reward[1:])
 
-    def get_discounted_reward_list(self, rewards):
+    def get_discounted_reward_list(self, rewards, discount=None):
         """
         Given a list of rewards, return the discounted rewards
         at each time step, in linear time
         """
+        if discount is None:
+            discount = self._discount
+
         rt = 0
         discounted_rewards = []
         for t in range(len(rewards) - 1, -1, -1):
-            rt = rewards[t] + self._discount * rt
+            rt = rewards[t] + discount * rt
             discounted_rewards.append(rt)
 
         return list(reversed(discounted_rewards))
 
     def get_action_prob(self, state):
         batch = np.array([state])
-        return self._policy.predict(batch)
+        if hasattr(self._policy, 'predict'):
+            return self._policy.predict(batch)
+        return None
 
     def get_action(self, state, greedy=False):
         """

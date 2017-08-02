@@ -168,7 +168,7 @@ def continuous_gaussian_pg_model_factory(
 
 
 def discrete_trpo_model_factory(
-        env, network, learning_rate=0.01,
+        env, network, learning_rate=0.01, entropy_weight=0.001,
         input_shape=None, model_file_path=None):
     """
     Policy model for discrete action spaces with policy gradient update
@@ -204,6 +204,15 @@ def discrete_trpo_model_factory(
         model.logli_old = tf.squeeze(tf.log(model.old_pi + tf_utils.EPSILON))
 
         model.lr = tf.exp(model.log_pi - model.logli_old)
+
+        # get surrogate loss function
+        var_list = list(tf.trainable_variables())
+        entropy = -tf.reduce_mean(
+            tf.reduce_sum(
+                model.probs * tf.log(model.probs + tf_utils.EPSILON), axis=-1)
+        )
+
+        # TODO: add entropy to loss function
         model.surr_loss = -tf.reduce_mean(
             model.lr * model.Return)
 
@@ -213,20 +222,15 @@ def discrete_trpo_model_factory(
                 tf.log(model.probs + tf_utils.EPSILON)), axis=-1)
         )
 
-        # get surrogate loss function
-        var_list = list(tf.trainable_variables())
-        entropy = -tf.reduce_mean(
-            tf.reduce_sum(
-                model.probs * tf.log(model.probs + tf_utils.EPSILON), axis=-1)
-        )
         # KL divergence where first arg is fixed
-        model.probs_fixed = tf.stop_gradient(model.probs)
-        model.kl_firstfixed = tf.reduce_mean(
-            tf.reduce_sum(model.probs_fixed * (
-                tf.log(model.probs_fixed + tf_utils.EPSILON) -
-                tf.log(model.probs + tf_utils.EPSILON)), axis=-1)
-        )
-        model.grads = tf.gradients(model.kl_firstfixed, var_list)
+        # model.probs_fixed = tf.stop_gradient(model.probs)
+        # model.kl_firstfixed = tf.reduce_mean(
+        #     tf.reduce_sum(model.probs_fixed * (
+        #         tf.log(model.probs_fixed + tf_utils.EPSILON) -
+        #         tf.log(model.probs + tf_utils.EPSILON)), axis=-1)
+        # )
+
+        model.grads = tf.gradients(model.kl, var_list)
         model.flat_tangent = tf.placeholder(dtype=tf.float32, shape=[None])
         model.pg = tf_utils.flatgrad(model.surr_loss, var_list)
 
@@ -246,7 +250,7 @@ def discrete_trpo_model_factory(
         model.theta = tf.placeholder(tf.float32, [total_size])
 
         # gradient vector product
-        model.gvp = tf.reduce_sum(
+        model.gvp = tf.add_n(
             [tf.reduce_sum(g * t) for (g, t) in zip(model.grads, tangents)])
         model.fvp = tf_utils.flatgrad(model.gvp, var_list)
         model.gf = tf_utils.flatten_vars(var_list)
