@@ -17,8 +17,6 @@ class Model:
         """
         self._env = env
         self.G = Graph()
-        # self._loss = None
-        # self._optimizer = None
         self.build_update_feed_dict = build_update_feed_dict
 
         if path is not None:
@@ -107,6 +105,10 @@ class Model:
         self.G['input:' + name] = self.input_node
 
         return self.input_node
+
+    def add_input_node(self, node, name=''):
+        self.G['input:' + name] = node
+        return node
 
     def add_output(self, network, num_outputs=None, name='', dtype=tf.float32,
                    input_node=None):
