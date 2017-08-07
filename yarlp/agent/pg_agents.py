@@ -16,17 +16,16 @@ REINFORCE Agent and Policy Gradient (PG) Actor Critic Agent
 """
 
 import os
-import numpy as np
 import tensorflow as tf
 
-from yarlp.agent.base_agent import Agent
+from yarlp.agent.base_agent import BatchAgent
 from yarlp.model.model_factories import pg_model_factory
 from yarlp.model.model_factories import value_function_model_factory
 from yarlp.model.linear_baseline import LinearFeatureBaseline
 from yarlp.utils.experiment_utils import get_network
 
 
-class REINFORCEAgent(Agent):
+class REINFORCEAgent(BatchAgent):
     """
     REINFORCE - Monte Carlo Policy Gradient for discrete action spaces
 
@@ -57,7 +56,7 @@ class REINFORCEAgent(Agent):
                  model_file_path=None,
                  adaptive_std=False,
                  init_std=1.0,
-                 min_std=1e-6,
+                 min_std=1e-6, gae_lambda=1.,
                  *args, **kwargs):
         super().__init__(env, *args, **kwargs)
 
@@ -72,6 +71,7 @@ class REINFORCEAgent(Agent):
             learning_rate=policy_learning_rate, entropy_weight=entropy_weight,
             min_std=min_std, init_std=init_std, adaptive_std=adaptive_std,
             model_file_path=policy_path)
+        self._gae_lambda = gae_lambda
 
         if isinstance(baseline_network, LinearFeatureBaseline)\
                 or baseline_network is None:
@@ -85,92 +85,8 @@ class REINFORCEAgent(Agent):
         ppath = os.path.join(path, 'pg_policy')
         self._policy.save(ppath)
 
-    def train(self, num_train_steps=10, num_test_steps=0,
-              n_steps=1000, render=False, whiten_advantages=True):
-        """
-
-        Parameters
-        ----------
-        num_train_steps : integer
-            Total number of training iterations.
-
-        num_test_steps : integer
-            Number of testing iterations per training iteration.
-
-        n_steps : integer
-            Total number of samples from the environment for each
-            training iteration.
-
-        whiten_advantages : bool, whether to whiten the advantages
-
-        render : bool, whether to render episodes in a video
-
-        Returns
-        ----------
-        None
-        """
-        for i in range(num_train_steps):
-            # execute an episode
-            rollouts = self.rollout_n_steps(n_steps, render=render)
-
-            actions = []
-            states = []
-            advantages = []
-            discounted_rewards = []
-
-            for rollout in rollouts:
-                discounted_reward = self.get_discounted_reward_list(
-                    rollout.rewards)
-
-                baseline_pred = np.zeros_like(discounted_reward)
-                if self._baseline_model:
-                    baseline_pred = self._baseline_model.predict(
-                        np.array(rollout.states)).flatten()
-
-                baseline_pred = np.append(baseline_pred, 0)
-                advantage = rollout.rewards + self._discount *\
-                    baseline_pred[1:] - baseline_pred[:-1]
-                advantage = self.get_discounted_reward_list(
-                    advantage)
-                # advantage = discounted_reward - baseline_pred
-
-                advantages = np.concatenate([advantages, advantage])
-                states.append(rollout.states)
-                actions.append(rollout.actions)
-                discounted_rewards = np.concatenate(
-                    [discounted_rewards, discounted_reward])
-
-            states = np.concatenate([s for s in states]).squeeze()
-            actions = np.concatenate([a for a in actions])
-
-            if whiten_advantages:
-                advantages = (advantages - np.mean(advantages)) /\
-                    (np.std(advantages) + 1e-8)
-
-            # batch update the baseline model
-            if isinstance(self._baseline_model, LinearFeatureBaseline):
-                self._baseline_model.fit(states, discounted_rewards)
-            elif hasattr(self._baseline_model, 'G'):
-                self._baseline_model.update(
-                    states, discounted_rewards)
-
-            # update the policy
-            loss = self._policy.update(
-                states, advantages.squeeze(), actions.squeeze())
-            self.logger.add_metric('policy_loss', loss)
-            self.logger.set_metrics_for_rollout(rollouts, train=True)
-            self.logger.log()
-
-            if num_test_steps > 0:
-                r = []
-                for t_test in range(num_test_steps):
-                    rollout = self.rollout(greedy=True)
-                    r.append(rollout)
-                self.logger.add_metric('policy_loss', 0)
-                self.logger.set_metrics_for_rollout(r, train=False)
-                self.logger.log()
-
-            if self.logger._log_dir is not None:
-                self.save_models(self.logger._log_dir)
-
-        return
+    def update(self, path):
+        loss = self._policy.update(
+            path['states'], path['advantages'],
+            path['actions'])
+        self.logger.add_metric('policy_loss', loss)

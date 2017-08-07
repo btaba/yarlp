@@ -73,6 +73,9 @@ def pg_model_factory(
         model.output_node = policy.distribution.output_node
         model.add_output_node(model.output_node)
 
+        if hasattr(policy, 'mean'):
+            model.add_output_node(policy.mean, name='greedy')
+
         model.action = policy.action_placeholder
 
         model.log_pi = policy.distribution.log_likelihood(model.action)
@@ -97,69 +100,53 @@ def pg_model_factory(
     return Model(env, build_graph, build_update_feed_dict)
 
 
-def discrete_trpo_model_factory(
-        env, network, learning_rate=0.01, entropy_weight=0.001,
+def trpo_model_factory(
+        env, network, network_params={},
+        entropy_weight=0.001,
+        min_std=1e-6, init_std=1.0, adaptive_std=False,
         input_shape=None, model_file_path=None):
     """
     Policy model for discrete action spaces with policy gradient update
     """
-    def build_graph(model, network, lr, input_shape):
+    def build_graph(model, network, input_shape):
 
-        input_node = model.add_input(shape=input_shape)
+        policy = make_policy(
+            env, 'pi', network_params=network_params, input_shape=input_shape,
+            init_std=init_std, adaptive_std=adaptive_std, network=network)
+        model.policy = policy
+        old_policy = make_policy(
+            env, 'oldpi', network_params=network_params,
+            input_shape=input_shape,
+            init_std=init_std, adaptive_std=adaptive_std, network=network)
+        model.old_policy = old_policy
 
-        model.state = input_node
+        model.state = model.add_input_node(policy.input_node)
         model.Return = tf.placeholder(
             dtype=tf.float32, shape=(None,), name='return')
-        model.learning_rate = lr
+        model.output_node = policy.distribution.output_node
+        model.add_output_node(model.output_node)
 
-        # Softmax policy for discrete action spaces
-        network = partial(network, activation_fn=tf.nn.softmax)
-        model.output_node = model.add_output(network)
-        model.probs = model.output_node
-        model.action = tf.placeholder(
-            dtype=tf.int32, shape=(None,), name='action')
-        action_one_hot = tf.one_hot(model.action, model.output_node.shape[1])
-        model.action_one_hot = action_one_hot
+        if hasattr(policy, 'mean'):
+            model.add_output_node(policy.mean, name='greedy')
 
-        model.pi = tf.squeeze(tf.reduce_sum(
-            action_one_hot * model.output_node, 1))
-        model.log_pi = tf.squeeze(tf.log(model.pi + tf_utils.EPSILON))
+        model.action = policy.action_placeholder
 
-        shape = model.output_node.get_shape().as_list()
-        model.old_pi_placeholder = tf.placeholder(
-            dtype=tf.float32, shape=shape, name='old_pi')
+        model.log_pi = policy.distribution.log_likelihood(model.action)
+        entropy = tf.reduce_mean(policy.distribution.entropy())
 
-        model.old_pi = tf.squeeze(tf.reduce_sum(
-            action_one_hot * model.old_pi_placeholder, 1))
-        model.logli_old = tf.squeeze(tf.log(model.old_pi + tf_utils.EPSILON))
+        model.logli_old = old_policy.distribution.log_likelihood(model.action)
 
-        model.lr = tf.exp(model.log_pi - model.logli_old)
+        model.lr = policy.distribution.likelihood_ratio(
+            model.action, model.logli_old)
+        entropy = tf.reduce_mean(policy.distribution.entropy())
 
-        # get surrogate loss function
-        var_list = list(tf.trainable_variables())
-        entropy = -tf.reduce_mean(
-            tf.reduce_sum(
-                model.probs * tf.log(model.probs + tf_utils.EPSILON), axis=-1)
-        )
-
-        # TODO: add entropy to loss function
         model.surr_loss = -tf.reduce_mean(
-            model.lr * model.Return)
+            model.lr * model.Return) - entropy_weight * entropy
 
         model.kl = tf.reduce_mean(
-            tf.reduce_sum(model.old_pi_placeholder * (
-                tf.log(model.old_pi_placeholder + tf_utils.EPSILON) -
-                tf.log(model.probs + tf_utils.EPSILON)), axis=-1)
-        )
+            policy.distribution.kl(old_policy._distribution))
 
-        # KL divergence where first arg is fixed
-        # model.probs_fixed = tf.stop_gradient(model.probs)
-        # model.kl_firstfixed = tf.reduce_mean(
-        #     tf.reduce_sum(model.probs_fixed * (
-        #         tf.log(model.probs_fixed + tf_utils.EPSILON) -
-        #         tf.log(model.probs + tf_utils.EPSILON)), axis=-1)
-        # )
-
+        var_list = policy.get_trainable_variables()
         model.grads = tf.gradients(model.kl, var_list)
         model.flat_tangent = tf.placeholder(dtype=tf.float32, shape=[None])
         model.pg = tf_utils.flatgrad(model.surr_loss, var_list)
@@ -185,15 +172,17 @@ def discrete_trpo_model_factory(
         model.fvp = tf_utils.flatgrad(model.gvp, var_list)
         model.gf = tf_utils.flatten_vars(var_list)
         model.sff = tf_utils.setfromflat(var_list, model.theta)
+        model.set_old_pi_eq_new_pi = [
+            tf.assign(old, new) for (old, new) in
+            zip(old_policy.get_variables(), policy.get_variables())]
 
-    def build_update_feed_dict(model, state, return_, action, old_pi):
-        feed_dict = {model.state: state,
-                     model.Return: np.squeeze([return_]), model.action: action,
-                     model.old_pi_placeholder: old_pi}
+    def build_update_feed_dict(model, state, return_, action):
+        feed_dict = {model.state: state, model.old_policy.input_node: state,
+                     model.Return: np.squeeze([return_]), model.action: action}
         return feed_dict
 
     build_graph = partial(build_graph, network=network,
-                          lr=learning_rate, input_shape=input_shape)
+                          input_shape=input_shape)
 
     if model_file_path is not None:
         return Model(env, None, build_update_feed_dict, model_file_path)

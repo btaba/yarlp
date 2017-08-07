@@ -7,6 +7,7 @@ from abc import ABCMeta, abstractmethod
 from yarlp.utils.env_utils import GymEnv
 from yarlp.utils.metric_logger import MetricLogger
 from yarlp.utils.replay_buffer import Rollout
+from yarlp.model.linear_baseline import LinearFeatureBaseline
 
 
 ABC = ABCMeta('ABC', (object,), {})
@@ -81,7 +82,6 @@ class Agent(ABC):
             r.rewards.extend(rollouts[-1].rewards[:-steps_to_remove])
             r.actions.extend(rollouts[-1].actions[:-steps_to_remove])
             r.states.extend(rollouts[-1].states[:-steps_to_remove])
-            r.action_probs.extend(rollouts[-1].action_probs[:-steps_to_remove])
             rollouts[-1] = r
 
         return rollouts
@@ -103,7 +103,6 @@ class Agent(ABC):
         observation = self.get_state(observation)
         for t in range(self._env.spec.timestep_limit):
             r.states.append(observation)
-            action_prob = self.get_action_prob(observation)
             action = self.get_action(observation, greedy=greedy)
             (observation, reward, done, _) = self._env.step(action)
 
@@ -113,7 +112,6 @@ class Agent(ABC):
             observation = self.get_state(observation)
             r.rewards.append(reward)
             r.actions.append(action)
-            r.action_probs.append(action_prob)
             if done:
                 break
 
@@ -151,12 +149,6 @@ class Agent(ABC):
             discounted_rewards.append(rt)
 
         return list(reversed(discounted_rewards))
-
-    def get_action_prob(self, state):
-        batch = np.array([state])
-        if hasattr(self._policy, 'predict'):
-            return self._policy.predict(batch)
-        return None
 
     def get_action(self, state, greedy=False):
         """
@@ -199,3 +191,123 @@ class Agent(ABC):
         like tile coding
         """
         return self._state_featurizer(state)
+
+
+class BatchAgent(Agent):
+    """
+    Abstract class for an agent.
+    """
+
+    def __init__(self, *args, **kwargs):
+        """
+        discount_factor : float
+            Discount rewards by this factor
+        """
+        super().__init__(*args, **kwargs)
+
+    @abstractmethod
+    def update(self, path):
+        """
+        Parameters
+        ----------
+        path : dict
+        """
+        pass
+
+    def train(self, num_train_steps=10, num_test_steps=0,
+              n_steps=1000, render=False, whiten_advantages=True):
+        """
+        Parameters
+        ----------
+        num_train_steps : integer
+            Total number of training iterations.
+
+        num_test_steps : integer
+            Number of testing iterations per training iteration.
+
+        n_steps : integer
+            Total number of samples from the environment for each
+            training iteration.
+
+        whiten_advantages : bool, whether to whiten the advantages
+
+        render : bool, whether to render episodes in a video
+
+        Returns
+        ----------
+        None
+        """
+        for i in range(num_train_steps):
+            # execute an episode
+            rollouts = self.rollout_n_steps(n_steps, render=render)
+
+            actions = []
+            states = []
+            advantages = []
+            discounted_rewards = []
+
+            for rollout in rollouts:
+                discounted_reward = self.get_discounted_reward_list(
+                    rollout.rewards)
+
+                baseline_pred = np.zeros_like(discounted_reward)
+                if self._baseline_model:
+                    baseline_pred = self._baseline_model.predict(
+                        np.array(rollout.states)).flatten()
+
+                baseline_pred = np.append(baseline_pred, 0)
+                advantage = rollout.rewards + self._discount *\
+                    baseline_pred[1:] - baseline_pred[:-1]
+                advantage = self.get_discounted_reward_list(
+                    advantage, discount=self._discount * self._gae_lambda)
+
+                advantages = np.concatenate([advantages, advantage])
+                states.append(rollout.states)
+                actions.append(rollout.actions)
+                discounted_rewards = np.concatenate(
+                    [discounted_rewards, discounted_reward])
+
+            states = np.concatenate([s for s in states]).squeeze()
+            actions = np.concatenate([a for a in actions]).squeeze()
+            advantages = advantages.squeeze()
+
+            if whiten_advantages:
+                advantages = (advantages - np.mean(advantages)) /\
+                    (np.std(advantages) + 1e-8)
+
+            # batch update the baseline model
+            if self._baseline_model:
+                self._baseline_model.fit(states, discounted_rewards)
+
+            # batch update the baseline model
+            if isinstance(self._baseline_model, LinearFeatureBaseline):
+                self._baseline_model.fit(states, discounted_rewards)
+            elif hasattr(self._baseline_model, 'G'):
+                self._baseline_model.update(
+                    states, discounted_rewards)
+
+            # update the policy
+            path_dict = {
+                'states': states,
+                'actions': actions,
+                'discounted_rewards': discounted_rewards,
+                'advantages': advantages
+            }
+            self.update(path_dict)
+
+            self.logger.set_metrics_for_rollout(rollouts, train=True)
+            self.logger.log()
+
+            if num_test_steps > 0:
+                r = []
+                for t_test in range(num_test_steps):
+                    rollout = self.rollout(greedy=True)
+                    r.append(rollout)
+                self.logger.add_metric('policy_loss', 0)
+                self.logger.set_metrics_for_rollout(r, train=False)
+                self.logger.log()
+
+            if self.logger._log_dir is not None:
+                self.save_models(self.logger._log_dir)
+
+        return
