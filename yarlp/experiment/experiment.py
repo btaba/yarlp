@@ -121,9 +121,6 @@ class Experiment(ExperimentUtils):
                 fs = []
                 for j in self._jobs:
                     fs.append(ex.submit(j))
-                    # res = future.result()
-                    # if res:
-                    #     print(res)
                 for f in fs:
                     res = f.result()
                     if res:

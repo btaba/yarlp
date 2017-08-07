@@ -64,7 +64,7 @@ def pg_model_factory(
                     network_params=network_params,
                     init_std=init_std, adaptive_std=adaptive_std):
         policy = make_policy(
-            env, network_params=network_params, input_shape=input_shape,
+            env, 'pi', network_params=network_params, input_shape=input_shape,
             init_std=init_std, adaptive_std=adaptive_std, network=network)
 
         model.state = model.add_input_node(policy.input_node)

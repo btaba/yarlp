@@ -27,45 +27,45 @@ class Distribution(object):
     def likelihood(self, x):
         raise NotImplementedError()
 
-    def sample():
+    def sample(self):
         raise NotImplementedError()
 
 
 class Categorical(Distribution):
 
-    def __init__(self, output):
-        self.output = output
+    def __init__(self, probs):
+        self.probs = probs
+        self.dist = tf.contrib.distributions.Categorical(probs=probs)
 
     @property
     def output_node(self):
-        return self.output
+        return self.probs
 
-    def kl(self, old_prob):
-        # assert isinstance(old_prob, Categorical)
+    def kl(self, old_dist):
+        # assert isinstance(old_dist, Categorical)
         return tf.reduce_sum(
-            old_prob.output * (
-                tf.log(old_prob.output + tf_utils.EPSILON) -
-                tf.log(self.output + tf_utils.EPSILON)
+            old_dist.probs * (
+                tf.log(old_dist.probs + tf_utils.EPSILON) -
+                tf.log(self.probs + tf_utils.EPSILON)
             ), axis=-1)
 
     def entropy(self):
         return -tf.reduce_sum(
-            self.output *
-            tf.log(self.output + tf_utils.EPSILON), axis=-1)
+            self.probs *
+            tf.log(self.probs + tf_utils.EPSILON), axis=-1)
 
     def log_likelihood(self, x):
-        p = self.likelihood(x)
-        log_p = tf.squeeze(tf.log(p + tf_utils.EPSILON))
-        return log_p
+        return self.dist.log_prob(x)
 
     def likelihood(self, x):
-        x_onehot = tf.one_hot(x, self.output_node.shape[1])
-        p = tf.reduce_sum(x_onehot * self.output, 1)
-        return p
+        return self.dist.prob(x)
 
-    def likelihood_ratio(self, x, old_logli):
+    def likelihood_ratio(self, x, old_dist):
         log_p = self.log_likelihood(x)
-        return tf.exp(log_p - old_logli)
+        return tf.exp(log_p - old_dist.log_likelihood(x))
+
+    def sample(self, num):
+        return tf.squeeze(self.dist.sample(num))
 
 
 class DiagonalGaussian(Distribution):
@@ -74,32 +74,35 @@ class DiagonalGaussian(Distribution):
         self.mean = mean
         self.logstd = logstd
         self.std = tf.exp(logstd)
+        self.dist = tf.contrib.distributions.MultivariateNormalDiag(
+            self.mean, self.std)
 
     @property
     def output_node(self):
-        n = tf.contrib.distributions.Normal(self.mean, self.std)
-        return tf.squeeze(n.sample([1]))
+        return tf.squeeze(self.dist.sample([1]))
 
-    def kl(self, old_prob):
-        # assert isinstance(old_prob, DiagonalGaussian)
-        numerator = tf.square(old_prob.mean - self.mean) +\
-            tf.square(old_prob.std) - tf.square(self.std)
-        denominator = 2 * tf.square(self.std) + tf_utils.EPSILON
+    def kl(self, old_dist):
+        # assert isinstance(old_dist, DiagonalGaussian)
+        numerator = tf.square(self.std) + tf.square(self.mean - old_dist.mean)
+        denominator = (2.0 * tf.square(old_dist.std))
         return tf.reduce_sum(
-            numerator / denominator + self.logstd - old_prob.logstd,
-            axis=-1)
+            old_dist.logstd - self.logstd +
+            numerator / denominator - 0.5,
+            axis=-1
+        )
 
     def entropy(self):
         return tf.reduce_sum(
             self.logstd + tf.log(tf.sqrt(2. * np.pi * np.e)), axis=-1)
 
     def log_likelihood(self, x):
-        n = tf.contrib.distributions.Normal(self.mean, self.std)
-        return n.log_prob(x)
+        return self.dist.log_prob(x)
 
     def likelihood(self, x):
-        n = tf.contrib.distributions.Normal(self.mean, self.std)
-        return n.prob(x)
+        return self.dist.prob(x)
 
-    def likelihood_ratio(self, x, old_logli):
-        return tf.exp(self.log_likelihood(x) - old_logli)
+    def likelihood_ratio(self, x, old_dist):
+        return tf.exp(self.log_likelihood(x) - old_dist.log_likelihood(x))
+
+    def sample(self, num):
+        return tf.squeeze(self.dist.sample([num]))
