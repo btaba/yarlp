@@ -21,10 +21,10 @@ class Graph:
         return self
 
     def __exit__(self, *args):
-        self._saver = tf.train.Saver()
         self._session.run(
             tf.variables_initializer(self.GLOBAL_VARIABLES)
         )
+        self._saver = tf.train.Saver()
         self._graph.finalize()
         self._context.__exit__(*args)
 

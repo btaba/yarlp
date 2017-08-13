@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from yarlp.policies.policies import make_policy
+from yarlp.policy.policies import make_policy
 from yarlp.model.model import Model
 from functools import partial
 from yarlp.utils import tf_utils
@@ -130,15 +130,9 @@ def trpo_model_factory(
             model.add_output_node(policy.mean, name='greedy')
 
         model.action = policy.action_placeholder
-
-        model.log_pi = policy.distribution.log_likelihood(model.action)
         entropy = tf.reduce_mean(policy.distribution.entropy())
-
-        model.logli_old = old_policy.distribution.log_likelihood(model.action)
-
         model.lr = policy.distribution.likelihood_ratio(
-            model.action, model.logli_old)
-        entropy = tf.reduce_mean(policy.distribution.entropy())
+            model.action, old_policy.distribution)
 
         model.surr_loss = -tf.reduce_mean(
             model.lr * model.Return) - entropy_weight * entropy
@@ -147,8 +141,9 @@ def trpo_model_factory(
             policy.distribution.kl(old_policy._distribution))
 
         var_list = policy.get_trainable_variables()
-        model.grads = tf.gradients(model.kl, var_list)
-        model.flat_tangent = tf.placeholder(dtype=tf.float32, shape=[None])
+        print(var_list)
+        model.klgrads = tf.gradients(model.kl, var_list)
+
         model.pg = tf_utils.flatgrad(model.surr_loss, var_list)
 
         model.losses = [model.surr_loss, model.kl, entropy]
@@ -156,6 +151,8 @@ def trpo_model_factory(
         shapes = map(tf_utils.var_shape, var_list)
         start = 0
         tangents = []
+        model.flat_tangent = tf.placeholder(
+            dtype=tf.float32, shape=[None], name='flat_tangent')
         for shape in shapes:
             size = np.prod(shape)
             param = tf.reshape(model.flat_tangent[start:(start + size)], shape)
@@ -168,7 +165,7 @@ def trpo_model_factory(
 
         # gradient vector product
         model.gvp = tf.add_n(
-            [tf.reduce_sum(g * t) for (g, t) in zip(model.grads, tangents)])
+            [tf.reduce_sum(g * t) for (g, t) in zip(model.klgrads, tangents)])
         model.fvp = tf_utils.flatgrad(model.gvp, var_list)
         model.gf = tf_utils.flatten_vars(var_list)
         model.sff = tf_utils.setfromflat(var_list, model.theta)

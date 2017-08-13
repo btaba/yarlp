@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import tensorflow as tf
-from yarlp.policies.distributions import Categorical, DiagonalGaussian
+from yarlp.policy.distributions import Categorical, DiagonalGaussian
 
 
 class TestDistributions(unittest.TestCase):

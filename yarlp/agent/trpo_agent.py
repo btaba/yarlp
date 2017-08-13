@@ -10,7 +10,6 @@ from yarlp.agent.base_agent import BatchAgent
 from yarlp.model.model_factories import trpo_model_factory
 from yarlp.model.linear_baseline import LinearFeatureBaseline
 from yarlp.utils.experiment_utils import get_network
-# from yarlp.utils.env_utils import GymEnv
 from yarlp.model.model_factories import value_function_model_factory
 
 
@@ -24,8 +23,6 @@ class TRPOAgent(BatchAgent):
 
     policy_network : model.Model
 
-    policy_learning_rate : float, the learning rate for the policy_network
-
     baseline_network : if None, we us no baseline
         otherwise we use a LinearFeatureBaseline as default
         you can also pass in a function as a tensorflow network which
@@ -36,12 +33,11 @@ class TRPOAgent(BatchAgent):
     def __init__(self, env,
                  policy_network=tf.contrib.layers.fully_connected,
                  policy_network_params={},
-                 policy_learning_rate=0.01,
                  baseline_network=None,
                  baseline_model_learning_rate=0.001,
                  model_file_path=None,
                  adaptive_std=False,
-                 gae_lambda=0.98,
+                 gae_lambda=0.98, cg_iters=10,
                  cg_damping=1e-1, max_kl=1e-2,
                  input_shape=None,
                  init_std=1.0, min_std=1e-6,
@@ -59,13 +55,15 @@ class TRPOAgent(BatchAgent):
             min_std=min_std, init_std=init_std, adaptive_std=adaptive_std,
             input_shape=input_shape, model_file_path=policy_path)
 
+        self.cg_iters = cg_iters
         self.cg_damping = cg_damping
         self.max_kl = max_kl
         self._gae_lambda = gae_lambda
 
-        if isinstance(baseline_network, LinearFeatureBaseline)\
-                or baseline_network is None:
+        if isinstance(baseline_network, LinearFeatureBaseline):
             self._baseline_model = baseline_network
+        elif baseline_network is None:
+            self._baseline_model = LinearFeatureBaseline()
         else:
             self._baseline_model = value_function_model_factory(
                 env, policy_network,
@@ -81,13 +79,23 @@ class TRPOAgent(BatchAgent):
             self._policy,
             path['states'], path['advantages'],
             path['actions'])
-        thprev = self._policy.G(self._policy.gf, feed)
+        # thprev = self._policy.G(self._policy.gf, feed)
         self._policy.G(self._policy.set_old_pi_eq_new_pi)
 
+        fvp_feed = self._policy.build_update_feed_dict(
+            self._policy,
+            path['states'][::5], path['advantages'][::5],
+            path['actions'][::5])
+
         def fisher_vector_product(p):
-            feed[self._policy.flat_tangent] = p
-            return self._policy.G(self._policy.fvp, feed) +\
+            fvp_feed[self._policy.flat_tangent] = p
+            return self._policy.G(self._policy.fvp, fvp_feed) +\
                 self.cg_damping * p
+
+        # set old to new
+        # self._policy.G(
+        #     self._policy.sff,
+        #     {self._policy.theta: thprev})
 
         g = self._policy.G(self._policy.pg, feed)
         if np.allclose(g, 0):
@@ -95,7 +103,7 @@ class TRPOAgent(BatchAgent):
             return
 
         # descent direciton
-        stepdir = conjugate_gradient(fisher_vector_product, g)
+        stepdir = conjugate_gradient(fisher_vector_product, g, self.cg_iters)
         # initial_step_size = np.sqrt(
         #     2.0 * max_kl *
         #     (1. / (stepdir.dot(fisher_vector_product(stepdir)) + 1e-8))
@@ -121,13 +129,13 @@ class TRPOAgent(BatchAgent):
         stepsize = 1.0
 
         for _ in range(10):
-            thnew = thprev - fullstep * stepsize
+            thnew = thprev - fullstep * stepsize  # plus or minus?
 
-            feed[self._policy.theta] = thnew
-            self._policy.G(self._policy.sff, feed)
+            # self._policy.G(
+            #     self._policy.sff,
+            #     {self._policy.theta: thnew})
             surr = get_loss(thnew)
-            kl = self._policy.G(
-                self._policy.kl, feed)
+            kl = self._policy.G(self._policy.kl, feed)
 
             improve = surrbefore - surr
             print("Expected: %.3f Actual: %.3f" % (expectedimprove, improve))
@@ -168,28 +176,65 @@ class TRPOAgent(BatchAgent):
         return
 
 
-def conjugate_gradient(f_Ax, b, cg_iters=10,
-                       callback=None, verbose=False, residual_tol=1e-10):
+# def conjugate_gradient(f_Ax, b, cg_iters=10,
+#                        callback=None, verbose=False, residual_tol=1e-10):
+#     """
+#     Demmel p 312
+#     """
+#     if np.any(np.isnan(b)):
+#         print('THERE are NANS in b!')
+#     p = b.copy()
+#     r = b.copy()
+#     x = np.zeros_like(b)
+#     rdotr = r.dot(r)
+
+#     for i in range(cg_iters):
+#         if callback is not None:
+#             callback(x)
+#         z = f_Ax(p)
+#         v = rdotr / p.dot(z)
+#         x += v * p
+#         r -= v * z
+#         newrdotr = r.dot(r)
+#         mu = newrdotr / rdotr
+#         p = r + mu * p
+
+#         rdotr = newrdotr
+#         if rdotr < residual_tol:
+#             break
+
+#     if callback is not None:
+#         callback(x)
+
+#     if np.any(np.isnan(x)):
+#         print('THERE are NANS in x!')
+#     return x
+
+def conjugate_gradient(f_Ax, b, cg_iters=10, callback=None,
+                       verbose=False, residual_tol=1e-10):
     """
     Demmel p 312
     """
-    if np.any(np.isnan(b)):
-        print('THERE are NANS in b!')
     p = b.copy()
     r = b.copy()
     x = np.zeros_like(b)
     rdotr = r.dot(r)
 
+    fmtstr =  "%10i %10.3g %10.3g"
+    titlestr =  "%10s %10s %10s"
+    if verbose: print(titlestr % ("iter", "residual norm", "soln norm"))
+
     for i in range(cg_iters):
         if callback is not None:
             callback(x)
+        if verbose: print(fmtstr % (i, rdotr, np.linalg.norm(x)))
         z = f_Ax(p)
         v = rdotr / p.dot(z)
-        x += v * p
-        r -= v * z
+        x += v*p
+        r -= v*z
         newrdotr = r.dot(r)
-        mu = newrdotr / rdotr
-        p = r + mu * p
+        mu = newrdotr/rdotr
+        p = r + mu*p
 
         rdotr = newrdotr
         if rdotr < residual_tol:
@@ -197,9 +242,7 @@ def conjugate_gradient(f_Ax, b, cg_iters=10,
 
     if callback is not None:
         callback(x)
-
-    if np.any(np.isnan(x)):
-        print('THERE are NANS in x!')
+    if verbose: print(fmtstr % (i+1, rdotr, np.linalg.norm(x)))
     return x
 
 

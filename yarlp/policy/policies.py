@@ -2,8 +2,10 @@
 Defines policies
 """
 
+import numpy as np
 import tensorflow as tf
-from yarlp.policies.distributions import Categorical, DiagonalGaussian
+from yarlp.utils import tf_utils
+from yarlp.policy.distributions import Categorical, DiagonalGaussian
 from yarlp.model.networks import mlp
 from yarlp.utils.env_utils import GymEnv
 
@@ -14,6 +16,7 @@ class Policy:
         self.env = env
         self._distribution = None
         self._scope = None
+        self._sess = tf.get_default_session()
 
     @property
     def observation_space(self):
@@ -35,6 +38,18 @@ class Policy:
         return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
                                  self._scope.name)
 
+    def act(self, observations, greedy=False):
+        if len(observations.shape) == 1:
+            observations = np.expand_dims(observations, 0)
+        feed = {self.input_node: observations}
+        if not greedy:
+            return self._sess.run(
+                self._distribution.sample_op,
+                feed)
+        return self._sess.run(
+            self._distribution.sample_greedy_op,
+            feed)
+
 
 class CategoricalPolicy(Policy):
 
@@ -43,20 +58,23 @@ class CategoricalPolicy(Policy):
         super().__init__(env)
 
         if input_shape is None:
-            shape = (None, self.observation_space.shape[0])
+            shape = [None] + list(self.observation_space.shape)
         num_outputs = GymEnv.get_env_action_space_dim(self.env)
 
-        with tf.variable_scope(name):
-            self._scope = tf.get_variable_scope()
-            self.input_node = tf.placeholder(name="observations",
-                                             dtype=tf.float32, shape=shape)
+        ## GET placeholder from cached
+        self.input_node = tf_utils.get_placeholder(
+            name="observations",
+            dtype=tf.float32, shape=shape)
+
+        with tf.variable_scope(name) as s:
+            self._scope = s
             self.output = network(inputs=self.input_node,
                                   num_outputs=num_outputs,
                                   activation_fn=tf.nn.softmax,
                                   **network_params)
 
             self.action_placeholder = tf.placeholder(
-                dtype=tf.int32, shape=(None,), name='action')
+                dtype=tf.int32, shape=(None, num_outputs), name='action')
 
             self._distribution = Categorical(self.output)
 
@@ -68,27 +86,29 @@ class GaussianPolicy(Policy):
         super().__init__(env)
 
         if input_shape is None:
-            shape = (None, self.observation_space.shape[0])
+            shape = [None] + list(self.observation_space.shape)
         num_outputs = GymEnv.get_env_action_space_dim(self.env)
 
-        with tf.variable_scope(name):
-            self._scope = tf.get_variable_scope()
-            self.input_node = tf.placeholder(name="observations",
-                                             dtype=tf.float32, shape=shape)
+        self.input_node = tf_utils.get_placeholder(
+            name="observations",
+            dtype=tf.float32, shape=shape)
+        with tf.variable_scope(name) as s:
+            self._scope = s
             mean = network(inputs=self.input_node, num_outputs=num_outputs,
                            activation_fn=None,
                            **network_params)
 
             if adaptive_std:
-                log_std = mlp(inputs=self.input_node, num_outputs=num_outputs,
-                              activation_fn=None,
-                              weights_initializer=tf.zeros_initializer(),
-                              **network_params)
+                log_std = network(inputs=self.input_node, num_outputs=num_outputs,
+                                  activation_fn=None,
+                                  weights_initializer=tf.zeros_initializer(),
+                                  **network_params)
             else:
                 log_std = tf.log(tf.ones(shape=[1, num_outputs]) * init_std)
+                log_std = mean * 0.0 + log_std
 
             self.action_placeholder = tf.placeholder(
-                dtype=tf.float32, shape=(None,), name='action')
+                dtype=tf.float32, shape=(None, num_outputs), name='action')
 
             self._distribution = DiagonalGaussian(mean, log_std)
 

@@ -19,8 +19,7 @@ def setup_package():
             continue_experiment=yarlp.experiment.experiment:continue_experiment
             upload_to_openai=yarlp.experiment.experiment:upload_to_openai
         ''',
-        'packages': find_packages(exclude=["*.tests", "*.tests.*",
-                                  "tests.*", "tests", "examples"])
+        'packages': find_packages()
     }
 
     setup(**config)

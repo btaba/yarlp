@@ -35,8 +35,6 @@ class REINFORCEAgent(BatchAgent):
 
     policy_network : model.Model
 
-    policy_learning_rate : float, the learning rate for the policy_network
-
     baseline_network : if None, we us no baseline
         otherwise we use a LinearFeatureBaseline as default
         you can also pass in a function as a tensorflow network which
@@ -49,7 +47,6 @@ class REINFORCEAgent(BatchAgent):
     def __init__(self, env,
                  policy_network=tf.contrib.layers.fully_connected,
                  policy_network_params={},
-                 policy_learning_rate=0.01,
                  baseline_network=LinearFeatureBaseline(),
                  baseline_model_learning_rate=0.01,
                  entropy_weight=0,
@@ -68,7 +65,7 @@ class REINFORCEAgent(BatchAgent):
 
         self._policy = pg_model_factory(
             env, network=policy_network, network_params=policy_network_params,
-            learning_rate=policy_learning_rate, entropy_weight=entropy_weight,
+            entropy_weight=entropy_weight,
             min_std=min_std, init_std=init_std, adaptive_std=adaptive_std,
             model_file_path=policy_path)
         self._gae_lambda = gae_lambda

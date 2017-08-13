@@ -1,12 +1,22 @@
 """
 Different networks
 """
+import numpy as np
 import tensorflow as tf
 
 
-def mlp(inputs, num_outputs, activation_fn=tf.nn.softmax,
-        hidden_units=(32, 32),
-        weights_initializer=tf.contrib.layers.xavier_initializer()):
+def normc_initializer(std=1.0):
+    def _initializer(shape, dtype=None, partition_info=None):
+        out = np.random.randn(*shape).astype(np.float32)
+        out *= std / np.sqrt(np.square(out).sum(axis=0, keepdims=True))
+        return tf.constant(out)
+    return _initializer
+
+
+def mlp(inputs, num_outputs, final_activation_fn=tf.nn.softmax,
+        activation_fn=tf.nn.tanh, hidden_units=(32, 32),
+        weights_initializer=normc_initializer(1.0),
+        final_weights_initializer=normc_initializer(0.01)):
     """
     Multi-Layer Perceptron
     """
@@ -17,20 +27,17 @@ def mlp(inputs, num_outputs, activation_fn=tf.nn.softmax,
 
     assert isinstance(hidden_units, tuple)
 
-    x = tf.contrib.layers.fully_connected(
-        inputs, num_outputs=hidden_units[0],
-        weights_initializer=weights_initializer,
-        biases_initializer=tf.zeros_initializer())
-
-    for h in hidden_units[1:]:
+    x = inputs
+    for h in hidden_units:
         x = tf.contrib.layers.fully_connected(
-            x, num_outputs=h,
+            x, num_outputs=h, activation_fn=activation_fn,
             weights_initializer=weights_initializer,
             biases_initializer=tf.zeros_initializer())
 
     x = tf.contrib.layers.fully_connected(
         x, num_outputs=num_outputs,
-        activation_fn=activation_fn,
-        weights_initializer=weights_initializer,
+        activation_fn=final_activation_fn,
+        weights_initializer=final_weights_initializer,
         biases_initializer=tf.zeros_initializer())
+
     return x

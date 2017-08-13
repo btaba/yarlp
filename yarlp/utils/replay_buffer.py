@@ -3,7 +3,7 @@ from collections import namedtuple
 from collections import deque
 
 
-Rollout = namedtuple('Rollout', 'rewards actions states action_probs')
+Rollout = namedtuple('Rollout', 'rewards actions states done')
 
 
 class ReplayBuffer:

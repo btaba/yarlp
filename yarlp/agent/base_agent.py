@@ -19,12 +19,23 @@ class Agent(ABC):
     """
 
     def __init__(self, env, discount_factor=1,
-                 logger=None,
+                 logger=None, seed=None,
                  state_featurizer=lambda x: x):
         """
         discount_factor : float
             Discount rewards by this factor
         """
+        def set_global_seeds(i):
+            try:
+                import tensorflow as tf
+            except ImportError:
+                pass
+            else:
+                tf.set_random_seed(i)
+            np.random.seed(i)
+        if seed:
+            set_global_seeds(seed)
+            env.seed(seed)
         self._env = env
 
         # Discount factor
@@ -76,15 +87,20 @@ class Agent(ABC):
             steps_sampled += len(r.rewards)
             rollouts.append(r)
 
-        if truncate and steps_sampled > 0:
+        if truncate and steps_sampled > 0 and len(rollouts[-1]) > 1:
             steps_to_remove = steps_sampled - n_steps
-            r = Rollout([], [], [], [])
-            r.rewards.extend(rollouts[-1].rewards[:-steps_to_remove])
-            r.actions.extend(rollouts[-1].actions[:-steps_to_remove])
-            r.states.extend(rollouts[-1].states[:-steps_to_remove])
-            rollouts[-1] = r
+            rollouts[-1] = self._truncate_rollout(
+                rollouts[-1], steps_to_remove)
 
         return rollouts
+
+    def _truncate_rollout(self, rollout, steps_to_remove):
+        r = Rollout([], [], [], [])
+        r.rewards.extend(rollout.rewards[:-steps_to_remove])
+        r.actions.extend(rollout.actions[:-steps_to_remove])
+        r.states.extend(rollout.states[:-steps_to_remove])
+        r.done.extend(rollout.done[:-steps_to_remove])
+        return r
 
     def rollout(self, render=False, render_freq=5, greedy=False):
         """
@@ -101,6 +117,7 @@ class Agent(ABC):
 
         observation = self._env.reset()
         observation = self.get_state(observation)
+        r.done.append(0)
         for t in range(self._env.spec.timestep_limit):
             r.states.append(observation)
             action = self.get_action(observation, greedy=greedy)
@@ -110,6 +127,7 @@ class Agent(ABC):
                 self._env.render()
 
             observation = self.get_state(observation)
+            r.done.append(done)
             r.rewards.append(reward)
             r.actions.append(action)
             if done:
@@ -215,7 +233,8 @@ class BatchAgent(Agent):
         pass
 
     def train(self, num_train_steps=10, num_test_steps=0,
-              n_steps=1000, render=False, whiten_advantages=True):
+              n_steps=1024, render=False, whiten_advantages=True,
+              truncate_rollouts=False):
         """
         Parameters
         ----------
@@ -239,23 +258,33 @@ class BatchAgent(Agent):
         """
         for i in range(num_train_steps):
             # execute an episode
-            rollouts = self.rollout_n_steps(n_steps, render=render)
+            rollouts = self.rollout_n_steps(
+                n_steps, render=render, truncate=truncate_rollouts)
 
             actions = []
             states = []
             advantages = []
-            discounted_rewards = []
+            td_returns = []
 
             for rollout in rollouts:
-                discounted_reward = self.get_discounted_reward_list(
-                    rollout.rewards)
 
-                baseline_pred = np.zeros_like(discounted_reward)
+                baseline_pred = np.zeros((len(rollout.rewards)))
+                print(baseline_pred.shape)
                 if self._baseline_model:
                     baseline_pred = self._baseline_model.predict(
                         np.array(rollout.states)).flatten()
+                    print(baseline_pred.shape)
 
-                baseline_pred = np.append(baseline_pred, 0)
+                is_terminal = rollout.done[-1] == 1
+                if not is_terminal:
+                    # the episode did not terminate,
+                    # so we truncate the last step so that we can use
+                    # baseline_pred[-1] as the discounted future reward
+                    rollout = self._truncate_rollout(rollout, 1)
+                else:
+                    # the episode terminated, so the future reward is 0
+                    baseline_pred = np.append(baseline_pred, 0)
+
                 advantage = rollout.rewards + self._discount *\
                     baseline_pred[1:] - baseline_pred[:-1]
                 advantage = self.get_discounted_reward_list(
@@ -264,37 +293,38 @@ class BatchAgent(Agent):
                 advantages = np.concatenate([advantages, advantage])
                 states.append(rollout.states)
                 actions.append(rollout.actions)
-                discounted_rewards = np.concatenate(
-                    [discounted_rewards, discounted_reward])
+                td_returns = np.concatenate(
+                    [td_returns, baseline_pred[:-1] + advantage])
 
-            states = np.concatenate([s for s in states]).squeeze()
-            actions = np.concatenate([a for a in actions]).squeeze()
-            advantages = advantages.squeeze()
+            states = np.concatenate([s for s in states])
+            actions = np.concatenate([a for a in actions])
 
             if whiten_advantages:
                 advantages = (advantages - np.mean(advantages)) /\
                     (np.std(advantages) + 1e-8)
 
-            # batch update the baseline model
-            if self._baseline_model:
-                self._baseline_model.fit(states, discounted_rewards)
+            # # batch update the baseline model
+            # if self._baseline_model:
+            #     self._baseline_model.fit(states, discounted_rewards)
 
             # batch update the baseline model
             if isinstance(self._baseline_model, LinearFeatureBaseline):
-                self._baseline_model.fit(states, discounted_rewards)
+                self._baseline_model.fit(states, td_returns)
             elif hasattr(self._baseline_model, 'G'):
                 self._baseline_model.update(
-                    states, discounted_rewards)
+                    states, td_lamba_returns)
 
             # update the policy
             path_dict = {
                 'states': states,
                 'actions': actions,
-                'discounted_rewards': discounted_rewards,
+                'td_returns': td_returns,
                 'advantages': advantages
             }
             self.update(path_dict)
 
+            if not is_terminal:
+                rollouts = rollouts[:-1]
             self.logger.set_metrics_for_rollout(rollouts, train=True)
             self.logger.log()
 

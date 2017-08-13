@@ -6,8 +6,13 @@ Yet Another Reinforcement Learning Package
 ##### TODO:
 
 * TRPO
-    - separate update from agent training code
+    - fix TRPO on mountain car!!!!!!!
+        - add pi.ob_rms.update(ob) # update running mean/std for policy
+        - Action should be able to reshape as necessary
+        - fix Categorical dist
     - benchmark
+
+* CEM - add policy objects
 
 * DQ, DDQ
 * load model from file with args and model weights

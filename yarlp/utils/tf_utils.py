@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow as tf
 
 EPSILON = 1e-8
-
+_CACHED_PLACEHOLDER = {}
 
 def flatgrad(loss, var_list):
     grads = tf.gradients(loss, var_list)
@@ -42,3 +42,14 @@ def setfromflat(var_list, theta):
                     shape)))
         start += size
     return tf.group(*assigns)
+
+
+def get_placeholder(name, dtype, shape):
+    if name in _CACHED_PLACEHOLDER:
+        out, dtype1, shape1 = _CACHED_PLACEHOLDER[name]
+        assert dtype1 == dtype and shape1 == shape
+        return out
+    else:
+        out = tf.placeholder(dtype=dtype, shape=shape, name=name)
+        _CACHED_PLACEHOLDER[name] = (out, dtype, shape)
+        return out
