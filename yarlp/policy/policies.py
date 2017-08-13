@@ -45,10 +45,10 @@ class Policy:
         if not greedy:
             return self._sess.run(
                 self._distribution.sample_op,
-                feed)
+                feed).flatten()
         return self._sess.run(
             self._distribution.sample_greedy_op,
-            feed)
+            feed).flatten()
 
 
 class CategoricalPolicy(Policy):
@@ -61,7 +61,6 @@ class CategoricalPolicy(Policy):
             shape = [None] + list(self.observation_space.shape)
         num_outputs = GymEnv.get_env_action_space_dim(self.env)
 
-        ## GET placeholder from cached
         self.input_node = tf_utils.get_placeholder(
             name="observations",
             dtype=tf.float32, shape=shape)
@@ -99,7 +98,8 @@ class GaussianPolicy(Policy):
                            **network_params)
 
             if adaptive_std:
-                log_std = network(inputs=self.input_node, num_outputs=num_outputs,
+                log_std = network(inputs=self.input_node,
+                                  num_outputs=num_outputs,
                                   activation_fn=None,
                                   weights_initializer=tf.zeros_initializer(),
                                   **network_params)

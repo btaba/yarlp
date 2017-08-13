@@ -13,7 +13,7 @@ def normc_initializer(std=1.0):
     return _initializer
 
 
-def mlp(inputs, num_outputs, final_activation_fn=tf.nn.softmax,
+def mlp(inputs, num_outputs, final_activation_fn=None,
         activation_fn=tf.nn.tanh, hidden_units=(32, 32),
         weights_initializer=normc_initializer(1.0),
         final_weights_initializer=normc_initializer(0.01)):

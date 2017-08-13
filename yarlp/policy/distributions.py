@@ -40,14 +40,13 @@ class Distribution(object):
 
 class Categorical(Distribution):
 
-    def __init__(self, probs):
-        self.probs = probs
-        self.dist = tf.contrib.distributions.Categorical(probs=probs)
+    def __init__(self, logits):
+        self.logits = logits
         super().__init__()
 
     @property
     def output_node(self):
-        return self.probs
+        return tf.squeeze(self.sample())
 
     def kl(self, old_dist):
         assert isinstance(old_dist, Categorical)
@@ -63,20 +62,24 @@ class Categorical(Distribution):
             tf.log(self.probs + tf_utils.EPSILON), axis=-1)
 
     def log_likelihood(self, x):
-        return self.dist.log_prob(x)
+        # return self.dist.log_prob(x)
+        return -1 * tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits=self.logits, labels=x)
 
-    def likelihood(self, x):
-        return self.dist.prob(x)
+    def log_likelihood2(self, x):
+        # return self.dist.log_prob(x)
+        self.logits
 
     def likelihood_ratio(self, x, old_dist):
         log_p = self.log_likelihood(x)
         return tf.exp(log_p - old_dist.log_likelihood(x))
 
     def sample(self):
-        return tf.squeeze(self.dist.sample())
+        # return tf.squeeze(self.dist.sample())
+        pass
 
     def sample_greedy(self):
-        return tf.squeeze(self.dist.mode())
+        return tf.argmax(self.logits, axis=-1)
 
 
 class DiagonalGaussian(Distribution):
@@ -92,7 +95,6 @@ class DiagonalGaussian(Distribution):
         return tf.squeeze(self.sample())
 
     def kl(self, old_dist):
-        assert isinstance(old_dist, DiagonalGaussian)
         numerator = tf.square(self.std) + tf.square(self.mean - old_dist.mean)
         denominator = (2.0 * tf.square(old_dist.std))
         return tf.reduce_sum(
@@ -103,12 +105,14 @@ class DiagonalGaussian(Distribution):
 
     def entropy(self):
         return tf.reduce_sum(
-            self.logstd + tf.log(tf.sqrt(2. * np.pi * np.e)), axis=-1)
+            0.5 * tf.log(2. * np.pi * np.e) + self.logstd, axis=-1)
 
     def log_likelihood(self, x):
-        return -1 * (0.5 * tf.reduce_sum(tf.square((x - self.mean) / self.std), axis=-1)\
-               + 0.5 * np.log(2.0 * np.pi) * tf.to_float(tf.shape(x)[-1])\
-               + tf.reduce_sum(self.logstd, axis=-1))
+        dim = tf.to_float(tf.shape(x)[-1])
+        log_det_cov = 2. * tf.reduce_sum(self.logstd, axis=-1)
+        dev = x - self.mean
+        maha = tf.reduce_sum(tf.square(dev / self.std), axis=-1)
+        return -0.5 * (dim * tf.log(2 * np.pi) + log_det_cov + maha)
 
     def likelihood_ratio(self, x, old_dist):
         return tf.exp(self.log_likelihood(x) - old_dist.log_likelihood(x))

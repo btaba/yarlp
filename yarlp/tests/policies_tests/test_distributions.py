@@ -1,60 +1,90 @@
 import unittest
 import numpy as np
 import tensorflow as tf
+import scipy.stats as stats
 from yarlp.policy.distributions import Categorical, DiagonalGaussian
 
 
 class TestDistributions(unittest.TestCase):
 
-    def test_dists(self):
+    def test_diag_gauss_ent_and_kl(self):
         np.random.seed(0)
+        N = 100000
 
         # diagonal gaussian
         mean = np.array([[-.2, .3, .4, -.5]], dtype='float32')
         logstd = np.array([[.1, -.5, .1, 0.8]], dtype='float32')
-        dist = DiagonalGaussian(mean, logstd)
         mean2 = mean * np.random.randn(mean.shape[0]) * 0.1
         logstd2 = logstd * np.random.randn(mean.shape[0]) * 0.1
+
+        means = np.vstack([mean] * N)
+        logstds = np.vstack([logstd] * N)
+        dist = DiagonalGaussian(means, logstds)
         q_dist = DiagonalGaussian(
             mean2.astype('float32'), logstd2.astype('float32'))
-        validate_probtype(dist, q_dist)
+        validate_probtype(dist, q_dist, N)
 
-        # categorical
-        probs = np.array([[.2, .3, .5]], dtype='float32')
-        dist = Categorical(probs)
-        output2 = probs + np.random.rand(probs.shape[0]) * .1
-        output2 /= output2.sum()
-        q_dist = Categorical(output2.astype('float32'))
-        validate_probtype(dist, q_dist)
+    # def test_categorical_ent_and_kl(self):
+    #     np.random.seed(0)
+    #     N = 100000
+
+    #     # categorical
+    #     probs = np.array([[.2, .3, .5]], dtype='float32')
+    #     dist = Categorical(probs)
+    #     output2 = probs + np.random.rand(probs.shape[0]) * .1
+    #     output2 /= output2.sum()
+    #     q_dist = Categorical(output2.astype('float32'))
+    #     validate_probtype(dist, q_dist, N)
+
+    def test_diag_gauss_against_scipy(self):
+        sess = tf.Session()
+        mean = np.array([[-.2, .3, .4, -.5]], dtype='float32')
+        logstd = np.array([[.1, -.5, .1, 0.8]], dtype='float32')
+        dist = DiagonalGaussian(mean, logstd)
+
+        # validate log likelihood
+        n = stats.multivariate_normal(
+            mean=mean[0], cov=np.square(np.diag(np.exp(logstd[0]))))
+        x = np.array([[0, 0, 0, 0], [0.1, 0.2, 0.3, 0.4]], dtype='float32')
+        assert np.allclose(n.logpdf(x), sess.run(dist.log_likelihood(x)))
+
+        # validate entropy
+        assert np.isclose(n.entropy(), sess.run(dist.entropy()))
+
+    def test_categorical_against_scipy(self):
+        sess = tf.Session()
+        logits = np.array([[.2, .3, .5]], dtype='float32')
+        probs = np.exp(logits) / np.exp(logits).sum()
+        dist = Categorical(logits)
+
+        # validate log likelihood
+        c = stats.multinomial(p=probs, n=1)
+
+        # validate entropy
+        c.entropy()
 
 
-def validate_probtype(dist, q_dist):
+def validate_probtype(dist, q_dist, N):
     """
     Test copied from openai/baselines
     """
-    N = 100000
 
     # Check to see if mean negative log likelihood == differential entropy
     # sample X from the distribution
     sess = tf.Session()
-    Xval = sess.run(dist.sample(N))
+    Xval = sess.run(dist.sample())
     Xval = np.array(Xval)
     # get the mean negative log likelihood for sampled X
     negloglik = -1 * dist.log_likelihood(Xval)
     negloglik = sess.run(negloglik)
     # assert that the mean negative log likelihood is within
     # 3 standard errors of the entropy
-    ent = sess.run(dist.entropy())
-    assert abs(ent[0] - negloglik.mean()) < 3 * negloglik.std() / np.sqrt(N)
-
-    # same test using likelihood instead of log_likelihood function
-    negloglik = -1 * tf.log(dist.likelihood(Xval))
-    negloglik = sess.run(negloglik)
-    assert abs(ent[0] - negloglik.mean()) < 3 * negloglik.std() / np.sqrt(N)
+    ent = sess.run(dist.entropy()).mean()
+    assert abs(ent - negloglik.mean()) < 3 * negloglik.std() / np.sqrt(N)
 
     # Check to see if kldiv[p,q] = - ent[p] - E_p[log q]
-    kl = sess.run(dist.kl(q_dist))[0]
+    kl = sess.run(dist.kl(q_dist)).mean()
     loglik = sess.run(q_dist.log_likelihood(Xval))
     kl_ll = -ent - loglik.mean()
     kl_ll_stderr = loglik.std() / np.sqrt(N)
-    assert np.abs(kl - kl_ll[0]) < 3 * kl_ll_stderr
+    assert np.abs(kl - kl_ll) < 3 * kl_ll_stderr

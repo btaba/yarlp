@@ -3,6 +3,7 @@
 """
 
 import numpy as np
+import tensorflow as tf
 from abc import ABCMeta, abstractmethod
 from yarlp.utils.env_utils import GymEnv
 from yarlp.utils.metric_logger import MetricLogger
@@ -26,12 +27,7 @@ class Agent(ABC):
             Discount rewards by this factor
         """
         def set_global_seeds(i):
-            try:
-                import tensorflow as tf
-            except ImportError:
-                pass
-            else:
-                tf.set_random_seed(i)
+            tf.set_random_seed(i)
             np.random.seed(i)
         if seed:
             set_global_seeds(seed)

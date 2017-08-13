@@ -79,7 +79,7 @@ class TRPOAgent(BatchAgent):
             self._policy,
             path['states'], path['advantages'],
             path['actions'])
-        # thprev = self._policy.G(self._policy.gf, feed)
+        thprev = self._policy.G(self._policy.gf, feed)
         self._policy.G(self._policy.set_old_pi_eq_new_pi)
 
         fvp_feed = self._policy.build_update_feed_dict(
@@ -91,11 +91,6 @@ class TRPOAgent(BatchAgent):
             fvp_feed[self._policy.flat_tangent] = p
             return self._policy.G(self._policy.fvp, fvp_feed) +\
                 self.cg_damping * p
-
-        # set old to new
-        # self._policy.G(
-        #     self._policy.sff,
-        #     {self._policy.theta: thprev})
 
         g = self._policy.G(self._policy.pg, feed)
         if np.allclose(g, 0):
@@ -176,42 +171,8 @@ class TRPOAgent(BatchAgent):
         return
 
 
-# def conjugate_gradient(f_Ax, b, cg_iters=10,
-#                        callback=None, verbose=False, residual_tol=1e-10):
-#     """
-#     Demmel p 312
-#     """
-#     if np.any(np.isnan(b)):
-#         print('THERE are NANS in b!')
-#     p = b.copy()
-#     r = b.copy()
-#     x = np.zeros_like(b)
-#     rdotr = r.dot(r)
-
-#     for i in range(cg_iters):
-#         if callback is not None:
-#             callback(x)
-#         z = f_Ax(p)
-#         v = rdotr / p.dot(z)
-#         x += v * p
-#         r -= v * z
-#         newrdotr = r.dot(r)
-#         mu = newrdotr / rdotr
-#         p = r + mu * p
-
-#         rdotr = newrdotr
-#         if rdotr < residual_tol:
-#             break
-
-#     if callback is not None:
-#         callback(x)
-
-#     if np.any(np.isnan(x)):
-#         print('THERE are NANS in x!')
-#     return x
-
 def conjugate_gradient(f_Ax, b, cg_iters=10, callback=None,
-                       verbose=False, residual_tol=1e-10):
+                       verbose=True, residual_tol=1e-10):
     """
     Demmel p 312
     """
@@ -220,21 +181,23 @@ def conjugate_gradient(f_Ax, b, cg_iters=10, callback=None,
     x = np.zeros_like(b)
     rdotr = r.dot(r)
 
-    fmtstr =  "%10i %10.3g %10.3g"
-    titlestr =  "%10s %10s %10s"
-    if verbose: print(titlestr % ("iter", "residual norm", "soln norm"))
+    fmtstr = "%10i %10.3g %10.3g"
+    titlestr = "%10s %10s %10s"
+    if verbose:
+        print(titlestr % ("iter", "residual norm", "soln norm"))
 
     for i in range(cg_iters):
         if callback is not None:
             callback(x)
-        if verbose: print(fmtstr % (i, rdotr, np.linalg.norm(x)))
+        if verbose:
+            print(fmtstr % (i, rdotr, np.linalg.norm(x)))
         z = f_Ax(p)
         v = rdotr / p.dot(z)
-        x += v*p
-        r -= v*z
+        x += v * p
+        r -= v * z
         newrdotr = r.dot(r)
-        mu = newrdotr/rdotr
-        p = r + mu*p
+        mu = newrdotr / rdotr
+        p = r + mu * p
 
         rdotr = newrdotr
         if rdotr < residual_tol:
@@ -242,7 +205,10 @@ def conjugate_gradient(f_Ax, b, cg_iters=10, callback=None,
 
     if callback is not None:
         callback(x)
-    if verbose: print(fmtstr % (i+1, rdotr, np.linalg.norm(x)))
+
+    if verbose:
+        print(fmtstr % (i + 1, rdotr, np.linalg.norm(x)))
+
     return x
 
 
