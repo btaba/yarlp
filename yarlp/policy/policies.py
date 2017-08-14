@@ -16,7 +16,6 @@ class Policy:
         self.env = env
         self._distribution = None
         self._scope = None
-        self._sess = tf.get_default_session()
 
     @property
     def observation_space(self):
@@ -38,18 +37,17 @@ class Policy:
         return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
                                  self._scope.name)
 
-    def act(self, observations, greedy=False):
+    def predict(self, session, observations, greedy=False):
         if len(observations.shape) == 1:
             observations = np.expand_dims(observations, 0)
         feed = {self.input_node: observations}
         if not greedy:
-            return self._sess.run(
+            return session.run(
                 self._distribution.sample_op,
-                feed).flatten()
-        return self._sess.run(
+                feed)
+        return session.run(
             self._distribution.sample_greedy_op,
-            feed).flatten()
-
+            feed)
 
 class CategoricalPolicy(Policy):
 
@@ -67,15 +65,14 @@ class CategoricalPolicy(Policy):
 
         with tf.variable_scope(name) as s:
             self._scope = s
-            self.output = network(inputs=self.input_node,
+            output = network(inputs=self.input_node,
                                   num_outputs=num_outputs,
-                                  activation_fn=tf.nn.softmax,
                                   **network_params)
 
             self.action_placeholder = tf.placeholder(
-                dtype=tf.int32, shape=(None, num_outputs), name='action')
+                dtype=tf.int32, shape=(None, 1), name='action')
 
-            self._distribution = Categorical(self.output)
+            self._distribution = Categorical(output)
 
 
 class GaussianPolicy(Policy):

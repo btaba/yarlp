@@ -91,6 +91,8 @@ def pg_model_factory(
         model.add_optimizer(model.optimizer, model.loss)
 
     def build_update_feed_dict(model, state, return_, action):
+        if len(action.shape) == 1:
+            action = action.reshape(-1, 1)
         feed_dict = {model.state: state,
                      model.Return: np.squeeze([return_]), model.action: action}
         return feed_dict
@@ -173,6 +175,8 @@ def trpo_model_factory(
             zip(old_policy.get_variables(), policy.get_variables())]
 
     def build_update_feed_dict(model, state, return_, action):
+        if len(action.shape) == 1:
+            action = action.reshape(-1, 1)
         feed_dict = {model.state: state, model.old_policy.input_node: state,
                      model.Return: np.squeeze([return_]), model.action: action}
         return feed_dict

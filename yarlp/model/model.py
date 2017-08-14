@@ -163,11 +163,3 @@ class Model:
 
     def apply_gradient_ops(self, name, feed_dict):
         return self.G(self.G['gradients_ops:' + name], feed_dict)
-
-    def predict(self, data, output_name='output:', input_name='input:'):
-        # get the model output for input placeholders
-        if len(data.shape) == 1:
-            data = np.expand_dims(data, 0)
-        output = self.G[output_name]
-        feed_dict = {self.G[input_name]: data}
-        return self.G(output, feed_dict).flatten()

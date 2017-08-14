@@ -3,11 +3,11 @@
 """
 
 import numpy as np
-import tensorflow as tf
 from abc import ABCMeta, abstractmethod
 from yarlp.utils.env_utils import GymEnv
 from yarlp.utils.metric_logger import MetricLogger
 from yarlp.utils.replay_buffer import Rollout
+from yarlp.utils import tf_utils
 from yarlp.model.linear_baseline import LinearFeatureBaseline
 
 
@@ -26,11 +26,8 @@ class Agent(ABC):
         discount_factor : float
             Discount rewards by this factor
         """
-        def set_global_seeds(i):
-            tf.set_random_seed(i)
-            np.random.seed(i)
         if seed:
-            set_global_seeds(seed)
+            tf_utils.set_global_seeds(seed)
             env.seed(seed)
         self._env = env
 
@@ -170,20 +167,13 @@ class Agent(ABC):
 
         Returns
         ----------
-        integer indicating the action that should be taken
+        action : numpy array or integer
         """
         batch = np.array([state])
-
-        if not GymEnv.env_action_space_is_discrete(self._env):
-            if greedy:
-                return self._policy.predict(batch, output_name='output:greedy')
-            return self._policy.predict(batch)
-
-        action = self._policy.predict(batch)
-        if greedy:
-            return self.argmax_break_ties(action)
-
-        return np.random.choice(np.arange(self.num_actions), p=action)
+        a = self._policy.policy.predict(
+            self._policy.get_session(),
+            batch, False)
+        return a
 
     def argmax_break_ties(self, probs):
         """
@@ -265,11 +255,9 @@ class BatchAgent(Agent):
             for rollout in rollouts:
 
                 baseline_pred = np.zeros((len(rollout.rewards)))
-                print(baseline_pred.shape)
                 if self._baseline_model:
                     baseline_pred = self._baseline_model.predict(
                         np.array(rollout.states)).flatten()
-                    print(baseline_pred.shape)
 
                 is_terminal = rollout.done[-1] == 1
                 if not is_terminal:
