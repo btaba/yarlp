@@ -8,6 +8,12 @@ import tensorflow as tf
 EPSILON = 1e-8
 _CACHED_PLACEHOLDER = {}
 
+
+def set_global_seeds(i):
+    tf.set_random_seed(i)
+    np.random.seed(i)
+
+
 def flatgrad(loss, var_list):
     grads = tf.gradients(loss, var_list)
     return flatten_vars(grads)

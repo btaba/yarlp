@@ -33,6 +33,9 @@ class Model:
     def __getitem__(self, var_name):
         return self.G[var_name]
 
+    def get_session(self):
+        return self.G._session
+
     def save(self, path):
         self.G.save(path)
 

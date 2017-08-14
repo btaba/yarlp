@@ -42,6 +42,11 @@ class Categorical(Distribution):
 
     def __init__(self, logits):
         self.logits = logits
+        logits1 = logits - tf.reduce_max(logits, axis=-1, keep_dims=True)
+        exp_logits = tf.exp(logits1)
+        Z = tf.reduce_sum(exp_logits, axis=-1, keep_dims=True)
+        self.probs = exp_logits / Z
+        self.log_probs = logits1 - tf.log(Z)
         super().__init__()
 
     @property
@@ -49,7 +54,6 @@ class Categorical(Distribution):
         return tf.squeeze(self.sample())
 
     def kl(self, old_dist):
-        assert isinstance(old_dist, Categorical)
         return tf.reduce_sum(
             old_dist.probs * (
                 tf.log(old_dist.probs + tf_utils.EPSILON) -
@@ -62,21 +66,17 @@ class Categorical(Distribution):
             tf.log(self.probs + tf_utils.EPSILON), axis=-1)
 
     def log_likelihood(self, x):
-        # return self.dist.log_prob(x)
-        return -1 * tf.nn.sparse_softmax_cross_entropy_with_logits(
-            logits=self.logits, labels=x)
-
-    def log_likelihood2(self, x):
-        # return self.dist.log_prob(x)
-        self.logits
+        x_one_hot = tf.one_hot(x, depth=tf.shape(self.logits)[-1])
+        return tf.reduce_sum(self.log_probs * x_one_hot, axis=-1)
 
     def likelihood_ratio(self, x, old_dist):
         log_p = self.log_likelihood(x)
         return tf.exp(log_p - old_dist.log_likelihood(x))
 
     def sample(self):
-        # return tf.squeeze(self.dist.sample())
-        pass
+        # Gumbel max trick for sampling in log-space
+        u = tf.random_uniform(tf.shape(self.logits))
+        return tf.argmax(self.logits - tf.log(-tf.log(u)), axis=-1)
 
     def sample_greedy(self):
         return tf.argmax(self.logits, axis=-1)
@@ -108,7 +108,7 @@ class DiagonalGaussian(Distribution):
             0.5 * tf.log(2. * np.pi * np.e) + self.logstd, axis=-1)
 
     def log_likelihood(self, x):
-        dim = tf.to_float(tf.shape(x)[-1])
+        dim = tf.to_float(tf.shape(self.mean)[-1])
         log_det_cov = 2. * tf.reduce_sum(self.logstd, axis=-1)
         dev = x - self.mean
         maha = tf.reduce_sum(tf.square(dev / self.std), axis=-1)

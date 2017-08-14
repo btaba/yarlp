@@ -141,7 +141,6 @@ def trpo_model_factory(
             policy.distribution.kl(old_policy._distribution))
 
         var_list = policy.get_trainable_variables()
-        print(var_list)
         model.klgrads = tf.gradients(model.kl, var_list)
 
         model.pg = tf_utils.flatgrad(model.surr_loss, var_list)
