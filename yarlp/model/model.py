@@ -5,6 +5,7 @@ import numpy as np
 
 from yarlp.model.graph import Graph
 from yarlp.utils.env_utils import GymEnv
+from yarlp.utils import tf_utils
 
 
 class Model:
@@ -16,6 +17,7 @@ class Model:
         """
         """
         self._env = env
+        tf_utils.reset_cache()
         self.G = Graph()
         self.build_update_feed_dict = build_update_feed_dict
 
