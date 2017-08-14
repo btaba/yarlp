@@ -63,18 +63,16 @@ def pg_model_factory(
                     input_shape=input_shape,
                     network_params=network_params,
                     init_std=init_std, adaptive_std=adaptive_std):
+
         policy = make_policy(
             env, 'pi', network_params=network_params, input_shape=input_shape,
             init_std=init_std, adaptive_std=adaptive_std, network=network)
-
+        model.policy = policy
         model.state = model.add_input_node(policy.input_node)
         model.Return = tf.placeholder(
             dtype=tf.float32, shape=(None,), name='return')
         model.output_node = policy.distribution.output_node
         model.add_output_node(model.output_node)
-
-        if hasattr(policy, 'mean'):
-            model.add_output_node(policy.mean, name='greedy')
 
         model.action = policy.action_placeholder
 
