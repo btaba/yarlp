@@ -11,6 +11,7 @@ from yarlp.agent.base_agent import Agent
 from yarlp.model.model import Model
 from yarlp.utils.env_utils import GymEnv
 from yarlp.utils.experiment_utils import get_network
+from yarlp.model.model_factories import cem_model_factory
 
 import numpy as np
 import tensorflow as tf
@@ -35,20 +36,23 @@ class CEMAgent(Agent):
         The percentage of sample weights to keep that yield the best reward
     """
     def __init__(self, env, n_weight_samples=100,
-                 init_var=0.1, best_pct=0.2,
+                 init_var=1., best_pct=0.2,
                  policy_network=tf.contrib.layers.fully_connected,
                  policy_network_params={},
                  model_file_path=None,
+                 min_std=1e-6, init_std=1.0, adaptive_std=False,
                  *args, **kwargs):
         super().__init__(env, *args, **kwargs)
-        policy_network = get_network(policy_network, policy_network_params)
-        self._policy = CEMAgent.policy_model_factory(
-            env, policy_network, model_file_path)
+
+        self._policy = cem_model_factory(
+            env, policy_network, policy_network_params,
+            min_std=min_std, init_std=init_std,
+            adaptive_std=adaptive_std,
+            model_file_path=model_file_path)
 
         # Get model shapes
-        self.model_shapes = [w.shape for w in self._policy.get_weights()]
-        self.model_sizes = [w.size for w in self._policy.get_weights()]
-        self.model_total_sizes = sum(self.model_sizes)
+        theta = self._policy.G(self._policy.gf)
+        self.model_total_sizes = theta.shape[0]
 
         # Mean and SD of our weights
         self._theta = np.zeros(self.model_total_sizes)
@@ -62,50 +66,7 @@ class CEMAgent(Agent):
         self.num_best = int(best_pct * self.n_weight_samples)
 
     def save_models(self, path):
-        path = os.path.join(path, 'cem_policy')
         self._policy.save(path)
-
-    @staticmethod
-    def policy_model_factory(env, policy_network, model_file_path):
-        """ Network for CEM agents
-        """
-
-        def build_graph(model, env, network):
-            model.add_input()
-
-            if GymEnv.env_action_space_is_discrete(env):
-                network = partial(network, activation_fn=tf.nn.softmax)
-            else:
-                network = partial(network, activation_fn=None)
-            model.add_output(network)
-
-        def build_update_feed_dict(model):
-            pass
-
-        build_graph = partial(build_graph, env=env, network=policy_network)
-
-        if model_file_path is not None:
-            return Model(env, None, build_update_feed_dict,
-                         os.path.join(model_file_path, 'cem_policy'))
-        return Model(env, build_graph, build_update_feed_dict)
-
-    @property
-    def theta(self):
-        """
-        Returns
-        ----------
-        np.array of weights of policy model
-        """
-        return self._reshape_weights(self._theta)
-
-    @property
-    def sigma(self):
-        """
-        Returns
-        ----------
-        np.array of standard deviation of weights of policy model
-        """
-        return self._reshape_weights(self._sigma)
 
     def train(self, num_train_steps, num_test_steps=0,
               with_variance=False, alpha=5, beta=10,
@@ -152,8 +113,9 @@ class CEMAgent(Agent):
             rollout_rewards = []
             for w in weight_samples:
                 # add weights to PolicyModel
-                weights_reshaped = self._reshape_weights(w)
-                self._policy.set_weights(weights_reshaped)
+                self._policy.G(
+                    self._policy.sff,
+                    {self._policy.theta: w})
                 rollout = self.rollout(render=render)
                 rollouts.append(rollout)
                 rollout_rewards.append(np.sum(rollout.rewards))
@@ -188,25 +150,3 @@ class CEMAgent(Agent):
                 self.save_models(self.logger._log_dir)
 
         return
-
-    def _reshape_weights(self, weights_flat):
-        """
-        Reshape weights from flat array to
-        the shape needed by model object
-
-        Parameters
-        ----------
-        weights_flat : numpy array
-
-        Returns
-        ----------
-        weights : weights reshaped according to our model shapes
-        """
-        p = 0
-        weights = []
-        for idx, size in enumerate(self.model_sizes):
-            array = weights_flat[p:(p + size)]
-            array = array.reshape(self.model_shapes[idx])
-            weights.append(array)
-            p += size
-        return weights

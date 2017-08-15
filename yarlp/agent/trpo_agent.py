@@ -2,7 +2,6 @@
 TRPO
 """
 
-import os
 import numpy as np
 import tensorflow as tf
 
@@ -44,16 +43,12 @@ class TRPOAgent(BatchAgent):
                  *args, **kwargs):
         super().__init__(env, *args, **kwargs)
 
-        policy_path = None
-        if model_file_path:
-            policy_path = os.path.join(model_file_path, 'pg_policy')
-
         policy_network = get_network(policy_network, policy_network_params)
 
         self._policy = trpo_model_factory(
             env, network=policy_network, network_params=policy_network_params,
             min_std=min_std, init_std=init_std, adaptive_std=adaptive_std,
-            input_shape=input_shape, model_file_path=policy_path)
+            input_shape=input_shape, model_file_path=model_file_path)
 
         self.cg_iters = cg_iters
         self.cg_damping = cg_damping
@@ -70,8 +65,7 @@ class TRPOAgent(BatchAgent):
                 learning_rate=baseline_model_learning_rate)
 
     def save_models(self, path):
-        ppath = os.path.join(path, 'pg_policy')
-        self._policy.save(ppath)
+        self._policy.save(path)
 
     def update(self, path):
         # update the policy

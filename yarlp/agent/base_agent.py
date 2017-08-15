@@ -172,7 +172,7 @@ class Agent(ABC):
         batch = np.array([state])
         a = self._policy.policy.predict(
             self._policy.get_session(),
-            batch, False)
+            batch, greedy)[0]
         return a
 
     def argmax_break_ties(self, probs):
@@ -287,16 +287,12 @@ class BatchAgent(Agent):
                 advantages = (advantages - np.mean(advantages)) /\
                     (np.std(advantages) + 1e-8)
 
-            # # batch update the baseline model
-            # if self._baseline_model:
-            #     self._baseline_model.fit(states, discounted_rewards)
-
             # batch update the baseline model
             if isinstance(self._baseline_model, LinearFeatureBaseline):
                 self._baseline_model.fit(states, td_returns)
             elif hasattr(self._baseline_model, 'G'):
                 self._baseline_model.update(
-                    states, td_lamba_returns)
+                    states, td_returns)
 
             # update the policy
             path_dict = {

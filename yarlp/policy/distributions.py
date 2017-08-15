@@ -9,8 +9,8 @@ from yarlp.utils import tf_utils
 class Distribution(object):
 
     def __init__(self):
-        self.sample_op = tf.squeeze(self.sample())
-        self.sample_greedy_op = tf.squeeze(self.sample_greedy())
+        self.sample_op = self.sample()
+        self.sample_greedy_op = self.sample_greedy()
 
     def kl(self, other):
         raise NotImplementedError()

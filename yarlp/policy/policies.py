@@ -49,6 +49,7 @@ class Policy:
             self._distribution.sample_greedy_op,
             feed)
 
+
 class CategoricalPolicy(Policy):
 
     def __init__(self, env, name, network_params,
@@ -66,8 +67,8 @@ class CategoricalPolicy(Policy):
         with tf.variable_scope(name) as s:
             self._scope = s
             output = network(inputs=self.input_node,
-                                  num_outputs=num_outputs,
-                                  **network_params)
+                             num_outputs=num_outputs,
+                             **network_params)
 
             self.action_placeholder = tf.placeholder(
                 dtype=tf.int32, shape=(None, 1), name='action')

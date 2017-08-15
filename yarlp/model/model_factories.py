@@ -50,6 +50,44 @@ def value_function_model_factory(
     return Model(env, build_graph, build_update_feed_dict)
 
 
+def cem_model_factory(
+        env, network, network_params={},
+        input_shape=None,
+        min_std=1e-6, init_std=1.0, adaptive_std=False,
+        model_file_path=None):
+    """
+    Model for gradient method
+    """
+
+    def build_graph(model, network=network,
+                    input_shape=input_shape,
+                    network_params=network_params,
+                    init_std=init_std, adaptive_std=adaptive_std):
+
+        policy = make_policy(
+            env, 'pi', network_params=network_params, input_shape=input_shape,
+            init_std=init_std, adaptive_std=adaptive_std, network=network)
+        model.policy = policy
+        model.output_node = policy.distribution.output_node
+        model.add_output_node(model.output_node)
+
+        var_list = policy.get_trainable_variables()
+        shapes = map(tf_utils.var_shape, var_list)
+        total_size = sum(np.prod(shape) for shape in shapes)
+        model.theta = tf.placeholder(tf.float32, [total_size])
+
+        var_list = policy.get_trainable_variables()
+        model.gf = tf_utils.flatten_vars(var_list)
+        model.sff = tf_utils.setfromflat(var_list, model.theta)
+
+    def build_update_feed_dict(model):
+        pass
+
+    if model_file_path is not None:
+        return Model(env, None, build_update_feed_dict, model_file_path)
+    return Model(env, build_graph, build_update_feed_dict)
+
+
 def pg_model_factory(
         env, network, network_params={}, learning_rate=0.01,
         entropy_weight=0.001, input_shape=None,

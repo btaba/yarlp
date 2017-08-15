@@ -15,7 +15,6 @@ REINFORCE Agent and Policy Gradient (PG) Actor Critic Agent
     2177–2182. doi:10.1109/ACC.2012.6315022
 """
 
-import os
 import tensorflow as tf
 
 from yarlp.agent.base_agent import BatchAgent
@@ -57,17 +56,13 @@ class REINFORCEAgent(BatchAgent):
                  *args, **kwargs):
         super().__init__(env, *args, **kwargs)
 
-        policy_path = None
-        if model_file_path:
-            policy_path = os.path.join(model_file_path, 'pg_policy')
-
         policy_network = get_network(policy_network, policy_network_params)
 
         self._policy = pg_model_factory(
             env, network=policy_network, network_params=policy_network_params,
             entropy_weight=entropy_weight,
             min_std=min_std, init_std=init_std, adaptive_std=adaptive_std,
-            model_file_path=policy_path)
+            model_file_path=model_file_path)
         self._gae_lambda = gae_lambda
 
         if isinstance(baseline_network, LinearFeatureBaseline)\
@@ -79,8 +74,7 @@ class REINFORCEAgent(BatchAgent):
                 learning_rate=baseline_model_learning_rate)
 
     def save_models(self, path):
-        ppath = os.path.join(path, 'pg_policy')
-        self._policy.save(ppath)
+        self._policy.save(path)
 
     def update(self, path):
         loss = self._policy.update(
