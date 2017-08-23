@@ -1,7 +1,6 @@
 """Tensorflow model that helps to creates a Graph
 """
 import tensorflow as tf
-import numpy as np
 
 from yarlp.model.graph import Graph
 from yarlp.utils.env_utils import GymEnv

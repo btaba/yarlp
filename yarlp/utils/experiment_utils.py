@@ -7,28 +7,26 @@ from datetime import datetime
 from functools import partial
 
 
-class ExperimentUtils:
-    @staticmethod
-    def _get_agent_cls_dict():
-        import yarlp.agent
-        clsmembers = inspect.getmembers(yarlp.agent, inspect.isclass)
-        return dict(clsmembers)
+def _get_agent_cls_dict():
+    import yarlp.agent
+    clsmembers = inspect.getmembers(yarlp.agent, inspect.isclass)
+    return dict(clsmembers)
 
-    @staticmethod
-    def _get_datetime_str():
-        return datetime.now().strftime("_%Y-%m-%d_%H-%M-%S")
 
-    @staticmethod
-    def _create_log_directory(name, prepend_dir_name):
-        name += ExperimentUtils._get_datetime_str()
-        full_dir = os.path.join(prepend_dir_name, name)
-        os.makedirs(full_dir)
-        return full_dir
+def _get_datetime_str():
+    return datetime.now().strftime("_%Y-%m-%d_%H-%M-%S")
 
-    @staticmethod
-    def _save_spec_to_dir(spec, dir):
-        file_path = os.path.join(dir, 'spec.json')
-        json.dump(spec, open(file_path, 'w'), indent=4)
+
+def _create_log_directory(name, prepend_dir_name):
+    name += _get_datetime_str()
+    full_dir = os.path.join(prepend_dir_name, name)
+    os.makedirs(full_dir)
+    return full_dir
+
+
+def _save_spec_to_dir(spec, dir):
+    file_path = os.path.join(dir, 'spec.json')
+    json.dump(spec, open(file_path, 'w'), indent=4)
 
 
 def _get_model_from_str(x):

@@ -1,9 +1,9 @@
-from yarlp.utils.experiment_utils import ExperimentUtils
+from yarlp.utils import experiment_utils
 from yarlp.utils.env_utils import NormalizedGymEnv
 from yarlp.utils.metric_logger import MetricLogger
 
 
-class Job(ExperimentUtils):
+class Job(object):
     def __init__(self, spec_dict, log_dir, video):
         self._spec_dict = spec_dict
         self._log_dir = log_dir
@@ -33,7 +33,7 @@ class Job(ExperimentUtils):
         return env
 
     def _get_agent(self):
-        cls_dict = Job._get_agent_cls_dict()
+        cls_dict = experiment_utils._get_agent_cls_dict()
         params = self._spec_dict['agents']['params']
         agent_cls = cls_dict[self._spec_dict['agents']['type']]
         metric_logger = MetricLogger(self._job_dir)
@@ -41,6 +41,7 @@ class Job(ExperimentUtils):
 
     def _create_log_dir(self):
         dir_name = self._spec_dict['run_name']
-        job_dir = Job._create_log_directory(dir_name, self._log_dir)
-        Job._save_spec_to_dir(self._spec_dict, job_dir)
+        job_dir = experiment_utils._create_log_directory(
+            dir_name, self._log_dir)
+        experiment_utils._save_spec_to_dir(self._spec_dict, job_dir)
         return job_dir

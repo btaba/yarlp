@@ -54,6 +54,7 @@ def reset_cache():
     global _CACHED_PLACEHOLDER
     _CACHED_PLACEHOLDER = {}
 
+
 def get_placeholder(name, dtype, shape):
     if name in _CACHED_PLACEHOLDER:
         out, dtype1, shape1 = _CACHED_PLACEHOLDER[name]

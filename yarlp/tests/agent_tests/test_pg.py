@@ -4,7 +4,7 @@
 
 import unittest
 import gym
-import shutil
+# import shutil
 
 from yarlp.agent.pg_agents import REINFORCEAgent
 
@@ -27,12 +27,15 @@ class TestREINFORCECartPole(unittest.TestCase):
             discount_factor=.95)
         agent.train(num_train_steps=1)
 
-    def test_reinforce_save_models(self):
-        agent = REINFORCEAgent(
-            self.env,
-            discount_factor=.95)
-        agent.save_models('testy_reinforce')
-        agent = REINFORCEAgent(
-            self.env,
-            model_file_path='testy_reinforce')
-        shutil.rmtree('testy_reinforce')
+    # def test_reinforce_save_models(self):
+    #     agent = REINFORCEAgent(
+    #         self.env,
+    #         discount_factor=.95)
+    #     agent.save_models('testy_reinforce')
+    #     agent = REINFORCEAgent(
+    #         self.env,
+    #         model_file_path='testy_reinforce')
+    #     shutil.rmtree('testy_reinforce')
+
+    # def tearDown(self):
+    #     shutil.rmtree()

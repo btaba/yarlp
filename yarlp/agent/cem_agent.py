@@ -5,12 +5,8 @@
     (Szita, Lorincz 2006)
     pdf: http://nipg.inf.elte.hu/publications/szita06learning.pdf
 """
-import os
-from functools import partial
+
 from yarlp.agent.base_agent import Agent
-from yarlp.model.model import Model
-from yarlp.utils.env_utils import GymEnv
-from yarlp.utils.experiment_utils import get_network
 from yarlp.model.model_factories import cem_model_factory
 
 import numpy as np

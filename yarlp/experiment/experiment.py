@@ -13,10 +13,10 @@ from matplotlib import pyplot as plt
 from concurrent.futures import ProcessPoolExecutor
 from yarlp.experiment.experiment_schema import schema
 from yarlp.experiment.job import Job
-from yarlp.utils.experiment_utils import ExperimentUtils
+from yarlp.utils import experiment_utils
 
 
-class Experiment(ExperimentUtils):
+class Experiment(object):
     def __init__(self, video=False):
         """
         Params
@@ -62,14 +62,14 @@ class Experiment(ExperimentUtils):
         # create log directory and save the full spec to the directory
         cls._experiment_dir = cls._create_log_dir(
             json_spec_filename)
-        Experiment._save_spec_to_dir(cls._spec_list, cls._experiment_dir)
+        experiment_utils._save_spec_to_dir(cls._spec_list, cls._experiment_dir)
         return cls
 
     @classmethod
     def from_unfinished_experiment_dir(cls, path, *args, **kwargs):
         """
         Restart experiment from unfinished experiment spec, this assumes that
-        Experiment._save_spec_to_dir was run previously
+        experiment_utils._save_spec_to_dir was run previously
         """
         cls = cls(*args, **kwargs)
         if not os.path.isdir(path):
@@ -213,7 +213,7 @@ class Experiment(ExperimentUtils):
 
     def _validate_agent_names(self, spec):
         agent_set = set()
-        cls_dict = Experiment._get_agent_cls_dict()
+        cls_dict = experiment_utils._get_agent_cls_dict()
         for s in spec:
             agent_name = s['agents']['type']
             assert agent_name in cls_dict,\
@@ -241,7 +241,7 @@ class Experiment(ExperimentUtils):
         experiment_dir = Experiment._get_experiment_dir(
             experiment_name)
 
-        return Experiment._create_log_directory(
+        return experiment_utils._create_log_directory(
             experiment_name, experiment_dir)
 
     def _merge_stats(self):

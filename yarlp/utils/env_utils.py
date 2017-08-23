@@ -96,10 +96,27 @@ class NormalizedGymEnv(GymEnv):
                  video=False,
                  log_dir=None,
                  force_reset=False,
-                 scale_reward=1.):
+                 scale_reward=1.,
+                 min_reward_std=1e-2,
+                 min_obs_std=1e-2,
+                 norm_obs_clip=5,
+                 normalize_obs=False,
+                 normalize_rewards=False):
         super().__init__(env_name=env_name, video=video,
                          log_dir=log_dir, force_reset=force_reset)
         self._scale_reward = scale_reward
+
+        self._normalize_obs = normalize_obs
+        self._normalize_rewards = normalize_rewards
+
+        if normalize_obs:
+            self._obs_rms = RunningMeanStd(
+                shape=(self.env.observation_space.shape),
+                min_std=min_obs_std, clip_val=norm_obs_clip)
+
+        if normalize_rewards:
+            self._reward_rms = RunningMeanStd(
+                shape=(1), min_std=min_reward_std)
 
     @property
     def action_space(self):
@@ -107,6 +124,20 @@ class NormalizedGymEnv(GymEnv):
             ub = np.ones(self.env.action_space.shape)
             return Box(-1 * ub, ub)
         return self.env.action_space
+
+    def _update_rewards(self, r, done):
+        self._reward_rms.cache(r)
+        r = self._reward_rms.normalize(r)
+        if done:
+            self._reward_rms.update()
+        return r
+
+    def _update_obs(self, obs, done):
+        self._obs_rms.cache(obs)
+        obs = self._obs_rms.normalize(obs)
+        if done:
+            self._obs_rms.update()
+        return obs
 
     def step(self, action):
         if isinstance(self.env.action_space, Box):
@@ -116,9 +147,65 @@ class NormalizedGymEnv(GymEnv):
             scaled_action = np.clip(scaled_action, lb, ub)
         else:
             scaled_action = action
+
         wrapped_step = self.env.step(scaled_action)
         next_obs, reward, done, info = wrapped_step
+
+        if self._normalize_obs:
+            next_obs = self._update_obs(next_obs, done)
+
+        if self._normalize_rewards:
+            reward = self._update_rewards(reward, done)
+
         return next_obs, reward * self._scale_reward, done, info
 
     def __str__(self):
         return "Normalized GymEnv: %s" % self.env
+
+
+class RunningMeanStd(object):
+
+    def __init__(self, shape, min_std=1e-2, clip_val=None):
+        self._min_std = min_std
+        self._clip_val = clip_val
+        self._cache = []
+        self._mean = np.zeros(shape)
+        self._std = np.ones(shape)
+        self._count = 0.
+
+    def normalize(self, x):
+        xn = (x - self._mean) / self._std
+        if self._clip_val:
+            xn = np.clip(xn, -self._clip_val, self._clip_val)
+
+        if np.isscalar(x):
+            return np.asscalar(xn)
+
+        return xn
+
+    def cache(self, x):
+        self._cache.append(x)
+
+    def update(self):
+        X = np.array(self._cache)
+        if X.shape[0] <= 1:
+            # wait for more data to avoid numerical errors in std calc
+            return
+
+        avg_X = np.mean(X, axis=0)
+        std_X = np.std(X, axis=0, ddof=1)
+        if self._count == 0:
+            self._std = np.clip(std_X, self._min_std, None)
+            self._mean = avg_X
+            self._count += X.shape[0]
+        else:
+            delta = avg_X - self._mean
+            m_a = np.square(self._std) * (self._count - 1)
+            m_b = np.square(std_X) * (X.shape[0] - 1)
+            M2 = m_a + m_b + delta ** 2 * self._count * X.shape[0] /\
+                (self._count + X.shape[0])
+            M2 = np.sqrt(M2 / (self._count + X.shape[0] - 1))
+            self._std = np.clip(M2, self._min_std, None)
+            self._count += X.shape[0]
+            self._mean = self._mean + delta * X.shape[0] / self._count
+        self._cache = []
