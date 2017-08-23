@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/btaba/yarlp.svg?branch=master)](https://travis-ci.org/btaba/yarlp)
 
 ## yarlp
 
