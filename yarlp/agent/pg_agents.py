@@ -43,9 +43,11 @@ class REINFORCEAgent(BatchAgent):
 
     model_file_path : str, file path for the policy_network
     """
+
     def __init__(self, env,
                  policy_network=tf.contrib.layers.fully_connected,
                  policy_network_params={},
+                 policy_learning_rate=0.01,
                  baseline_network=LinearFeatureBaseline(),
                  baseline_model_learning_rate=0.01,
                  entropy_weight=0,
@@ -60,6 +62,7 @@ class REINFORCEAgent(BatchAgent):
 
         self._policy = pg_model_factory(
             env, network=policy_network, network_params=policy_network_params,
+            learning_rate=policy_learning_rate,
             entropy_weight=entropy_weight,
             min_std=min_std, init_std=init_std, adaptive_std=adaptive_std,
             model_file_path=model_file_path)

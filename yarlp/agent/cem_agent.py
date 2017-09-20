@@ -31,6 +31,7 @@ class CEMAgent(Agent):
     best_pct : float, default 0.2
         The percentage of sample weights to keep that yield the best reward
     """
+
     def __init__(self, env, n_weight_samples=100,
                  init_var=1., best_pct=0.2,
                  policy_network=tf.contrib.layers.fully_connected,
@@ -65,6 +66,7 @@ class CEMAgent(Agent):
         self._policy.save(path)
 
     def train(self, num_train_steps, num_test_steps=0,
+              max_timesteps=0,
               with_variance=False, alpha=5, beta=10,
               min_sigma=1e-2, render=False):
         """
@@ -76,6 +78,9 @@ class CEMAgent(Agent):
         ----------
         num_training_steps : integer
             Total number of training steps
+
+        max_timesteps : integer
+            maximum number of total steps to execute in the environment
 
         with_variance : boolean
             train with or without a variance adjustment as in [1]
@@ -92,7 +97,22 @@ class CEMAgent(Agent):
         ----------
         None
         """
-        for i in range(num_train_steps):
+
+        assert sum([num_train_steps > 0,
+                    max_timesteps > 0]) == 1,\
+            "Must provide at least one limit to training"
+
+        timesteps_so_far = 0
+        train_steps_so_far = 0
+
+        # for i in range(num_train_steps):
+        while True:
+
+            if max_timesteps and timesteps_so_far >= max_timesteps:
+                break
+            elif num_train_steps and train_steps_so_far >= num_train_steps:
+                break
+
             # logger.info('Training step {}'.format(i))
             if np.any(self._sigma <= 0):
                 self._sigma[self._sigma <= 0] = min_sigma
@@ -113,6 +133,7 @@ class CEMAgent(Agent):
                     self._policy.sff,
                     {self._policy.theta: w})
                 rollout = self.rollout(render=render)
+                timesteps_so_far += len(rollout)
                 rollouts.append(rollout)
                 rollout_rewards.append(np.sum(rollout.rewards))
 
@@ -129,7 +150,7 @@ class CEMAgent(Agent):
             var = best_samples.var(axis=0)
 
             if with_variance:
-                var += max(alpha - i / float(beta), 0)
+                var += max(alpha - train_steps_so_far / float(beta), 0)
 
             self._theta = mean
             self._sigma = var
@@ -144,5 +165,7 @@ class CEMAgent(Agent):
 
             if self.logger._log_dir is not None:
                 self.save_models(self.logger._log_dir)
+
+            train_steps_so_far += 1
 
         return

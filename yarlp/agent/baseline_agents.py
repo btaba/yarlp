@@ -16,7 +16,8 @@ class RandomAgent(Agent):
 
         self._policy = self
 
-    def train(self, num_train_steps, num_test_steps=0):
+    def train(self, num_train_steps, num_test_steps=0,
+              max_timesteps=0):
         """
 
         Parameters
@@ -24,10 +25,28 @@ class RandomAgent(Agent):
         num_training_steps : integer
             Total number of training steps
 
+        num_test_steps : integer
+            Number of testing iterations per training iteration.
+
+        max_timesteps : integer
+            maximum number of total steps to execute in the environment
+
         Returns
         ----------
         """
-        for i in range(num_train_steps):
+        assert sum([num_train_steps > 0,
+                    max_timesteps > 0]) == 1,\
+            "Must provide at least one limit to training"
+
+        timesteps_so_far = 0
+        train_steps_so_far = 0
+
+        while True:
+
+            if max_timesteps and timesteps_so_far >= max_timesteps:
+                break
+            elif num_train_steps and train_steps_so_far >= num_train_steps:
+                break
 
             rollout = self.rollout()
 
@@ -41,6 +60,9 @@ class RandomAgent(Agent):
                     r.append(rollout)
                 self.logger.set_metrics_for_rollout(r, train=False)
                 self.logger.log()
+
+            timesteps_so_far += len(rollout)
+            train_steps_so_far += 1
 
         return
 

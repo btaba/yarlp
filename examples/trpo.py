@@ -9,12 +9,10 @@ from yarlp.model.networks import mlp
 
 def main():
     # env = NormalizedGymEnv('CartPole-v1')
-    # env = NormalizedGymEnv(
-    #     'MountainCarContinuous-v0',
-    #     normalize_obs=True)
     env = NormalizedGymEnv(
-        'Acrobot-v1',
+        'MountainCarContinuous-v0',
         normalize_obs=True)
+    # env = NormalizedGymEnv('Acrobot-v1')
     # env = NormalizedGymEnv('Pendulum-v0')
     agent = TRPOAgent(
         env, discount_factor=0.99,

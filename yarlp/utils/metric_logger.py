@@ -1,6 +1,7 @@
 import os
 import re
 import csv
+import time
 import logging
 import numpy as np
 
@@ -20,6 +21,8 @@ class MetricLogger:
 
         if self._log_dir is not None:
             self._stat_file = os.path.join(self._log_dir, 'stats.tsv')
+
+        self._start_time = time.time()
 
     def __setitem__(self, metric_name, value):
         self._validate_header_name(metric_name)
@@ -90,6 +93,7 @@ class MetricLogger:
             self._reset_metrics()
 
     def set_metrics_for_rollout(self, rollout, train=True):
+        t = round(time.time() - self._start_time, 6)
         if isinstance(rollout, list):
             # unroll the rollout
             self['avg_episode_length'] = np.mean(
@@ -104,6 +108,7 @@ class MetricLogger:
                 [np.sum(r.rewards) for r in rollout])
             self['std_reward'] = np.std([np.sum(r.rewards) for r in rollout])
             self['total_reward'] = np.sum([np.sum(r.rewards) for r in rollout])
+            self['episode_cum_time'] = t
         else:
             assert isinstance(rollout, Rollout)
             self['avg_episode_length'] = len(rollout.rewards)
@@ -115,3 +120,4 @@ class MetricLogger:
             self['avg_total_reward'] = np.sum(rollout.rewards)
             self['std_reward'] = np.std(rollout.rewards)
             self['total_reward'] = np.sum(rollout.rewards)
+            self['episode_cum_time'] = t

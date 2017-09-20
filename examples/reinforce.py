@@ -16,7 +16,8 @@ def main():
         env, discount_factor=0.99,
         policy_network=mlp,
         policy_learning_rate=0.01,
-        entropy_weight=0)
+        entropy_weight=0,
+        seed=0)
     agent.train(500, 0, n_steps=4000)
 
 

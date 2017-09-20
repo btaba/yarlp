@@ -29,6 +29,7 @@ class TRPOAgent(BatchAgent):
 
     model_file_path : str, file path for the policy_network
     """
+
     def __init__(self, env,
                  policy_network=tf.contrib.layers.fully_connected,
                  policy_network_params={},
@@ -219,6 +220,7 @@ def linesearch(f, x, fullstep, expected_improve_rate):
     accept_ratio = .1
     max_backtracks = 15
     fval = f(x)
+
     for (_n_backtracks, stepfrac) in enumerate(backtrack_ratio ** np.arange(max_backtracks)):
         xnew = x + stepfrac * fullstep
         newfval = f(xnew)

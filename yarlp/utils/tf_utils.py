@@ -2,6 +2,7 @@
 Tensorflow util functions
 """
 
+import random
 import numpy as np
 import tensorflow as tf
 
@@ -12,6 +13,7 @@ _CACHED_PLACEHOLDER = {}
 def set_global_seeds(i):
     tf.set_random_seed(i)
     np.random.seed(i)
+    random.seed(i)
 
 
 def flatgrad(loss, var_list):

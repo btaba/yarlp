@@ -219,7 +219,9 @@ class BatchAgent(Agent):
         pass
 
     def train(self, num_train_steps=10, num_test_steps=0,
-              n_steps=1024, render=False, whiten_advantages=True,
+              n_steps=1024, max_timesteps=0,
+              render=False,
+              whiten_advantages=True,
               truncate_rollouts=False):
         """
         Parameters
@@ -234,6 +236,9 @@ class BatchAgent(Agent):
             Total number of samples from the environment for each
             training iteration.
 
+        max_timesteps : integer
+            maximum number of total steps to execute in the environment
+
         whiten_advantages : bool, whether to whiten the advantages
 
         render : bool, whether to render episodes in a video
@@ -242,7 +247,20 @@ class BatchAgent(Agent):
         ----------
         None
         """
-        for i in range(num_train_steps):
+        assert sum([num_train_steps > 0,
+                    max_timesteps > 0]) == 1,\
+            "Must provide at least one limit to training"
+
+        timesteps_so_far = 0
+        train_steps_so_far = 0
+
+        while True:
+
+            if max_timesteps and timesteps_so_far >= max_timesteps:
+                break
+            elif num_train_steps and train_steps_so_far >= num_train_steps:
+                break
+
             # execute an episode
             rollouts = self.rollout_n_steps(
                 n_steps, render=render, truncate=truncate_rollouts)
@@ -319,5 +337,8 @@ class BatchAgent(Agent):
 
             if self.logger._log_dir is not None:
                 self.save_models(self.logger._log_dir)
+
+            timesteps_so_far += advantages.shape[0]
+            train_steps_so_far += 1
 
         return
