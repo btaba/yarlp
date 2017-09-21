@@ -37,8 +37,8 @@ class Agent(ABC):
 
         if seed is not None:
             self.logger._logger.info('Seed: {}'.format(seed))
-            # tf_utils.set_global_seeds(seed)
-            # env.seed(seed)
+            tf_utils.set_global_seeds(seed)
+            env.seed(seed)
         self._env = env
 
         self._state_featurizer = state_featurizer

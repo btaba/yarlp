@@ -14,8 +14,8 @@ def main():
     # env = NormalizedGymEnv('Pendulum-v0')
     # import tensorflow as tf
     # tf.set_random_seed(42)
-    from yarlp.utils import tf_utils
-    tf_utils.set_global_seeds(42)
+    # from yarlp.utils import tf_utils
+    # tf_utils.set_global_seeds(42)
     agent = REINFORCEAgent(
         env, discount_factor=0.99,
         policy_network=mlp,

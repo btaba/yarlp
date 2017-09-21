@@ -81,6 +81,9 @@ class GymEnv(Env):
     def close(self):
         self.env.close()
 
+    def seed(self, i):
+        self.env.seed(i)
+
     @property
     def spec(self):
         return self.env.spec
