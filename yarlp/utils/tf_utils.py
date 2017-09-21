@@ -11,7 +11,12 @@ _CACHED_PLACEHOLDER = {}
 
 
 def set_global_seeds(i):
-    tf.set_random_seed(i)
+    try:
+        import tensorflow as tf
+    except ImportError:
+        pass
+    else:
+        tf.set_random_seed(i)
     np.random.seed(i)
     random.seed(i)
 

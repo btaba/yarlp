@@ -26,11 +26,6 @@ class Agent(ABC):
         discount_factor : float
             Discount rewards by this factor
         """
-        if seed:
-            tf_utils.set_global_seeds(seed)
-            env.seed(seed)
-        self._env = env
-
         # Discount factor
         assert discount_factor >= 0 and discount_factor <= 1
         self._discount = discount_factor
@@ -39,6 +34,12 @@ class Agent(ABC):
             self.logger = MetricLogger()
         else:
             self.logger = logger
+
+        if seed is not None:
+            self.logger._logger.info('Seed: {}'.format(seed))
+            # tf_utils.set_global_seeds(seed)
+            # env.seed(seed)
+        self._env = env
 
         self._state_featurizer = state_featurizer
 

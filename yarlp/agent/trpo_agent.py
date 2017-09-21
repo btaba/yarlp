@@ -51,6 +51,10 @@ class TRPOAgent(BatchAgent):
             min_std=min_std, init_std=init_std, adaptive_std=adaptive_std,
             input_shape=input_shape, model_file_path=model_file_path)
 
+        policy_weight_sums = sum([np.sum(a) for a in self._policy.get_weights()])
+        self.logger._logger.info(
+            'Policy network weight sums: {}'.format(policy_weight_sums))
+
         self.cg_iters = cg_iters
         self.cg_damping = cg_damping
         self.max_kl = max_kl

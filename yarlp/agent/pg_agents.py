@@ -15,6 +15,7 @@ REINFORCE Agent and Policy Gradient (PG) Actor Critic Agent
     2177–2182. doi:10.1109/ACC.2012.6315022
 """
 
+import numpy as np
 import tensorflow as tf
 
 from yarlp.agent.base_agent import BatchAgent
@@ -66,6 +67,11 @@ class REINFORCEAgent(BatchAgent):
             entropy_weight=entropy_weight,
             min_std=min_std, init_std=init_std, adaptive_std=adaptive_std,
             model_file_path=model_file_path)
+
+        policy_weight_sums = sum([np.sum(a) for a in self._policy.get_weights()])
+        self.logger._logger.info(
+            'Policy network weight sums: {}'.format(policy_weight_sums))
+
         self._gae_lambda = gae_lambda
 
         if isinstance(baseline_network, LinearFeatureBaseline)\
