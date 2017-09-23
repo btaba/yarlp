@@ -10,8 +10,9 @@ class Graph:
     Tensorflow Graph interface
     """
 
-    def __init__(self):
-        self._graph = tf.Graph()
+    def __init__(self, finalize=False):
+        self._finalize = finalize
+        self._graph = tf.get_default_graph()
         self._session = tf.Session('', graph=self._graph)
         self._saver = None
 
@@ -25,7 +26,8 @@ class Graph:
             tf.variables_initializer(self.GLOBAL_VARIABLES)
         )
         self._saver = tf.train.Saver()
-        self._graph.finalize()
+        if self._finalize:
+            self._graph.finalize()
         self._context.__exit__(*args)
 
     def __contains__(self, var_name):
