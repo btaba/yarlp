@@ -2,6 +2,7 @@
     Base Agent class, which takes in a PolicyModel object
 """
 
+import gym
 import numpy as np
 from abc import ABCMeta, abstractmethod
 from yarlp.utils.env_utils import GymEnv
@@ -40,6 +41,8 @@ class Agent(ABC):
             tf_utils.set_global_seeds(seed)
             env.seed(seed)
         self._env = env
+        self._env_id = '{}_gym{}'.format(
+            env.spec.id, gym.__version__)
 
         self._state_featurizer = state_featurizer
 
@@ -219,7 +222,7 @@ class BatchAgent(Agent):
         """
         pass
 
-    def train(self, num_train_steps=10, num_test_steps=0,
+    def train(self, num_train_steps=0, num_test_steps=0,
               n_steps=1024, max_timesteps=0,
               render=False,
               whiten_advantages=True,
@@ -249,7 +252,7 @@ class BatchAgent(Agent):
         None
         """
         assert sum([num_train_steps > 0,
-                    max_timesteps > 0]) == 1,\
+                    max_timesteps > 0]) >= 1,\
             "Must provide at least one limit to training"
 
         timesteps_so_far = 0
@@ -322,8 +325,13 @@ class BatchAgent(Agent):
             }
             self.update(path_dict)
 
+            timesteps_so_far += advantages.shape[0]
+            train_steps_so_far += 1
+
             if not is_terminal:
                 rollouts = rollouts[:-1]
+            self.logger.add_metric('timesteps_so_far', timesteps_so_far)
+            self.logger.add_metric('env_id', self._env_id)
             self.logger.set_metrics_for_rollout(rollouts, train=True)
             self.logger.log()
 
@@ -332,14 +340,10 @@ class BatchAgent(Agent):
                 for t_test in range(num_test_steps):
                     rollout = self.rollout(greedy=True)
                     r.append(rollout)
-                self.logger.add_metric('policy_loss', 0)
                 self.logger.set_metrics_for_rollout(r, train=False)
                 self.logger.log()
 
             if self.logger._log_dir is not None:
                 self.save_models(self.logger._log_dir)
-
-            timesteps_so_far += advantages.shape[0]
-            train_steps_so_far += 1
 
         return

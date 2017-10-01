@@ -1,35 +1,25 @@
 {
-    "envs": [
+    "runs": [
         {
-            "name": "MountainCarContinuous-v0",
-            "repeats": 1
-        }
-    ],
-    "agents": [
-        {
-            "type": "REINFORCEAgent",
-            "training_epochs": 400,
-            "testing_epochs": 0,
-            "params": {
-                "discount_factor": [0.99],
-                "policy_learning_rate": [0.01],
-                "entropy_weight": [0.0],
-                "policy_network": "mlp",
-                "policy_network_params": {
-                    "hidden_units": [32, 32]
-                },
-                "adaptive_std": [false]
+            "env": {
+                "name": "CartPole-v1",
+                "timestep_limit": 100
             },
-            "training_params": {
-                "n_steps": 4000
+            "agent": {
+                "type": "REINFORCEAgent",
+                "params": {
+                    "discount_factor": 0.99,
+                    "policy_learning_rate": 0.01,
+                    "policy_network": "mlp",
+                    "policy_network_params": {
+                        "hidden_units": [32, 32]
+                    }
+                },
+                "training_params": {
+                    "max_timesteps": 100000
+                },
+                "seeds": [42]
             }
-        },
-        {
-            "type": "RandomAgent",
-            "training_epochs": 10,
-            "testing_epochs": 0,
-            "params": {},
-            "training_params": {}
         }
     ]
 }

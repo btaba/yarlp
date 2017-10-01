@@ -7,12 +7,9 @@ Yet Another Reinforcement Learning Package
 ##### TODO:
 
 * benchmarks with experiment dir
-    - run baselines benchmark for trpo - in progress
-    - make yarlp get similar data for benchmarks 
-        - add seeds
-        - Log gym version
-        - grab data from file
-    - run them here as well and compare on mujoco tasks
+    - run experiment in yarlp and compare on mujoco tasks
+    - plot trpo baselines from openai vs mine
+    	- copy those plots to yarlp
     - then do atari tasks
 * DQ, DDQ
 * serialization/deserialization of agents

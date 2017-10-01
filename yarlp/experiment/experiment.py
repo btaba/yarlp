@@ -4,9 +4,9 @@ import sys
 import json
 import copy
 import click
-import pandas as pd
+import time
+# import pandas as pd
 
-import tqdm
 from jsonschema import validate
 from itertools import product
 from matplotlib import pyplot as plt
@@ -28,7 +28,7 @@ class Experiment(object):
         self.video = video
 
     @classmethod
-    def from_json_spec(cls, json_spec_filename, *args, **kwargs):
+    def from_json_spec(cls, json_spec_filename, log_dir=None, *args, **kwargs):
         """
         Reads in json_spec_filen of experiment, validates the experiment spec,
         creates a spec for each combination of agent/env/grid-search-params
@@ -50,68 +50,72 @@ class Experiment(object):
         validate(_raw_spec, schema)
 
         # create a json spec for each env-agent-repeat
-        _spec_list = cls._spec_product(_raw_spec)
+        # _spec_list = cls._spec_product(_raw_spec)
+        _spec_list = _raw_spec['runs']
 
         cls._validate_agent_names(_spec_list)
-        _spec_list = cls._add_validated_env_repeats(_spec_list)
+        _spec_list = cls._add_validated_agent_repeats(_spec_list)
 
         # if the agent params are lists, then we need to split them up further
         # since these will be the cross-validation (cv) folds
         cls._spec_list = cls._expand_agent_grid(_spec_list)
 
         # create log directory and save the full spec to the directory
-        cls._experiment_dir = cls._create_log_dir(
-            json_spec_filename)
+        if not log_dir:
+            cls._experiment_dir = cls._create_log_dir(
+                json_spec_filename)
+        else:
+            cls._experiment_dir = log_dir
         experiment_utils._save_spec_to_dir(cls._spec_list, cls._experiment_dir)
         return cls
 
-    @classmethod
-    def from_unfinished_experiment_dir(cls, path, *args, **kwargs):
-        """
-        Restart experiment from unfinished experiment spec, this assumes that
-        experiment_utils._save_spec_to_dir was run previously
-        """
-        cls = cls(*args, **kwargs)
-        if not os.path.isdir(path):
-            path = cls._get_experiment_dir(path)
-        assert os.path.isdir(path),\
-            '{} does not exist or is not a directory'.format(path)
-        cls._experiment_dir = path
+    # @classmethod
+    # def from_unfinished_experiment_dir(cls, path, *args, **kwargs):
+    #     """
+    #     Restart experiment from unfinished experiment spec, this assumes that
+    #     experiment_utils._save_spec_to_dir was run previously
+    #     """
+    #     cls = cls(*args, **kwargs)
+    #     if not os.path.isdir(path):
+    #         path = cls._get_experiment_dir(path)
+    #     assert os.path.isdir(path),\
+    #         '{} does not exist or is not a directory'.format(path)
+    #     cls._experiment_dir = path
 
-        # get the spec file
-        spec_file_path = os.path.join(path, 'spec.json')
-        assert os.path.isfile(spec_file_path)
-        cls._spec_list = json.load(open(spec_file_path, 'r'))
-        assert isinstance(cls._spec_list, list)
+    #     # get the spec file
+    #     spec_file_path = os.path.join(path, 'spec.json')
+    #     assert os.path.isfile(spec_file_path)
+    #     cls._spec_list = json.load(open(spec_file_path, 'r'))
+    #     assert isinstance(cls._spec_list, list)
 
-        # walk the file path and dequeue specs that were completed
-        path_walk = [p[0] for p in os.walk(path)
-                     if os.path.isdir(p[0]) and p[0] != path]
-        completed_specs = []
-        for p in path_walk:
-            # did the experiment finish?
-            stat_file = os.path.join(p, 'stats.tsv')
-            if not os.path.exists(stat_file):
-                continue
+    #     # walk the file path and dequeue specs that were completed
+    #     path_walk = [p[0] for p in os.walk(path)
+    #                  if os.path.isdir(p[0]) and p[0] != path]
+    #     completed_specs = []
+    #     for p in path_walk:
+    #         # did the experiment finish?
+    #         stat_file = os.path.join(p, 'stats.tsv')
+    #         if not os.path.exists(stat_file):
+    #             continue
 
-            # check stat_file to see if experiment was run to completion
-            spec_file_path = os.path.join(p, 'spec.json')
-            spec_dict = json.load(open(spec_file_path, 'r'))
-            stat_df = pd.read_csv(stat_file, sep='\t')
+    #         # check stat_file to see if experiment was run to completion
+    #         spec_file_path = os.path.join(p, 'spec.json')
+    #         spec_dict = json.load(open(spec_file_path, 'r'))
+    #         stat_df = pd.read_csv(stat_file, sep='\t')
 
-            num_training_epochs = spec_dict['agents']['training_epochs']
-            if (stat_df.training == True).sum() < num_training_epochs:
-                continue
+    #         num_training_epochs = spec_dict['agents']['training_epochs']
+    #         if (stat_df.training == True).sum() < num_training_epochs:
+    #             continue
 
-            completed_specs.append(spec_dict)
+    #         completed_specs.append(spec_dict)
 
-        # de-queue complete experiments
-        cls._spec_list = [sl for sl in cls._spec_list
-                          if sl not in completed_specs]
+    #     # de-queue complete experiments
+    #     cls._spec_list = [sl for sl in cls._spec_list
+    #                       if sl not in completed_specs]
 
-        return cls
+    #     return cls
 
-    def run(self, n_jobs=1):
+    def run(self, n_jobs=None):
         if self.video:
             # GUI operations don't play nice with parallel execution
             for j in self._jobs:
@@ -121,39 +125,28 @@ class Experiment(object):
                 fs = []
                 for j in self._jobs:
                     fs.append(ex.submit(j))
+                    # j()
                 for f in fs:
                     res = f.result()
                     if res:
                         print(res)
 
-        # aggregate the stats across all jobs
-        self._merge_stats()
-        self._aggregate_stats_over_runs()
-        self._plot_stats()
+        # # aggregate the stats across all jobs
+        # self._merge_stats()
+        # self._aggregate_stats_over_runs()
+        # self._plot_stats()
 
     @property
     def _jobs(self):
-        for s in tqdm.tqdm(self._spec_list):
+        for s in self._spec_list:
             yield Job(s, self._experiment_dir, self.video)
 
     @property
     def spec_list(self):
         return self._spec_list
 
-    def _spec_product(self, spec):
-        """
-        Cartesian product of a json spec, list of specs unique by env and agent
-        """
-        keys = spec.keys()
-        spec_list = [spec[k] for k in keys]
-        spec_product = product(*spec_list)
-        spec_dicts = [
-            {k: s for k, s in zip(keys, sp)}
-            for sp in spec_product
-        ]
-        return spec_dicts
 
-    def _add_validated_env_repeats(self, spec_list):
+    def _add_validated_agent_repeats(self, spec_list):
         """
         Validates the environment names and adds a json spec
         for each repeat with a 'run_name'
@@ -162,16 +155,16 @@ class Experiment(object):
 
         repeated_spec_list = []
         for s in spec_list:
-            env_name = s['envs']['name']
+            env_name = s['env']['name']
             assert env_name in env_list,\
                 "{} is not an available environment name.".format(env_name)
 
-            for r in range(s['envs']['repeats']):
+            for r in s['agent']['seeds']:
                 s_copy = copy.deepcopy(s)
                 run_name = '{}_{}_run{}'.format(
-                    s['envs']['name'], s['agents']['type'], r)
+                    s['env']['name'], s['agent']['type'], r)
                 s_copy['run_name'] = run_name
-                s_copy['run'] = r
+                s_copy['seed'] = r
                 repeated_spec_list.append(s_copy)
 
         return repeated_spec_list
@@ -188,7 +181,7 @@ class Experiment(object):
         for s in spec_list:
 
             # expand the grid of params
-            params = s['agents']['params']
+            params = s['agent'].get('params', {})
             singleton_params = {
                 k: v for k, v in params.items() if not isinstance(v, list)}
             grid_params = {
@@ -202,7 +195,7 @@ class Experiment(object):
             count = 0
             for g in grid_params:
                 new_s = copy.deepcopy(s)
-                new_s['agents']['params'] = g
+                new_s['agent']['param'] = g
                 new_s['param_run'] = count
                 param_name = '_param{}'.format(count)
                 new_s['run_name'] = new_s['run_name'] + param_name
@@ -215,15 +208,10 @@ class Experiment(object):
         agent_set = set()
         cls_dict = experiment_utils._get_agent_cls_dict()
         for s in spec:
-            agent_name = s['agents']['type']
+            agent_name = s['agent']['type']
             assert agent_name in cls_dict,\
                 "{} is not an implemented agent. Select one of {}".format(
                     agent_name, cls_dict.keys())
-
-            assert agent_name not in agent_set,\
-                """{} is duplicated in the experiment spec,
-                please remove it""".format(
-                    agent_name)
 
             agent_set.add(agent_name)
 
@@ -244,135 +232,135 @@ class Experiment(object):
         return experiment_utils._create_log_directory(
             experiment_name, experiment_dir)
 
-    def _merge_stats(self):
-        """
-        Loop through all experiments, and write all the stats
-        back to the base repository
-        """
-        statspath = os.path.join(self._experiment_dir, 'stats')
-        if not os.path.exists(statspath):
-            os.makedirs(statspath)
-        agg_stats_file = os.path.join(statspath, 'merged_stats.tsv')
+    # def _merge_stats(self):
+    #     """
+    #     Loop through all experiments, and write all the stats
+    #     back to the base repository
+    #     """
+    #     statspath = os.path.join(self._experiment_dir, 'stats')
+    #     if not os.path.exists(statspath):
+    #         os.makedirs(statspath)
+    #     agg_stats_file = os.path.join(statspath, 'merged_stats.tsv')
 
-        stats_list = []
-        for d in os.listdir(self._experiment_dir):
-            base_path = os.path.join(self._experiment_dir, d)
-            if not os.path.isdir(base_path) or d == 'stats':
-                continue
-            spec = open(os.path.join(base_path, 'spec.json'), 'r')
-            spec = json.load(spec)
-            stats = pd.read_csv(os.path.join(base_path, 'stats.tsv'), sep='\t')
-            stats['run'] = spec['run']
-            stats['param_run'] = spec['param_run']
-            stats['run_name'] = spec['run_name']
-            stats['agent'] = spec['agents']['type']
-            stats['env'] = spec['envs']['name']
-            stats['agent_params'] = str(spec['agents']['params'])
-            stats_list.append(stats)
+    #     stats_list = []
+    #     for d in os.listdir(self._experiment_dir):
+    #         base_path = os.path.join(self._experiment_dir, d)
+    #         if not os.path.isdir(base_path) or d == 'stats':
+    #             continue
+    #         spec = open(os.path.join(base_path, 'spec.json'), 'r')
+    #         spec = json.load(spec)
+    #         stats = pd.read_csv(os.path.join(base_path, 'stats.tsv'), sep='\t')
+    #         stats['run'] = spec['run']
+    #         stats['param_run'] = spec['param_run']
+    #         stats['run_name'] = spec['run_name']
+    #         stats['agent'] = spec['agents']['type']
+    #         stats['env'] = spec['envs']['name']
+    #         stats['agent_params'] = str(spec['agents']['params'])
+    #         stats_list.append(stats)
 
-        assert len(stats_list) > 0, "No stats were found."
-        stats = stats_list[0]
-        for s in stats_list[1:]:
-            stats = stats.append(s)
+    #     assert len(stats_list) > 0, "No stats were found."
+    #     stats = stats_list[0]
+    #     for s in stats_list[1:]:
+    #         stats = stats.append(s)
 
-        with open(agg_stats_file, 'w') as f:
-            stats.to_csv(f, index=False, header=True, sep='\t')
+    #     with open(agg_stats_file, 'w') as f:
+    #         stats.to_csv(f, index=False, header=True, sep='\t')
 
-    def _aggregate_stats_over_runs(self):
-        """
-        Compute aggregates on the merged_stats.tsv file
-        grouped by [agent, env, training, episode, agent_params]
-        so we average over several runs
-        """
-        m = os.path.join(self._experiment_dir, 'stats/merged_stats.tsv')
-        assert os.path.exists(m), "Merged stats file must exist"
-        agg_episode_stats_file = os.path.join(
-            self._experiment_dir, 'stats/agg_episode_stats.tsv')
-        agg_agent_stats_file = os.path.join(
-            self._experiment_dir, 'stats/agg_agent_stats.tsv')
-        base_df = pd.read_csv(m, sep='\t')
+    # def _aggregate_stats_over_runs(self):
+    #     """
+    #     Compute aggregates on the merged_stats.tsv file
+    #     grouped by [agent, env, training, episode, agent_params]
+    #     so we average over several runs
+    #     """
+    #     m = os.path.join(self._experiment_dir, 'stats/merged_stats.tsv')
+    #     assert os.path.exists(m), "Merged stats file must exist"
+    #     agg_episode_stats_file = os.path.join(
+    #         self._experiment_dir, 'stats/agg_episode_stats.tsv')
+    #     agg_agent_stats_file = os.path.join(
+    #         self._experiment_dir, 'stats/agg_agent_stats.tsv')
+    #     base_df = pd.read_csv(m, sep='\t')
 
-        # episode level stats
-        df_avg = base_df.groupby(
-            ['run_name', 'training', 'episode', 'agent_params']
-        ).mean().add_prefix('mean_')
-        df_std = base_df.groupby(
-            ['run_name', 'training', 'episode', 'agent_params']
-        )['avg_episode_length', 'total_reward', 'steps']
-        df_std = df_std.std().add_prefix('std_').fillna(0)
-        df = df_avg.join(df_std)
-        df.to_csv(agg_episode_stats_file, sep='\t')
+    #     # episode level stats
+    #     df_avg = base_df.groupby(
+    #         ['run_name', 'training', 'episode', 'agent_params']
+    #     ).mean().add_prefix('mean_')
+    #     df_std = base_df.groupby(
+    #         ['run_name', 'training', 'episode', 'agent_params']
+    #     )['avg_episode_length', 'total_reward', 'steps']
+    #     df_std = df_std.std().add_prefix('std_').fillna(0)
+    #     df = df_avg.join(df_std)
+    #     df.to_csv(agg_episode_stats_file, sep='\t')
 
-        # agent level stats
-        df = base_df.groupby(
-            ['run_name', 'training', 'agent_params']
-        ).apply(lambda x: x.sort_values('episode').mean())
-        df = df[
-            ['avg_episode_length', 'total_reward', 'steps']]
-        df = df.reset_index()
-        df_avg = df.groupby(
-            ['run_name', 'training', 'agent_params']).mean()
-        df_std = df.groupby(['run_name', 'training', 'agent_params']).std()
-        df_std = df_std.add_prefix('std_').fillna(0)
-        df = df_avg.join(df_std)
-        df.to_csv(agg_agent_stats_file, index=True, sep='\t')
+    #     # agent level stats
+    #     df = base_df.groupby(
+    #         ['run_name', 'training', 'agent_params']
+    #     ).apply(lambda x: x.sort_values('episode').mean())
+    #     df = df[
+    #         ['avg_episode_length', 'total_reward', 'steps']]
+    #     df = df.reset_index()
+    #     df_avg = df.groupby(
+    #         ['run_name', 'training', 'agent_params']).mean()
+    #     df_std = df.groupby(['run_name', 'training', 'agent_params']).std()
+    #     df_std = df_std.add_prefix('std_').fillna(0)
+    #     df = df_avg.join(df_std)
+    #     df.to_csv(agg_agent_stats_file, index=True, sep='\t')
 
-    def _plot_stats(self):
-        """
-        Take the agg_stats.tsv file and make plots
-        """
-        m = os.path.join(self._experiment_dir, 'stats/agg_episode_stats.tsv')
-        assert os.path.exists(m), "Aggregated stats file must exist"
+    # def _plot_stats(self):
+    #     """
+    #     Take the agg_stats.tsv file and make plots
+    #     """
+    #     m = os.path.join(self._experiment_dir, 'stats/agg_episode_stats.tsv')
+    #     assert os.path.exists(m), "Aggregated stats file must exist"
 
-        df = pd.read_csv(m, sep='\t')
-        plt_index = df.groupby(
-            ['run_name', 'training', 'agent_params']).count().index
+    #     df = pd.read_csv(m, sep='\t')
+    #     plt_index = df.groupby(
+    #         ['run_name', 'training', 'agent_params']).count().index
 
-        for count, idx in enumerate(plt_index):
-            sub_df = df[
-                (df.run_name == idx[0]) & (df.training == idx[1]) &
-                (df.agent_params == idx[2])].copy()
-            sub_df.sort_values('episode', inplace=True)
-            sub_df.reset_index(inplace=True, drop=True)
+    #     for count, idx in enumerate(plt_index):
+    #         sub_df = df[
+    #             (df.run_name == idx[0]) & (df.training == idx[1]) &
+    #             (df.agent_params == idx[2])].copy()
+    #         sub_df.sort_values('episode', inplace=True)
+    #         sub_df.reset_index(inplace=True, drop=True)
 
-            plt.figure(figsize=(8, 14))
+    #         plt.figure(figsize=(8, 14))
 
-            plt.subplot(4, 1, 1)
-            plt.errorbar(
-                sub_df.mean_steps.cumsum(),
-                sub_df.mean_total_reward,
-                sub_df.std_total_reward, sub_df.std_steps)
-            plt.title(idx)
-            plt.ylabel('Total Reward')
-            plt.xlabel('Steps')
+    #         plt.subplot(4, 1, 1)
+    #         plt.errorbar(
+    #             sub_df.mean_steps.cumsum(),
+    #             sub_df.mean_total_reward,
+    #             sub_df.std_total_reward, sub_df.std_steps)
+    #         plt.title(idx)
+    #         plt.ylabel('Total Reward')
+    #         plt.xlabel('Steps')
 
-            plt.subplot(4, 1, 2)
-            plt.errorbar(sub_df.episode, sub_df.mean_total_reward,
-                         sub_df.std_total_reward)
-            plt.ylabel('Total Reward')
-            plt.xlabel('Episodes')
+    #         plt.subplot(4, 1, 2)
+    #         plt.errorbar(sub_df.episode, sub_df.mean_total_reward,
+    #                      sub_df.std_total_reward)
+    #         plt.ylabel('Total Reward')
+    #         plt.xlabel('Episodes')
 
-            plt.subplot(4, 1, 3)
-            plt.errorbar(
-                sub_df.mean_steps.cumsum(),
-                sub_df.mean_avg_episode_length,
-                sub_df.std_avg_episode_length, sub_df.std_steps)
-            plt.ylabel('Episode Length')
-            plt.xlabel('Steps')
+    #         plt.subplot(4, 1, 3)
+    #         plt.errorbar(
+    #             sub_df.mean_steps.cumsum(),
+    #             sub_df.mean_avg_episode_length,
+    #             sub_df.std_avg_episode_length, sub_df.std_steps)
+    #         plt.ylabel('Episode Length')
+    #         plt.xlabel('Steps')
 
-            plt.subplot(4, 1, 4)
-            plt.errorbar(
-                sub_df.episode, sub_df.mean_avg_episode_length,
-                sub_df.std_avg_episode_length)
-            plt.ylabel('Episode Length')
-            plt.xlabel('Episodes')
+    #         plt.subplot(4, 1, 4)
+    #         plt.errorbar(
+    #             sub_df.episode, sub_df.mean_avg_episode_length,
+    #             sub_df.std_avg_episode_length)
+    #         plt.ylabel('Episode Length')
+    #         plt.xlabel('Episodes')
 
-            png_str = idx[0]
-            png_str += '_{}_'.format(count)
-            png_str += '_train.png' if idx[1] else '_test.png'
-            png_path = os.path.join(self._experiment_dir, 'stats', png_str)
-            plt.savefig(png_path)
-            plt.close()
+    #         png_str = idx[0]
+    #         png_str += '_{}_'.format(count)
+    #         png_str += '_train.png' if idx[1] else '_test.png'
+    #         png_path = os.path.join(self._experiment_dir, 'stats', png_str)
+    #         plt.savefig(png_path)
+    #         plt.close()
 
 
 @click.command()
@@ -389,15 +377,15 @@ def run_experiment(spec_file, video, n_jobs):
     e.run(n_jobs=n_jobs)
 
 
-@click.command()
-@click.option(
-    '--experiment-dir',
-    help='Path to experiment directory, must contain a spec.json file')
-@click.option('--n-jobs', default=1, type=int,
-              help='number of cpu cores to use when running experiments')
-def continue_experiment(experiment_dir, n_jobs):
-    e = Experiment.from_unfinished_experiment_dir(experiment_dir)
-    e.run(n_jobs=n_jobs)
+# @click.command()
+# @click.option(
+#     '--experiment-dir',
+#     help='Path to experiment directory, must contain a spec.json file')
+# @click.option('--n-jobs', default=1, type=int,
+#               help='number of cpu cores to use when running experiments')
+# def continue_experiment(experiment_dir, n_jobs):
+#     e = Experiment.from_unfinished_experiment_dir(experiment_dir)
+#     e.run(n_jobs=n_jobs)
 
 
 @click.command()
@@ -407,3 +395,50 @@ def continue_experiment(experiment_dir, n_jobs):
 def upload_to_openai(upload_dir):
     gym.scoreboard.api_key = os.environ.get('OPENAI_GYM_API_KEY', None)
     gym.upload(upload_dir)
+
+
+@click.command()
+@click.option('--benchmark-name', default='Mujoco1M')
+@click.option('--agent', default='TRPOAgent')
+def run_benchmark(benchmark_name, agent):
+    SEEDS = list(range(1, 100))
+
+    from baselines.bench.benchmarks import _BENCHMARKS
+    benchmark_dict = dict(
+        map(lambda x: (x[1]['name'], x[0]), enumerate(_BENCHMARKS)))
+    assert benchmark_name in benchmark_dict
+    benchmark_idx = benchmark_dict[benchmark_name]
+    benchmark = _BENCHMARKS[benchmark_idx]
+
+    # Make a master log directory
+    experiment_dir = Experiment._get_experiment_dir(
+            benchmark_name)
+    base_log_path = experiment_utils._create_log_directory(
+            benchmark_name, experiment_dir)
+
+    # write the json config for this baseline
+    j = []
+    for t in benchmark['tasks']:
+        d = {
+            "env": {
+                "name": t['env_id'],
+                "normalize_obs": True
+            },
+            "agent": {
+                "type": agent,
+                "seeds": SEEDS[:t['trials']],
+                "training_params": {
+                    "max_timesteps": t['num_timesteps']
+                }
+            }
+        }
+        j.append(d)
+
+    j = {"runs": j}
+    spec_file = os.path.join(base_log_path, 'spec.json')
+    json.dump(j, open(spec_file, 'w'))
+
+    # run the experiment
+    e = Experiment.from_json_spec(
+        spec_file, log_dir=base_log_path)
+    e.run()

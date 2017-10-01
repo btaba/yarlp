@@ -1,6 +1,6 @@
 import os
 import re
-import csv
+import json
 import time
 import logging
 import numpy as np
@@ -20,7 +20,7 @@ class MetricLogger:
         self._episode = 0
 
         if self._log_dir is not None:
-            self._stat_file = os.path.join(self._log_dir, 'stats.tsv')
+            self._stat_file = os.path.join(self._log_dir, 'stats.json.txt')
 
         self._start_time = time.time()
 
@@ -30,6 +30,14 @@ class MetricLogger:
 
     def __getitem__(self, metric_name):
         return self._metric_dict[metric_name]
+
+    @property
+    def metric_dict(self):
+        for k, v in self._metric_dict.items():
+            if hasattr(v, 'dtype'):
+                v = v.tolist()
+                self._metric_dict[k] = float(v)
+        return self._metric_dict
 
     def add_metric(self, metric_name, value):
         self[metric_name] = value
@@ -73,24 +81,18 @@ class MetricLogger:
         tabulate_list = sorted(tabulate_list, key=lambda x: x[0])
         return tabulate(tabulate_list, floatfmt=".4f")
 
-    def log(self, reset=True):
-        """Log to csv in the log directory
+    def log(self):
+        """Log to file in the log directory
         """
         self._logger.info(self._tabulate())
 
         if self._log_dir is not None:
             self._logger.info('Writing stats to {}'.format(self._stat_file))
-            if not os.path.isfile(self._stat_file):
-                with open(self._stat_file, 'w') as f:
-                    w = csv.writer(f, delimiter='\t')
-                    w.writerow(self._metric_dict.keys())
             with open(self._stat_file, 'a') as f:
-                w = csv.writer(f, delimiter='\t')
-                vals = self._metric_dict.values()
-                w.writerow(vals)
+                json.dump(self.metric_dict, f)
+                f.write('\n')
 
-        if reset:
-            self._reset_metrics()
+        self._reset_metrics()
 
     def set_metrics_for_rollout(self, rollout, train=True):
         t = round(time.time() - self._start_time, 6)
@@ -98,7 +100,8 @@ class MetricLogger:
             # unroll the rollout
             self['avg_episode_length'] = np.mean(
                 [len(r.rewards) for r in rollout])
-            self['steps'] = np.sum(
+            self['episodes_this_iter'] = len(rollout)
+            self['timesteps_this_iter'] = np.sum(
                 [len(r.rewards) for r in rollout])
             self['min_reward'] = np.min([np.sum(r.rewards) for r in rollout])
             self['max_reward'] = np.max([np.sum(r.rewards) for r in rollout])
@@ -108,11 +111,12 @@ class MetricLogger:
                 [np.sum(r.rewards) for r in rollout])
             self['std_reward'] = np.std([np.sum(r.rewards) for r in rollout])
             self['total_reward'] = np.sum([np.sum(r.rewards) for r in rollout])
-            self['episode_cum_time'] = t
+            self['time_elapsed'] = t
         else:
             assert isinstance(rollout, Rollout)
             self['avg_episode_length'] = len(rollout.rewards)
-            self['steps'] = len(rollout.rewards)
+            self['episodes_this_iter'] = 1
+            self['timesteps_this_iter'] = len(rollout.rewards)
             self['min_reward'] = np.min(rollout.rewards)
             self['max_reward'] = np.max(rollout.rewards)
             self['training'] = train
@@ -120,4 +124,4 @@ class MetricLogger:
             self['avg_total_reward'] = np.sum(rollout.rewards)
             self['std_reward'] = np.std(rollout.rewards)
             self['total_reward'] = np.sum(rollout.rewards)
-            self['episode_cum_time'] = t
+            self['time_elapsed'] = t

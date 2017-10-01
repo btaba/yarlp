@@ -16,7 +16,7 @@ class RandomAgent(Agent):
 
         self._policy = self
 
-    def train(self, num_train_steps, num_test_steps=0,
+    def train(self, num_train_steps=1, num_test_steps=0,
               max_timesteps=0):
         """
 

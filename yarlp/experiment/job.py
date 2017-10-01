@@ -1,3 +1,4 @@
+import tensorflow as tf
 from yarlp.utils import experiment_utils
 from yarlp.utils.env_utils import NormalizedGymEnv
 from yarlp.utils.metric_logger import MetricLogger
@@ -11,31 +12,31 @@ class Job(object):
         self._video = video
 
     def _load(self):
-        self._training_epochs = self._spec_dict['agents']['training_epochs']
-        self._testing_epochs = self._spec_dict['agents']['testing_epochs']
         self._job_dir = self._create_log_dir()
         self._env = self._get_env(self._job_dir)
         self._agent = self._get_agent()
 
     def __call__(self):
         self._load()
-        training_params = self._spec_dict['agents']['training_params']
-        self._agent.train(self._training_epochs,
-                          self._testing_epochs, **training_params)
+        training_params = self._spec_dict['agent'].get('training_params', {})
+        self._agent.train(**training_params)
         self._env.close()
+        tf.reset_default_graph()
 
     def _get_env(self, job_dir):
-        env_name = self._spec_dict['envs']['name']
+        env_name = self._spec_dict['env']['name']
         env = NormalizedGymEnv(
-            env_name, self._video, job_dir, force_reset=True)
-        if 'timestep_limit' in self._spec_dict['envs']:
-            env.spec.timestep_limit = self._spec_dict['envs']['timestep_limit']
+            env_name, self._video, job_dir, force_reset=True,
+            normalize_obs=self._spec_dict['env'].get('normalize_obs', False))
+        if 'timestep_limit' in self._spec_dict['env']:
+            env.spec.timestep_limit = self._spec_dict['env']['timestep_limit']
         return env
 
     def _get_agent(self):
         cls_dict = experiment_utils._get_agent_cls_dict()
-        params = self._spec_dict['agents']['params']
-        agent_cls = cls_dict[self._spec_dict['agents']['type']]
+        params = self._spec_dict['agent'].get('params', {})
+        params['seed'] = self._spec_dict['seed']
+        agent_cls = cls_dict[self._spec_dict['agent']['type']]
         metric_logger = MetricLogger(self._job_dir)
         return agent_cls(env=self._env, logger=metric_logger, **params)
 

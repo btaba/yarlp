@@ -63,7 +63,7 @@ class Graph:
         return self._graph.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
 
     def save(self, path):
-        assert self._graph.finalized
+        # assert self._graph.finalized
         path = self._get_clean_path(path)
         if not os.path.exists(path):
             os.makedirs(path)

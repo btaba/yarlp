@@ -16,8 +16,8 @@ def setup_package():
         'entry_points': '''
             [console_scripts]
             run_yarlp_experiment=yarlp.experiment.experiment:run_experiment
-            continue_experiment=yarlp.experiment.experiment:continue_experiment
             upload_to_openai=yarlp.experiment.experiment:upload_to_openai
+            run_benchmark=yarlp.experiment.experiment:run_benchmark
         ''',
         'packages': find_packages()
     }

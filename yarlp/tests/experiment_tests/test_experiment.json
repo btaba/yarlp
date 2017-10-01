@@ -1,32 +1,53 @@
 {
-    "envs": [
+    "runs": [
         {
-            "name": "CartPole-v1",
-            "timestep_limit": 100,
-            "repeats": 1
-        }
-    ],
-    "agents": [
-        {
-            "type": "REINFORCEAgent",
-            "training_epochs": 1,
-            "testing_epochs": 1,
-            "params": {
-                "discount_factor": 0.99,
-                "policy_learning_rate": 0.01,
-                "policy_network": "mlp",
-                "policy_network_params": {
-                    "hidden_units": [32, 32]
-                }
+            "env": {
+                "name": "CartPole-v1",
+                "timestep_limit": 100
             },
-            "training_params": {}
+            "agent": {
+                "type": "REINFORCEAgent",
+                "params": {
+                    "discount_factor": 0.99,
+                    "policy_learning_rate": 0.01,
+                    "policy_network": "mlp",
+                    "policy_network_params": {
+                        "hidden_units": [32, 32]
+                    }
+                },
+                "training_params": {},
+                "seeds": [null]
+            }
         },
         {
-            "type": "RandomAgent",
-            "training_epochs": 1,
-            "testing_epochs": 1,
-            "params": {},
-            "training_params": {}
+            "env": {
+                "name": "CartPole-v1",
+                "timestep_limit": 100
+            },
+            "agent": {
+                "type": "TRPOAgent",
+                "params": {
+                    "discount_factor": 0.99,
+                    "policy_network": "mlp",
+                    "policy_network_params": {
+                        "hidden_units": [32, 32]
+                    }
+                },
+                "training_params": {},
+                "seeds": [null]
+            }
+        },
+        {
+            "env": {
+                "name": "CartPole-v1",
+                "timestep_limit": 100
+            },
+            "agent": {
+                "type": "RandomAgent",
+                "params": {},
+                "training_params": {},
+                "seeds": [null]
+            }
         }
     ]
 }
