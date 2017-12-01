@@ -172,7 +172,7 @@ class NormalizedGymEnv(GymEnv):
 
 class RunningMeanStd(object):
 
-    def __init__(self, shape, min_std=1e-2, clip_val=None):
+    def __init__(self, shape, min_std=1e-6, clip_val=None):
         self._min_std = min_std
         self._clip_val = clip_val
         self._cache = []

@@ -12,9 +12,9 @@ def main():
     # env = NormalizedGymEnv('CartPole-v1')
     env = NormalizedGymEnv(
         'Walker2d-v1',
-        normalize_obs=False)
+        normalize_obs=True)
 
-    seed = 123
+    seed = 0
     env.seed(seed)
     tf_utils.set_global_seeds(seed)
 
@@ -22,8 +22,11 @@ def main():
     # env = NormalizedGymEnv('Pendulum-v0')
     agent = TRPOAgent(
         env, discount_factor=0.99,
-        policy_network=mlp, seed=seed)
-    agent.train(max_timesteps=10000000)
+        policy_network=mlp, seed=seed,
+        gae_lambda=0.98, cg_iters=10,
+        cg_damping=1e-1, max_kl=1e-2,
+        init_std=1.0, min_std=1e-6)
+    agent.train(max_timesteps=1000000)
 
 
 if __name__ == '__main__':

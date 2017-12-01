@@ -102,8 +102,6 @@ class GaussianPolicy(Policy):
                                   weights_initializer=tf.zeros_initializer(),
                                   **network_params)
             else:
-                # log_std = tf.log(tf.ones(shape=[1, num_outputs]) * init_std)
-                # log_std = mean * 0.0 + log_std
                 log_std = tf.get_variable(
                     name='logstd',
                     shape=[1, num_outputs],
