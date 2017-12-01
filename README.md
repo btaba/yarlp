@@ -4,7 +4,7 @@
 
 **Yet Another Reinforcement Learning Package**
 
-Implementations of `CEM`, `REINFORCE`, `TRPO`.
+Implementations of `CEM`, `REINFORCE`, and `TRPO`, benchmarked against OpenAI [baselines](https://github.com/openai/baselines).
 
 Example:
 
@@ -25,11 +25,9 @@ agent.train(500, 0, n_steps=2048)
 ##### TODO:
 
 * benchmarks with experiment dir
-    - run experiment in yarlp and compare on mujoco tasks
-    - plot trpo baselines from openai vs mine
-    	- copy those plots to yarlp
+	- make yarlp perform same as baselines
     - then do atari tasks
 * DQ, DDQ
 * serialization/deserialization of agents
-* docs?
+* docs
 * pypi
