@@ -17,6 +17,7 @@ class Model:
         """
         self._env = env
         tf_utils.reset_cache()
+        tf.reset_default_graph()
         self.G = Graph()
         self.build_update_feed_dict = build_update_feed_dict
 
@@ -164,3 +165,8 @@ class Model:
 
     def apply_gradient_ops(self, name, feed_dict):
         return self.G(self.G['gradients_ops:' + name], feed_dict)
+
+    def predict(self, inputs):
+        return self.G._session.run(
+            self.G['output:'],
+            feed_dict={self.G['input:']: inputs})

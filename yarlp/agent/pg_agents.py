@@ -68,7 +68,8 @@ class REINFORCEAgent(BatchAgent):
             min_std=min_std, init_std=init_std, adaptive_std=adaptive_std,
             model_file_path=model_file_path)
 
-        policy_weight_sums = sum([np.sum(a) for a in self._policy.get_weights()])
+        policy_weight_sums = sum(
+            [np.sum(a) for a in self._policy.get_weights()])
         self.logger._logger.info(
             'Policy network weight sums: {}'.format(policy_weight_sums))
 

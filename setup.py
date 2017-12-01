@@ -5,7 +5,7 @@ from setuptools import find_packages
 def setup_package():
     config = {
         'name': 'yarlp',
-        'version': '0.0.1',
+        'version': '0.0.2',
         'description': 'yarlp',
         'author': 'Baruch Tabanpour',
         'author_email': '',
@@ -18,6 +18,7 @@ def setup_package():
             run_yarlp_experiment=yarlp.experiment.experiment:run_experiment
             upload_to_openai=yarlp.experiment.experiment:upload_to_openai
             run_benchmark=yarlp.experiment.experiment:run_benchmark
+            compare_benchmark=yarlp.experiment.experiment:compare_benchmark
         ''',
         'packages': find_packages()
     }

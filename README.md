@@ -2,7 +2,25 @@
 
 ## yarlp
 
-Yet Another Reinforcement Learning Package
+**Yet Another Reinforcement Learning Package**
+
+Implementations of `CEM`, `REINFORCE`, `TRPO`.
+
+Example:
+
+```python
+from yarlp.agent.trpo_agent import TRPOAgent
+from yarlp.utils.env_utils import NormalizedGymEnv
+
+env = NormalizedGymEnv(
+    'MountainCarContinuous-v0',
+    normalize_obs=True)
+
+agent = TRPOAgent(
+    env, discount_factor=0.99,
+    policy_network=mlp, seed=0)
+agent.train(500, 0, n_steps=2048)
+```
 
 ##### TODO:
 
@@ -13,6 +31,5 @@ Yet Another Reinforcement Learning Package
     - then do atari tasks
 * DQ, DDQ
 * serialization/deserialization of agents
-* parallel sampler for rollouts
-* add to pypi
-* docs
+* docs?
+* pypi

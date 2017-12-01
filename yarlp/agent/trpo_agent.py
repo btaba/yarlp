@@ -51,7 +51,8 @@ class TRPOAgent(BatchAgent):
             min_std=min_std, init_std=init_std, adaptive_std=adaptive_std,
             input_shape=input_shape, model_file_path=model_file_path)
 
-        policy_weight_sums = sum([np.sum(a) for a in self._policy.get_weights()])
+        policy_weight_sums = sum(
+            [np.sum(a) for a in self._policy.get_weights()])
         self.logger._logger.info(
             'Policy network weight sums: {}'.format(policy_weight_sums))
 
@@ -98,15 +99,6 @@ class TRPOAgent(BatchAgent):
 
         # descent direciton
         stepdir = conjugate_gradient(fisher_vector_product, g, self.cg_iters)
-        # initial_step_size = np.sqrt(
-        #     2.0 * max_kl *
-        #     (1. / (stepdir.dot(fisher_vector_product(stepdir)) + 1e-8))
-        # )
-
-        # print('initial_step_size is ', initial_step_size)
-        # if np.isnan(initial_step_size):
-        #     print('NAN initial_step_size')
-        #     initial_step_size = 1.
 
         def get_loss(th):
             feed[self._policy.theta] = th
@@ -125,9 +117,6 @@ class TRPOAgent(BatchAgent):
         for _ in range(10):
             thnew = thprev - fullstep * stepsize  # plus or minus?
 
-            # self._policy.G(
-            #     self._policy.sff,
-            #     {self._policy.theta: thnew})
             surr = get_loss(thnew)
             kl = self._policy.G(self._policy.kl, feed)
 
@@ -154,18 +143,6 @@ class TRPOAgent(BatchAgent):
         print("KL between old and new distribution", kloldnew)
         print("Surrogate loss before", lossbefore)
         print("Surrogate loss after", surrafter)
-
-        # if num_test_steps > 0:
-        #     r = []
-        #     for t_test in range(num_test_steps):
-        #         rollout = self.rollout(greedy=True)
-        #         r.append(rollout)
-        #     self.logger.add_metric('policy_loss', 0)
-        #     self.logger.set_metrics_for_rollout(r, train=False)
-        #     self.logger.log()
-
-        # if self.logger._log_dir is not None:
-        #     self.save_models(self.logger._log_dir)
 
         return
 
@@ -225,7 +202,8 @@ def linesearch(f, x, fullstep, expected_improve_rate):
     max_backtracks = 15
     fval = f(x)
 
-    for (_n_backtracks, stepfrac) in enumerate(backtrack_ratio ** np.arange(max_backtracks)):
+    for (_n_backtracks, stepfrac) in \
+            enumerate(backtrack_ratio ** np.arange(max_backtracks)):
         xnew = x + stepfrac * fullstep
         newfval = f(xnew)
         actual_improve = fval - newfval

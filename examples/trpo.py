@@ -11,19 +11,19 @@ from yarlp.utils import tf_utils
 def main():
     # env = NormalizedGymEnv('CartPole-v1')
     env = NormalizedGymEnv(
-        'MountainCarContinuous-v0',
-        normalize_obs=True)
+        'Walker2d-v1',
+        normalize_obs=False)
 
-    seed = 42
+    seed = 123
     env.seed(seed)
     tf_utils.set_global_seeds(seed)
-    
+
     # env = NormalizedGymEnv('Acrobot-v1')
     # env = NormalizedGymEnv('Pendulum-v0')
     agent = TRPOAgent(
         env, discount_factor=0.99,
-        policy_network=mlp, seed=0)
-    agent.train(500, 0, n_steps=2048)
+        policy_network=mlp, seed=seed)
+    agent.train(max_timesteps=10000000)
 
 
 if __name__ == '__main__':

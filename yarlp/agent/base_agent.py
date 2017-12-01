@@ -20,7 +20,7 @@ class Agent(ABC):
     Abstract class for an agent.
     """
 
-    def __init__(self, env, discount_factor=1,
+    def __init__(self, env, discount_factor=0.99,
                  logger=None, seed=None,
                  state_featurizer=lambda x: x):
         """

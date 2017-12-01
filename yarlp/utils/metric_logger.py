@@ -82,7 +82,8 @@ class MetricLogger:
         return tabulate(tabulate_list, floatfmt=".4f")
 
     def log(self):
-        """Log to file in the log directory
+        """
+        Log to file in the log directory
         """
         self._logger.info(self._tabulate())
 

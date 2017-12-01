@@ -18,8 +18,10 @@ class NoVideoSchedule(object):
 
 
 class GymEnv(Env):
-    """Taken from rllab gym_env.py
     """
+    Taken from rllab gym_env.py
+    """
+
     def __init__(self, env_name, video=False,
                  log_dir=None,
                  force_reset=False):
@@ -93,8 +95,10 @@ class GymEnv(Env):
 
 
 class NormalizedGymEnv(GymEnv):
-    """Taken from rllab normalized_env.py
     """
+    Taken from rllab normalized_env.py
+    """
+
     def __init__(self, env_name,
                  video=False,
                  log_dir=None,
