@@ -296,25 +296,25 @@ class BatchAgent(Agent):
         None
         """
 
-        assert sum([num_train_steps > 0,
-                    max_timesteps > 0]) >= 1,\
-            "Must provide num_train_steps or max_timesteps > 0."
-
-        timesteps_so_far = 0
-        train_steps_so_far = 0
-
         rollout_gen = do_rollout(
             self._policy, self._env, n_steps, greedy=False)
 
-        while True:
+        train_steps_so_far = 0
+        timesteps_so_far = 0
+        assert sum([max_timesteps > 0, num_train_steps > 0]) == 1,\
+            "Either max_timesteps > 0 or num_train_steps > 0"
 
-            if num_train_steps and train_steps_so_far >= num_train_steps:
+        while True:
+            if max_timesteps and timesteps_so_far >= max_timesteps:
                 break
-            elif max_timesteps and timesteps_so_far >= max_timesteps:
+            elif num_train_steps and train_steps_so_far >= num_train_steps:
                 break
 
             rollout = rollout_gen.__next__()
-            add_advantage(rollout, self._discount, self.gae_lambda)
+            timesteps_so_far += 1
+            train_steps_so_far += len(rollout['dones'])
+
+            add_advantage(rollout, self._discount, self._gae_lambda)
 
             adv = rollout['advantages']
             if whiten_advantages:
@@ -330,20 +330,17 @@ class BatchAgent(Agent):
 
             self.update(rollout)
 
-            timesteps_so_far += adv.shape[0]
-            train_steps_so_far += 1
-
             self.logger.add_metric('timesteps_so_far', timesteps_so_far)
             self.logger.add_metric('env_id', self._env_id)
             self.logger.set_metrics_for_rollout(rollout, train=True)
             self.logger.log()
 
-            if num_test_steps > 0:
-                test_gen = do_rollout(
-                    self.policy, self._env, greedy=True)
-                r = []
-                for t_test in range(num_test_steps):
-                    rollout = test_gen.__next__()
-                    r.append(rollout)
-                self.logger.set_metrics_for_rollout(r, train=False)
-                self.logger.log()
+            # if num_test_steps > 0:
+            #     test_gen = do_rollout(
+            #         self.policy, self._env, greedy=True)
+            #     r = []
+            #     for t_test in range(num_test_steps):
+            #         rollout = test_gen.__next__()
+            #         r.append(rollout)
+            #     self.logger.set_metrics_for_rollout(r, train=False)
+            #     self.logger.log()

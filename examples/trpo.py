@@ -10,12 +10,12 @@ from yarlp.utils import tf_utils
 
 def main():
     # env = NormalizedGymEnv('CartPole-v1')
-    # env = NormalizedGymEnv(
-    #     'Walker2d-v1',
-    #     # 'CartPole-v1',
-    #     normalize_obs=True)
-    import gym
-    env = gym.make('Walker2d-v1')
+    env = NormalizedGymEnv(
+        'Walker2d-v1',
+        # 'CartPole-v1',
+        normalize_obs=True)
+    # import gym
+    # env = gym.make('Walker2d-v1')
 
     seed = 10000
     env.seed(seed)
