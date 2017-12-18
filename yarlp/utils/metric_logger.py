@@ -4,9 +4,8 @@ import json
 import time
 import logging
 import numpy as np
-
 from tabulate import tabulate
-from yarlp.utils.replay_buffer import Rollout
+from collections import deque
 
 
 class MetricLogger:
@@ -16,13 +15,14 @@ class MetricLogger:
     def __init__(self, log_dir=None, logger_name='yarlp'):
         self._log_dir = log_dir
         self._logger = self._create_logger(logger_name)
-        self._metric_dict = {'episode': 0}
-        self._episode = 0
+        self._metric_dict = {'Iteration': 0}
+        self._iteration = 0
 
         if self._log_dir is not None:
             self._stat_file = os.path.join(self._log_dir, 'stats.json.txt')
 
         self._start_time = time.time()
+        self._running_reward = deque(maxlen=40)
 
     def __setitem__(self, metric_name, value):
         self._validate_header_name(metric_name)
@@ -71,8 +71,8 @@ class MetricLogger:
              "must have only ascii letters and _ or -")
 
     def _reset_metrics(self):
-        self._episode += 1
-        self._metric_dict = {'episode': self._episode}
+        self._iteration += 1
+        self._metric_dict = {'Iteration': self._iteration}
 
     def _tabulate(self):
         tabulate_list = list(
@@ -97,32 +97,16 @@ class MetricLogger:
 
     def set_metrics_for_rollout(self, rollout, train=True):
         t = round(time.time() - self._start_time, 6)
-        if isinstance(rollout, list):
-            # unroll the rollout
-            self['avg_episode_length'] = np.mean(
-                [len(r.rewards) for r in rollout])
-            self['episodes_this_iter'] = len(rollout)
-            self['timesteps_this_iter'] = np.sum(
-                [len(r.rewards) for r in rollout])
-            self['min_reward'] = np.min([np.sum(r.rewards) for r in rollout])
-            self['max_reward'] = np.max([np.sum(r.rewards) for r in rollout])
-            self['training'] = train
-            self['avg_reward'] = np.mean([np.mean(r.rewards) for r in rollout])
-            self['avg_total_reward'] = np.mean(
-                [np.sum(r.rewards) for r in rollout])
-            self['std_reward'] = np.std([np.sum(r.rewards) for r in rollout])
-            self['total_reward'] = np.sum([np.sum(r.rewards) for r in rollout])
-            self['time_elapsed'] = t
-        else:
-            assert isinstance(rollout, Rollout)
-            self['avg_episode_length'] = len(rollout.rewards)
-            self['episodes_this_iter'] = 1
-            self['timesteps_this_iter'] = len(rollout.rewards)
-            self['min_reward'] = np.min(rollout.rewards)
-            self['max_reward'] = np.max(rollout.rewards)
-            self['training'] = train
-            self['avg_reward'] = np.mean(rollout.rewards)
-            self['avg_total_reward'] = np.sum(rollout.rewards)
-            self['std_reward'] = np.std(rollout.rewards)
-            self['total_reward'] = np.sum(rollout.rewards)
-            self['time_elapsed'] = t
+
+        self['avg_episode_length'] = np.mean(rollout['episode_lengths'])
+        self['episodes_this_iter'] = len(rollout['episode_returns'])
+        self['timesteps_this_iter'] = len(rollout['dones'])
+        self['min_reward'] = np.min(rollout['episode_returns'])
+        self['max_reward'] = np.max(rollout['episode_returns'])
+        self['training'] = train
+        self['avg_total_reward'] = np.mean(rollout['episode_returns'])
+        self._running_reward.extend(rollout['episode_returns'])
+        self['Smoothed_total_reward'] = np.mean(self._running_reward)
+        self['std_reward'] = np.std(rollout['episode_returns'])
+        self['total_reward'] = np.sum(rollout['episode_returns'])
+        self['time_elapsed'] = t

@@ -125,6 +125,9 @@ class NormalizedGymEnv(GymEnv):
             self._reward_rms = RunningMeanStd(
                 shape=(1), min_std=min_reward_std)
 
+    def update_rms(self):
+        self._obs_rms.update()
+
     @property
     def action_space(self):
         if isinstance(self.env.action_space, Box):
@@ -142,24 +145,24 @@ class NormalizedGymEnv(GymEnv):
     def _update_obs(self, obs, done):
         self._obs_rms.cache(obs)
         obs = self._obs_rms.normalize(obs)
-        if done:
-            self._obs_rms.update()
+        # if done:
+        #     self._obs_rms.update()
         return obs
 
     def step(self, action):
-        if isinstance(self.env.action_space, Box):
-            # rescale the action
-            lb, ub = self.env.action_space.low, self.env.action_space.high
-            scaled_action = lb + (action[0] + 1.) * 0.5 * (ub - lb)
-            scaled_action = np.clip(scaled_action, lb, ub)
-        else:
-            scaled_action = action
+        # if isinstance(self.env.action_space, Box):
+        #     # rescale the action
+        #     lb, ub = self.env.action_space.low, self.env.action_space.high
+        #     scaled_action = lb + (action[0] + 1.) * 0.5 * (ub - lb)
+        #     scaled_action = np.clip(scaled_action, lb, ub)
+        # else:
+        #     scaled_action = action
 
-        wrapped_step = self.env.step(scaled_action)
+        wrapped_step = self.env.step(action)
         next_obs, reward, done, info = wrapped_step
 
-        if self._normalize_obs:
-            next_obs = self._update_obs(next_obs, done)
+        # if self._normalize_obs:
+        #     next_obs = self._update_obs(next_obs, done)
 
         if self._normalize_rewards:
             reward = self._update_rewards(reward, done)

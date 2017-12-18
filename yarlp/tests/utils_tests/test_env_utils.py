@@ -65,6 +65,21 @@ class TestRunningMeanStd(unittest.TestCase):
         assert np.allclose(rms._mean, X.mean(axis=0))
         assert np.allclose(rms._std, X.std(axis=0, ddof=1))
 
+    def test_longer_vec(self):
+        np.random.seed(0)
+        X = np.random.randn(100, 10)
+
+        rms = RunningMeanStd(min_std=0.0, shape=(10,))
+
+        for i in range(X.shape[0]):
+            rms.cache(X[i])
+            if i % 4 == 0:
+                rms.update()
+        rms.update()
+        print(rms._mean, X.mean(axis=0))
+        assert np.allclose(rms._mean, X.mean(axis=0))
+        assert np.allclose(rms._std, X.std(axis=0, ddof=1))
+
     def test_clip(self):
         rms = RunningMeanStd((1), clip_val=2)
         assert np.equal(rms.normalize(3), 2.)

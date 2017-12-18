@@ -17,7 +17,7 @@ def main():
     import gym
     env = gym.make('Walker2d-v1')
 
-    seed = 5
+    seed = 10000
     env.seed(seed)
     tf_utils.set_global_seeds(seed)
 

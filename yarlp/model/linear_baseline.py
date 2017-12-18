@@ -7,6 +7,7 @@ class LinearFeatureBaseline:
     Value-function baseline from rllab,
     linear model with some polynomial features on states
     """
+
     def __init__(self, reg_coeff=1e-5):
         self._coeffs = None
         self._reg_coeff = reg_coeff
