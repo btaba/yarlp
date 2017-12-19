@@ -61,43 +61,8 @@ class Agent(ABC):
         return GymEnv.get_env_action_space_dim(self._env)
 
     def get_baseline_pred(self, obs):
-        if self._baseline_model:
-            return self._baseline_model.predict(
-                np.array([obs])).flatten()[0]
-        return None
-
-    def get_discounted_cumulative_reward(self, rewards):
-        """
-        Parameters
-        ----------
-        r : list
-
-        Returns
-        ----------
-        cumulative_reward : list
-        """
-        cumulative_reward = [0]
-        for t, r in enumerate(rewards):
-            temp = cumulative_reward[-1] + self._discount ** t * r
-            cumulative_reward.append(temp)
-
-        return np.sum(cumulative_reward[1:])
-
-    def get_discounted_reward_list(self, rewards, discount=None):
-        """
-        Given a list of rewards, return the discounted rewards
-        at each time step, in linear time
-        """
-        if discount is None:
-            discount = self._discount
-
-        rt = 0
-        discounted_rewards = []
-        for t in range(len(rewards) - 1, -1, -1):
-            rt = rewards[t] + discount * rt
-            discounted_rewards.append(rt)
-
-        return list(reversed(discounted_rewards))
+        return self._baseline_model.predict(
+            np.array([obs])).flatten()[0]
 
     def get_action(self, state, greedy=False):
         """
@@ -108,12 +73,13 @@ class Agent(ABC):
         action : numpy array or integer
         """
         batch = np.array([state])
-        with self._policy.G._session.as_default():
+        # with self._policy.G._session.as_default():
             # a = self._policy.policy.predict(
             #     # self._policy.get_session(),
             #     batch[0], greedy)
-            a, _ = self._policy.pi.act(not greedy, batch[0])
-        return a
+        # a, _ = self._policy.pi.act(not greedy, batch[0])
+        # return a
+        return self._policy.act(not greedy, batch[0])
 
     def argmax_break_ties(self, probs):
         """
@@ -137,8 +103,8 @@ class Agent(ABC):
         return self._state_featurizer(state)
 
 
-def do_rollout(agent, env, n_steps=None, render=False, render_freq=5,
-               greedy=False):
+def do_rollout(agent, env, n_steps=None,
+               render=False, render_freq=5, greedy=False):
     """
     Performs actions on the environment
     based on the agent's current weights for 1 single rollout
@@ -156,7 +122,7 @@ def do_rollout(agent, env, n_steps=None, render=False, render_freq=5,
     episode_lengths = []
 
     observation = env.reset()
-    # observation = agent.get_state(observation)
+    observation = agent.get_state(observation)
     done = False
 
     observations = []
@@ -184,10 +150,10 @@ def do_rollout(agent, env, n_steps=None, render=False, render_freq=5,
 
         if is_truncated_rollout or is_completed_rollout:
 
-            # next_baseline_pred = agent.get_baseline_pred(
-            #     observation) * (1 - dones[-1])
-            next_baseline_pred = agent.act(not greedy, observation)[1] *\
-                (1 - dones[-1])
+            next_baseline_pred = agent.get_baseline_pred(
+                observation) * (1 - dones[-1])
+            # next_baseline_pred = agent.get_action(observation, not greedy)[1] *\
+            #     (1 - dones[-1])
 
             rollout = {
                 "observations": np.array(observations),
@@ -211,9 +177,9 @@ def do_rollout(agent, env, n_steps=None, render=False, render_freq=5,
             actions = []
             t = 0
 
-        # action = agent.get_action(observation, greedy=greedy)
-        action, baseline_pred = agent.act(not greedy, observation)
-        # baseline_pred = agent.get_baseline_pred(observation)
+        action, baseline_pred = agent.get_action(observation, greedy=greedy)
+        # action, baseline_pred = agent.act(not greedy, observation)
+        baseline_pred = agent.get_baseline_pred(observation)
 
         baseline_preds.append(baseline_pred)
         actions.append(action)
@@ -297,7 +263,7 @@ class BatchAgent(Agent):
         """
 
         rollout_gen = do_rollout(
-            self._policy, self._env, n_steps, greedy=False)
+            self, self._env, n_steps, greedy=False)
 
         train_steps_so_far = 0
         timesteps_so_far = 0
@@ -321,26 +287,37 @@ class BatchAgent(Agent):
                 adv = (adv - np.mean(adv)) / (np.std(adv) + 1e-8)
                 rollout['advantages'] = adv
 
-            # # batch update the baseline model
-            # # if isinstance(self._baseline_model, LinearFeatureBaseline):
-            # #     self._baseline_model.fit(rollout['observations'], adv)
-            # # elif hasattr(self._baseline_model, 'G'):
-            # #     self._baseline_model.update(
-            # #         rollout['observations'], adv)
-
             self.update(rollout)
+
+            # batch update the baseline model
+            print('BLosss is ', np.mean(np.square(rollout['baseline_preds'] - rollout['discounted_future_reward'])))
+            if isinstance(self._baseline_model, LinearFeatureBaseline):
+                self._baseline_model.fit(
+                    rollout['observations'], rollout['discounted_future_reward'])
+            elif hasattr(self._baseline_model, 'G'):
+                for _ in range(self.baseline_train_iters):
+                    for ob, a in tf_utils.iterbatches(
+                            [rollout['observations'], rollout['discounted_future_reward']]):
+                        self._baseline_model.update(ob, a)
+
+            # for _ in range(5):
+            #     for (mbob, mbret) in tf_utils.iterbatches((rollout["observations"], rollout["discounted_future_reward"]), batch_size=64):
+            #         g = self.compute_vflossandgrad(mbob, mbret)
+            #         self.vfadam.update(g, 1e-3)
+            # print('Losss is ', self.compute_vloss(rollout['observations'], rollout['discounted_future_reward']))
+            # print('Loss is', np.mean(np.square(rollout['baseline_preds'] - rollout['discounted_future_reward'])))
 
             self.logger.add_metric('timesteps_so_far', timesteps_so_far)
             self.logger.add_metric('env_id', self._env_id)
             self.logger.set_metrics_for_rollout(rollout, train=True)
             self.logger.log()
 
-            # if num_test_steps > 0:
-            #     test_gen = do_rollout(
-            #         self.policy, self._env, greedy=True)
-            #     r = []
-            #     for t_test in range(num_test_steps):
-            #         rollout = test_gen.__next__()
-            #         r.append(rollout)
-            #     self.logger.set_metrics_for_rollout(r, train=False)
-            #     self.logger.log()
+            if num_test_steps > 0:
+                test_gen = do_rollout(
+                    self, self._env, greedy=True)
+                r = []
+                for t_test in range(num_test_steps):
+                    rollout = test_gen.__next__()
+                    r.append(rollout)
+                self.logger.set_metrics_for_rollout(r, train=False)
+                self.logger.log()

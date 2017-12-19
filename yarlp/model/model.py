@@ -17,7 +17,7 @@ class Model:
         """
         self._env = env
         tf_utils.reset_cache()
-        tf.reset_default_graph()
+        # tf.reset_default_graph()
         self.G = Graph()
         self.build_update_feed_dict = build_update_feed_dict
 

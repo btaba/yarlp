@@ -25,7 +25,7 @@ def value_function_model_factory(
         model.state = input_node
         model.target_value = tf.placeholder(
             dtype=tf.float32, shape=(None,), name='target_value')
-        loss = tf.reduce_mean(
+        model.loss = loss = tf.reduce_mean(
             tf.squared_difference(output_node, model.target_value))
         optimizer = tf.train.AdamOptimizer(
             learning_rate=lr)

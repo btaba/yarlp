@@ -108,13 +108,15 @@ class NormalizedGymEnv(GymEnv):
                  min_obs_std=1e-2,
                  norm_obs_clip=5,
                  normalize_obs=False,
-                 normalize_rewards=False):
+                 normalize_rewards=False,
+                 scale_continuous_actions=False):
         super().__init__(env_name=env_name, video=video,
                          log_dir=log_dir, force_reset=force_reset)
         self._scale_reward = scale_reward
 
         self._normalize_obs = normalize_obs
         self._normalize_rewards = normalize_rewards
+        self._scale_continuous_actions = scale_continuous_actions
 
         if normalize_obs:
             self._obs_rms = RunningMeanStd(
@@ -150,13 +152,13 @@ class NormalizedGymEnv(GymEnv):
         return obs
 
     def step(self, action):
-        # if isinstance(self.env.action_space, Box):
-        #     # rescale the action
-        #     lb, ub = self.env.action_space.low, self.env.action_space.high
-        #     scaled_action = lb + (action[0] + 1.) * 0.5 * (ub - lb)
-        #     scaled_action = np.clip(scaled_action, lb, ub)
-        # else:
-        #     scaled_action = action
+        if self._scale_continuous_actions:
+            if isinstance(self.env.action_space, Box):
+                # rescale the action
+                lb, ub = self.env.action_space.low, self.env.action_space.high
+                scaled_action = lb + (action[0] + 1.) * 0.5 * (ub - lb)
+                scaled_action = np.clip(scaled_action, lb, ub)
+                action = scaled_action
 
         wrapped_step = self.env.step(action)
         next_obs, reward, done, info = wrapped_step

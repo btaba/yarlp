@@ -71,3 +71,14 @@ def get_placeholder(name, dtype, shape):
         out = tf.placeholder(dtype=dtype, shape=shape, name=name)
         _CACHED_PLACEHOLDER[name] = (out, dtype, shape)
         return out
+
+
+def iterbatches(arrays, batch_size=64):
+    arrays = tuple(map(np.asarray, arrays))
+    n = arrays[0].shape[0]
+    assert all(a.shape[0] == n for a in arrays[1:])
+    inds = np.arange(n)
+    np.random.shuffle(inds)
+    sections = np.arange(0, n, batch_size)[1:]
+    for batch_inds in np.array_split(inds, sections):
+        yield tuple(a[batch_inds] for a in arrays)
