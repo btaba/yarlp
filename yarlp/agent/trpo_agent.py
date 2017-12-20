@@ -40,7 +40,7 @@ class TRPOAgent(base_agent.BatchAgent):
                  baseline_network=None,
                  baseline_model_learning_rate=1e-3,
                  baseline_train_iters=3,
-                 baseline_network_params={'final_weights_initializer': normc_initializer(1)},
+                 baseline_network_params={'final_weights_initializer': normc_initializer(1.0)},
                  model_file_path=None,
                  adaptive_std=False,
                  gae_lambda=0.98, cg_iters=10,
@@ -120,7 +120,13 @@ class TRPOAgent(base_agent.BatchAgent):
         self.compute_lossandgrad = compute_lossandgrad = U.function([ob, ac, atarg], losses + [U.flatgrad(optimgain, var_list)])
         self.compute_fvp = compute_fvp = U.function([flat_tangent, ob, ac, atarg], fvp)
         self.compute_vflossandgrad = compute_vflossandgrad = U.function([ob, ret], U.flatgrad(vferr, vf_var_list))
-        self.compute_vloss = U.function([ob, ret], vferr)
+        self.compute_vfloss = U.function([ob, ret], vferr)
+
+
+        optimizer = tf.train.AdamOptimizer(
+            learning_rate=1e-2)
+        vfadam2 = optimizer.minimize(vferr)
+        self.compute_vflossandgrad2 = U.function([ob, ret], vfadam2)
 
         U.initialize()
         th_init = get_flat()

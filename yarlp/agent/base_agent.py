@@ -61,8 +61,10 @@ class Agent(ABC):
         return GymEnv.get_env_action_space_dim(self._env)
 
     def get_baseline_pred(self, obs):
-        return self._baseline_model.predict(
-            np.array([obs])).flatten()[0]
+        if self._baseline_model:
+            return self._baseline_model.predict(
+                np.array(obs)).flatten()
+        return np.zeros_like(obs)
 
     def get_action(self, state, greedy=False):
         """
@@ -127,7 +129,6 @@ def do_rollout(agent, env, n_steps=None,
 
     observations = []
     rewards = []
-    baseline_preds = []
     dones = []
     actions = []
 
@@ -151,9 +152,8 @@ def do_rollout(agent, env, n_steps=None,
         if is_truncated_rollout or is_completed_rollout:
 
             next_baseline_pred = agent.get_baseline_pred(
-                observation) * (1 - dones[-1])
-            # next_baseline_pred = agent.get_action(observation, not greedy)[1] *\
-            #     (1 - dones[-1])
+                [observation]) * (1 - dones[-1])
+            baseline_preds = agent.get_baseline_pred(np.array(observations))
 
             rollout = {
                 "observations": np.array(observations),
@@ -172,16 +172,12 @@ def do_rollout(agent, env, n_steps=None,
             episode_lengths = []
             observations = []
             rewards = []
-            baseline_preds = []
             dones = []
             actions = []
             t = 0
 
-        action, baseline_pred = agent.get_action(observation, greedy=greedy)
-        # action, baseline_pred = agent.act(not greedy, observation)
-        baseline_pred = agent.get_baseline_pred(observation)
+        action, _ = agent.get_action(observation, greedy=greedy)
 
-        baseline_preds.append(baseline_pred)
         actions.append(action)
         observations.append(observation)
 
@@ -261,7 +257,7 @@ class BatchAgent(Agent):
         ----------
         None
         """
-
+        w = self._baseline_model.G(self._baseline_model.G.TRAINABLE_VARIABLES[-2], {})
         rollout_gen = do_rollout(
             self, self._env, n_steps, greedy=False)
 
@@ -290,7 +286,6 @@ class BatchAgent(Agent):
             self.update(rollout)
 
             # batch update the baseline model
-            print('BLosss is ', np.mean(np.square(rollout['baseline_preds'] - rollout['discounted_future_reward'])))
             if isinstance(self._baseline_model, LinearFeatureBaseline):
                 self._baseline_model.fit(
                     rollout['observations'], rollout['discounted_future_reward'])
@@ -299,13 +294,6 @@ class BatchAgent(Agent):
                     for ob, a in tf_utils.iterbatches(
                             [rollout['observations'], rollout['discounted_future_reward']]):
                         self._baseline_model.update(ob, a)
-
-            # for _ in range(5):
-            #     for (mbob, mbret) in tf_utils.iterbatches((rollout["observations"], rollout["discounted_future_reward"]), batch_size=64):
-            #         g = self.compute_vflossandgrad(mbob, mbret)
-            #         self.vfadam.update(g, 1e-3)
-            # print('Losss is ', self.compute_vloss(rollout['observations'], rollout['discounted_future_reward']))
-            # print('Loss is', np.mean(np.square(rollout['baseline_preds'] - rollout['discounted_future_reward'])))
 
             self.logger.add_metric('timesteps_so_far', timesteps_so_far)
             self.logger.add_metric('env_id', self._env_id)

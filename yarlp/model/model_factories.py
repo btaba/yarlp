@@ -26,14 +26,12 @@ def value_function_model_factory(
         model.target_value = tf.placeholder(
             dtype=tf.float32, shape=(None,), name='target_value')
         model.loss = loss = tf.reduce_mean(
-            tf.squared_difference(output_node, model.target_value))
+            tf.square(tf.squeeze(model.value) - tf.squeeze(model.target_value)))
         optimizer = tf.train.AdamOptimizer(
             learning_rate=lr)
         model.add_loss(loss)
         model.add_optimizer(optimizer, loss)
         model.learning_rate = lr
-
-        model.create_gradient_ops_for_node(optimizer, output_node)
 
     def build_update_feed_dict(model, state, target_value):
         if len(state.shape) == 1:

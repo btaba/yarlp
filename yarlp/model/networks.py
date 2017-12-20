@@ -13,13 +13,31 @@ def normc_initializer(std=1.0):
     return _initializer
 
 
+def dense(x, size, name, weight_init=None, bias=True, activation_fn=None):
+    w = tf.get_variable(name + "/weight", [x.get_shape()[1], size], initializer=weight_init)
+    ret = tf.matmul(x, w)
+    if bias:
+        b = tf.get_variable(name + "/bias", [size], initializer=tf.zeros_initializer())
+        out = ret + b
+    else:
+        out = ret
+
+    if activation_fn is not None:
+        return activation_fn(out)
+    return out
+
+
 def mlp(inputs, num_outputs, final_activation_fn=None,
-        activation_fn=tf.nn.tanh, hidden_units=(32, 32),
+        activation_fn=None, hidden_units=(32, 32),
         weights_initializer=normc_initializer(1.0),
         final_weights_initializer=normc_initializer(0.01)):
     """
     Multi-Layer Perceptron
     """
+
+    if activation_fn is None:
+        activation_fn = tf.nn.tanh
+
     assert len(hidden_units) > 0
 
     if isinstance(hidden_units, list):
@@ -28,16 +46,13 @@ def mlp(inputs, num_outputs, final_activation_fn=None,
     assert isinstance(hidden_units, tuple)
 
     x = inputs
-    for h in hidden_units:
-        x = tf.contrib.layers.fully_connected(
-            x, num_outputs=h, activation_fn=activation_fn,
-            weights_initializer=weights_initializer,
-            biases_initializer=tf.zeros_initializer())
+    for i, h in enumerate(hidden_units):
+        x = dense(x, h, 'fully_connected{}'.format(i),
+                  weight_init=weights_initializer,
+                  activation_fn=activation_fn)
 
-    x = tf.contrib.layers.fully_connected(
-        x, num_outputs=num_outputs,
-        activation_fn=final_activation_fn,
-        weights_initializer=final_weights_initializer,
-        biases_initializer=tf.zeros_initializer())
-
+    x = dense(x, num_outputs, 'fully_connected_final',
+              activation_fn=final_activation_fn,
+              weight_init=final_weights_initializer)
+    
     return x
