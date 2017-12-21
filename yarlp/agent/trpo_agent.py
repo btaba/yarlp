@@ -35,10 +35,10 @@ class TRPOAgent(base_agent.BatchAgent):
     """
 
     def __init__(self, env,
-                 policy_network=tf.contrib.layers.fully_connected,
+                 policy_network=None,
                  policy_network_params={},
                  baseline_network=None,
-                 baseline_model_learning_rate=1e-3,
+                 baseline_model_learning_rate=1e-2,
                  baseline_train_iters=3,
                  baseline_network_params={'final_weights_initializer': normc_initializer(1.0)},
                  model_file_path=None,
@@ -100,8 +100,13 @@ class TRPOAgent(base_agent.BatchAgent):
         vf_var_list = [v for v in all_var_list if v.name.split("/")[1].startswith("vf")]
         self.vfadam = vfadam = MpiAdam(vf_var_list)
 
+        var_list2 = vf_var_list = [v for v in all_var_list if v.name.split("/")[1].startswith("pol") or v.name == 'pi/logstd:0']
+        for v in var_list2:
+            print(v)
+
         self.get_flat = get_flat = U.GetFlat(var_list)
         self.set_from_flat = set_from_flat = U.SetFromFlat(var_list)
+        self.set_from_flat2 = U.SetFromFlat(var_list2)
         klgrads = tf.gradients(dist, var_list)
         flat_tangent = tf.placeholder(dtype=tf.float32, shape=[None], name="flat_tan")
         shapes = [var.get_shape().as_list() for var in var_list]
@@ -134,23 +139,23 @@ class TRPOAgent(base_agent.BatchAgent):
         vfadam.sync()
         print("Init param sum", th_init.sum(), flush=True)
 
-        # policy_network = get_network(policy_network, policy_network_params)
-
-        # self._policy = trpo_model_factory(
-        #     env, network=policy_network, network_params=policy_network_params,
-        #     min_std=min_std, init_std=init_std, adaptive_std=adaptive_std,
-        #     input_shape=input_shape, model_file_path=model_file_path)
-
-        # policy_weight_sums = sum(
-        #     [np.sum(a) for a in self._policy.get_weights()])
-        # self.logger._logger.info(
-        #     'Policy network weight sums: {}'.format(policy_weight_sums))
-
         self.cg_iters = cg_iters
         self.cg_damping = cg_damping
         self.max_kl = max_kl
         self._gae_lambda = gae_lambda
         self.baseline_train_iters = baseline_train_iters
+
+        policy_network = get_network(policy_network, policy_network_params)
+
+        self._policy = trpo_model_factory(
+            env, network=policy_network, network_params=policy_network_params,
+            min_std=min_std, init_std=init_std, adaptive_std=adaptive_std,
+            input_shape=input_shape, model_file_path=model_file_path)
+
+        policy_weight_sums = sum(
+            [np.sum(a) for a in self._policy.get_weights()])
+        self.logger._logger.info(
+            'Policy network weight sums: {}'.format(policy_weight_sums))
 
         if isinstance(baseline_network, LinearFeatureBaseline):
             self._baseline_model = baseline_network
@@ -242,47 +247,81 @@ class TRPOAgent(base_agent.BatchAgent):
 
         """
         seg = rollout
-        pi = self._policy
-        from baselines.common import explained_variance, zipsame, dataset
-        # ob, ac, atarg, ret, td1ret = map(np.concatenate, (obs, acs, atargs, rets, td1rets))
         ob, ac, atarg, tdlamret = seg["observations"], seg["actions"], seg["advantages"], seg["discounted_future_reward"]
         vpredbefore = seg["baseline_preds"] # predicted value function before udpate
 
-        if hasattr(pi, "ob_rms"): pi.ob_rms.update(ob) # update running mean/std for policy
-
-        # print('Ob RMS', self.sess.run(pi.ob_rms.mean))
-        # print('Ob RMS', self.sess.run(pi.ob_rms.std))
-        # print('My Ob RMS', self._env._obs_rms._mean)
-        # print('My Ob RMS', self._env._obs_rms._std)
-
-        args = seg["observations"], seg["actions"], atarg
+        args = seg["observations"], seg["actions"], seg["advantages"]
         fvpargs = [arr[::5] for arr in args]
+        fvp_feed = self._policy.build_update_feed_dict(
+            self._policy,
+            fvpargs[0], fvpargs[2],
+            fvpargs[1])
         def fisher_vector_product(p):
-            return self.compute_fvp(p, *fvpargs) + self.cg_damping * p
+            fvp_feed[self._policy.flat_tangent] = p
+            return self._policy.G(self._policy.fvp, fvp_feed) +\
+                self.cg_damping * p
 
-        self.assign_old_eq_new() # set old parameter values to new parameter values
+        feed = self._policy.build_update_feed_dict(
+            self._policy,
+            seg["observations"], seg["advantages"],
+            seg["actions"])
 
-        *lossbefore, g = self.compute_lossandgrad(*args)
-        lossbefore = np.array(lossbefore)
+        # set weights for their network
+        # self.set_from_flat2(self._policy.G(self._policy.gf, feed))
+        # self.assign_old_eq_new()
+
+        self._policy.G(self._policy.set_old_pi_eq_new_pi)
+
+        def set_from_flat(th):
+            feed[self._policy.theta] = th
+            self._policy.G(self._policy.sff, feed)
+
+        def get_loss():
+            # feed[self._policy.theta] = th
+            # self._policy.G(self._policy.sff, feed)
+            return self._policy.G(self._policy.losses, feed)
+
+        lossbefore = get_loss()
+        # *lossbefore2, g2 = self.compute_lossandgrad(*args)
+
+        print('logstd', self._policy.G(self._policy.logstd))
+        print('std', np.exp(self._policy.G(self._policy.logstd)))
+        # compute diff parts of graph and see where they diverge
+        # print(lossbefore, lossbefore2)
+
+        g = self._policy.G(self._policy.pg, feed)
+        # print(g, g2)
+        # print(g.shape, g2.shape)
         if np.allclose(g, 0):
             print("Got zero gradient. not updating")
         else:
-            stepdir = cg(fisher_vector_product, g, cg_iters=self.cg_iters, verbose=True)
+            stepdir = cg(fisher_vector_product, g, self.cg_iters, verbose=True)
+
             assert np.isfinite(stepdir).all()
             shs = .5*stepdir.dot(fisher_vector_product(stepdir))
             lm = np.sqrt(shs / self.max_kl)
             # print("lagrange multiplier:", lm, "gnorm:", np.linalg.norm(g))
             fullstep = stepdir / lm
+            print('fullstep', fullstep.shape)
             expectedimprove = g.dot(fullstep)
             surrbefore = lossbefore[0]
             stepsize = 1.0
-            thbefore = self.get_flat()
+            # thbefore = get_flat()
+            thprev = self._policy.G(self._policy.gf, feed)
             for _ in range(10):
-                thnew = thbefore + fullstep * stepsize
-                self.set_from_flat(thnew)
-                meanlosses = surr, kl, *_ = np.array(self.compute_losses(*args))
+                thnew = thprev + fullstep * stepsize
+                set_from_flat(thnew)
+                # self.set_from_flat2(thnew)
+                # meanlosses = surr, kl, *_ = allmean(np.array(compute_losses(*args)))
+                # improve = surr - surrbefore
+                surr = get_loss()[0]
+                # print('surr', get_loss(), self.compute_lossandgrad(*args)[:-1])
                 improve = surr - surrbefore
-                print("Expected: %.3f Actual: %.3f"%(expectedimprove, improve))
+                # improve = surr - surrbefore
+                kl = self._policy.G(self._policy.kl, feed)
+                meanlosses = (surr, kl)
+
+                print("Expected: %.3f Actual: %.3f" % (expectedimprove, improve))
                 if not np.isfinite(meanlosses).all():
                     print("Got non-finite value of losses -- bad!")
                 elif kl > self.max_kl * 1.5:
@@ -295,7 +334,70 @@ class TRPOAgent(base_agent.BatchAgent):
                 stepsize *= .5
             else:
                 print("couldn't compute a good step")
-                self.set_from_flat(thbefore)
+                set_from_flat(thprev)
+
+        # seg = rollout
+        # pi = self._policy
+        # from baselines.common import explained_variance, zipsame, dataset
+        # # ob, ac, atarg, ret, td1ret = map(np.concatenate, (obs, acs, atargs, rets, td1rets))
+        # ob, ac, atarg, tdlamret = seg["observations"], seg["actions"], seg["advantages"], seg["discounted_future_reward"]
+        # vpredbefore = seg["baseline_preds"] # predicted value function before udpate
+
+        # if hasattr(pi, "ob_rms"): pi.ob_rms.update(ob) # update running mean/std for policy
+
+        # # print('Ob RMS', self.sess.run(pi.ob_rms.mean))
+        # # print('Ob RMS', self.sess.run(pi.ob_rms.std))
+        # # print('My Ob RMS', self._env._obs_rms._mean)
+        # # print('My Ob RMS', self._env._obs_rms._std)
+
+        # args = seg["observations"], seg["actions"], atarg
+        # fvpargs = [arr[::5] for arr in args]
+        # def fisher_vector_product(p):
+        #     return self.compute_fvp(p, *fvpargs) + self.cg_damping * p
+
+        # self.assign_old_eq_new() # set old parameter values to new parameter values
+
+        # *lossbefore, g = self.compute_lossandgrad(*args)
+        # lossbefore = np.array(lossbefore)
+        # if np.allclose(g, 0):
+        #     print("Got zero gradient. not updating")
+        # else:
+        #     stepdir = cg(fisher_vector_product, g, cg_iters=self.cg_iters, verbose=True)
+        #     assert np.isfinite(stepdir).all()
+        #     shs = .5*stepdir.dot(fisher_vector_product(stepdir))
+        #     lm = np.sqrt(shs / self.max_kl)
+        #     # print("lagrange multiplier:", lm, "gnorm:", np.linalg.norm(g))
+        #     fullstep = stepdir / lm
+        #     expectedimprove = g.dot(fullstep)
+        #     surrbefore = lossbefore[0]
+        #     stepsize = 1.0
+        #     thbefore = self.get_flat()
+        #     for _ in range(10):
+        #         thnew = thbefore + fullstep * stepsize
+        #         self.set_from_flat(thnew)
+        #         meanlosses = surr, kl, *_ = np.array(self.compute_losses(*args))
+        #         improve = surr - surrbefore
+        #         print("Expected: %.3f Actual: %.3f"%(expectedimprove, improve))
+        #         if not np.isfinite(meanlosses).all():
+        #             print("Got non-finite value of losses -- bad!")
+        #         elif kl > self.max_kl * 1.5:
+        #             print("violated KL constraint. shrinking step.")
+        #         elif improve < 0:
+        #             print("surrogate didn't improve. shrinking step.")
+        #         else:
+        #             print("Stepsize OK!")
+        #             break
+        #         stepsize *= .5
+        #     else:
+        #         print("couldn't compute a good step")
+        #         self.set_from_flat(thbefore)
+
+
+
+
+
+
+
 
         # for (lossname, lossval) in zip(loss_names, meanlosses):
         #     logger.record_tabular(lossname, lossval)

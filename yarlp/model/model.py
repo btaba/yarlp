@@ -51,6 +51,12 @@ class Model:
         _, loss = self.G([optimizer_op, loss], feed_dict)
         return loss
 
+    def eval_tensor(self, tensor, *args, **kwargs):
+        # this is how we update the weights
+        name = kwargs.get('name', '')
+        feed_dict = self.build_update_feed(*args)
+        return self.G(tensor, feed_dict)
+
     def build_update_feed(self, *args):
         """Create the feed dict for self.update
         """

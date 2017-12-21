@@ -75,13 +75,14 @@ class Agent(ABC):
         action : numpy array or integer
         """
         batch = np.array([state])
-        # with self._policy.G._session.as_default():
-            # a = self._policy.policy.predict(
-            #     # self._policy.get_session(),
-            #     batch[0], greedy)
+        with self._policy.G._session.as_default():
+            a = self._policy.policy.predict(
+                self._policy.get_session(),
+                batch, greedy).squeeze()
         # a, _ = self._policy.pi.act(not greedy, batch[0])
         # return a
-        return self._policy.act(not greedy, batch[0])
+        # return self._policy.act(not greedy, batch[0])
+        return a
 
     def argmax_break_ties(self, probs):
         """
@@ -176,8 +177,7 @@ def do_rollout(agent, env, n_steps=None,
             actions = []
             t = 0
 
-        action, _ = agent.get_action(observation, greedy=greedy)
-
+        action = agent.get_action(observation, greedy=greedy)
         actions.append(action)
         observations.append(observation)
 
@@ -257,7 +257,7 @@ class BatchAgent(Agent):
         ----------
         None
         """
-        w = self._baseline_model.G(self._baseline_model.G.TRAINABLE_VARIABLES[-2], {})
+
         rollout_gen = do_rollout(
             self, self._env, n_steps, greedy=False)
 
@@ -273,8 +273,8 @@ class BatchAgent(Agent):
                 break
 
             rollout = rollout_gen.__next__()
-            timesteps_so_far += 1
-            train_steps_so_far += len(rollout['dones'])
+            train_steps_so_far += 1
+            timesteps_so_far += len(rollout['dones'])
 
             add_advantage(rollout, self._discount, self._gae_lambda)
 
@@ -290,10 +290,17 @@ class BatchAgent(Agent):
                 self._baseline_model.fit(
                     rollout['observations'], rollout['discounted_future_reward'])
             elif hasattr(self._baseline_model, 'G'):
+                data = [rollout['observations'], rollout['discounted_future_reward']]
+                self.logger.add_metric(
+                    'Baseline_Loss_Before',
+                    self._baseline_model.eval_tensor(self._baseline_model.loss, *data))
                 for _ in range(self.baseline_train_iters):
                     for ob, a in tf_utils.iterbatches(
                             [rollout['observations'], rollout['discounted_future_reward']]):
                         self._baseline_model.update(ob, a)
+                self.logger.add_metric(
+                    'Baseline_Loss_After',
+                    self._baseline_model.eval_tensor(self._baseline_model.loss, *data))
 
             self.logger.add_metric('timesteps_so_far', timesteps_so_far)
             self.logger.add_metric('env_id', self._env_id)

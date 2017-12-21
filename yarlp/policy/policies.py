@@ -41,6 +41,7 @@ class Policy:
         if len(observations.shape) == 1:
             observations = np.expand_dims(observations, 0)
         feed = {self.input_node: observations}
+
         if not greedy:
             return session.run(
                 self._distribution.sample_op,
@@ -102,6 +103,10 @@ class GaussianPolicy(Policy):
                                   weights_initializer=tf.zeros_initializer(),
                                   **network_params)
             else:
+                # log_std = tf.get_variable(
+                #     name='logstd',
+                #     shape=[1, num_outputs],
+                #     initializer=tf.zeros_initializer())
                 log_std = tf.get_variable(
                     name='logstd',
                     shape=[1, num_outputs],
