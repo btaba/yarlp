@@ -8,8 +8,8 @@ from yarlp.policy.distributions import Categorical, DiagonalGaussian
 class TestDistributions(unittest.TestCase):
 
     def test_diag_gauss_ent_and_kl(self):
-        np.random.seed(0)
-        N = 100000
+        np.random.seed(1)
+        N = 200000
 
         # diagonal gaussian
         mean = np.array([[-.2, .3, .4, -.5]], dtype='float32')
@@ -25,8 +25,8 @@ class TestDistributions(unittest.TestCase):
         validate_probtype(dist, q_dist, N)
 
     def test_categorical_ent_and_kl(self):
-        np.random.seed(0)
-        N = 100000
+        np.random.seed(1)
+        N = 200000
 
         # categorical
         logit = np.array([[.2, .3, .5]], dtype='float32')
@@ -89,11 +89,13 @@ def validate_probtype(dist, q_dist, N):
     # assert that the mean negative log likelihood is within
     # 3 standard errors of the entropy
     ent = sess.run(dist.entropy()).mean()
-    assert abs(ent - negloglik.mean()) < 3 * negloglik.std() / np.sqrt(N)
+    assert abs(ent - negloglik.mean()) < 3 * negloglik.std() / np.sqrt(N),\
+        str((ent, negloglik.mean(), negloglik.std() / np.sqrt(N)))
 
     # Check to see if kldiv[p,q] = - ent[p] - E_p[log q]
     kl = sess.run(dist.kl(q_dist)).mean()
     loglik = sess.run(q_dist.log_likelihood(Xval))
     kl_ll = -ent - loglik.mean()
     kl_ll_stderr = loglik.std() / np.sqrt(N)
-    assert np.abs(kl - kl_ll) < 3 * kl_ll_stderr
+    assert np.abs(kl - kl_ll) < 3 * kl_ll_stderr,\
+        str((kl, kl_ll, kl_ll_stderr))

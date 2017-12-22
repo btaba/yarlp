@@ -97,16 +97,29 @@ class MetricLogger:
 
     def set_metrics_for_rollout(self, rollout, train=True):
         t = round(time.time() - self._start_time, 6)
-
-        self['avg_episode_length'] = np.mean(rollout['episode_lengths'])
-        self['episodes_this_iter'] = len(rollout['episode_returns'])
-        self['timesteps_this_iter'] = len(rollout['dones'])
-        self['min_reward'] = np.min(rollout['episode_returns'])
-        self['max_reward'] = np.max(rollout['episode_returns'])
-        self['training'] = train
-        self['avg_total_reward'] = np.mean(rollout['episode_returns'])
-        self._running_reward.extend(rollout['episode_returns'])
-        self['Smoothed_total_reward'] = np.mean(self._running_reward)
-        self['std_reward'] = np.std(rollout['episode_returns'])
-        self['total_reward'] = np.sum(rollout['episode_returns'])
-        self['time_elapsed'] = t
+        if type(rollout) is list:
+            self['avg_episode_length'] = np.mean([np.mean(r['episode_lengths']) for r in rollout])
+            self['episodes_this_iter'] = sum([len(r['episode_returns']) for r in rollout])
+            self['timesteps_this_iter'] = sum([len(r['dones']) for r in rollout])
+            self['min_reward'] = np.min([np.min(r['episode_returns']) for r in rollout])
+            self['max_reward'] = np.max([np.max(r['episode_returns']) for r in rollout])
+            self['training'] = train
+            self['avg_total_reward'] = np.mean([np.mean(r['episode_returns']) for r in rollout])
+            [self._running_reward.extend(r['episode_returns']) for r in rollout]
+            self['Smoothed_total_reward'] = np.mean(self._running_reward)
+            self['std_reward'] = np.mean([np.std(r['episode_returns']) for r in rollout])
+            self['total_reward'] = np.mean([np.sum(r['episode_returns']) for r in rollout])
+            self['time_elapsed'] = t
+        else: 
+            self['avg_episode_length'] = np.mean(rollout['episode_lengths'])
+            self['episodes_this_iter'] = len(rollout['episode_returns'])
+            self['timesteps_this_iter'] = len(rollout['dones'])
+            self['min_reward'] = np.min(rollout['episode_returns'])
+            self['max_reward'] = np.max(rollout['episode_returns'])
+            self['training'] = train
+            self['avg_total_reward'] = np.mean(rollout['episode_returns'])
+            self._running_reward.extend(rollout['episode_returns'])
+            self['Smoothed_total_reward'] = np.mean(self._running_reward)
+            self['std_reward'] = np.std(rollout['episode_returns'])
+            self['total_reward'] = np.sum(rollout['episode_returns'])
+            self['time_elapsed'] = t

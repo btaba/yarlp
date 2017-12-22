@@ -103,10 +103,6 @@ class GaussianPolicy(Policy):
                                   weights_initializer=tf.zeros_initializer(),
                                   **network_params)
             else:
-                # log_std = tf.get_variable(
-                #     name='logstd',
-                #     shape=[1, num_outputs],
-                #     initializer=tf.zeros_initializer())
                 log_std = tf.get_variable(
                     name='logstd',
                     shape=[1, num_outputs],
@@ -117,6 +113,11 @@ class GaussianPolicy(Policy):
 
             self._distribution = DiagonalGaussian(mean, log_std)
 
+    def get_trainable_variables(self):
+        tvars = tf.get_collection(
+            tf.GraphKeys.TRAINABLE_VARIABLES,
+            self._scope.name)
+        return [t for t in tvars if not t.name.startswith('pi/logstd')]
 
 def make_policy(env, name, network_params={}, input_shape=None,
                 init_std=1.0, adaptive_std=False, network=mlp):

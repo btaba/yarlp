@@ -14,7 +14,7 @@ class TestMetricLogger(unittest.TestCase):
         self.logger.log()
 
         self.logger.add_metric('a', 2)
-        self.assertEqual(self.logger._episode, 1)
+        self.assertEqual(self.logger._iteration, 1)
 
         # check that csv was created
         self.assertTrue(os.path.exists('stats.json.txt'))

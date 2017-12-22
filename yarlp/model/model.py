@@ -102,8 +102,9 @@ class Model:
     def get_loss(self, name=''):
         return self['loss:' + name]
 
-    def add_optimizer(self, optimizer, loss, name=''):
-        self['optimizer_op:' + name] = optimizer.minimize(loss)
+    def add_optimizer(self, optimizer, loss, name='', *args, **kwargs):
+        self['optimizer_op:' + name] = optimizer.minimize(
+            loss, *args, **kwargs)
 
     def add_input(self, name='', dtype=tf.float32, shape=None):
         if shape is None:

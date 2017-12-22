@@ -13,6 +13,7 @@ class Graph:
     def __init__(self, finalize=False):
         self._finalize = finalize
         self._graph = tf.Graph()
+        self._graph.seed = tf.get_default_graph().seed
         self._session = tf.Session('', graph=self._graph)
         self._saver = None
 

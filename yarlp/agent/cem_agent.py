@@ -8,6 +8,8 @@
 
 from yarlp.agent.base_agent import Agent
 from yarlp.model.model_factories import cem_model_factory
+from yarlp.agent.base_agent import do_rollout
+from yarlp.model.networks import mlp
 
 import numpy as np
 import tensorflow as tf
@@ -34,12 +36,15 @@ class CEMAgent(Agent):
 
     def __init__(self, env, n_weight_samples=100,
                  init_var=1., best_pct=0.2,
-                 policy_network=tf.contrib.layers.fully_connected,
+                 policy_network=None,
                  policy_network_params={},
                  model_file_path=None,
                  min_std=1e-6, init_std=1.0, adaptive_std=False,
                  *args, **kwargs):
         super().__init__(env, *args, **kwargs)
+
+        if policy_network is None:
+            policy_network = mlp
 
         self._policy = cem_model_factory(
             env, policy_network, policy_network_params,
@@ -65,8 +70,8 @@ class CEMAgent(Agent):
     def save_models(self, path):
         self._policy.save(path)
 
-    def train(self, num_train_steps, num_test_steps=0,
-              max_timesteps=0,
+    def train(self, num_train_steps=1, num_test_steps=0,
+              max_timesteps=0, n_steps=None,
               with_variance=False, alpha=5, beta=10,
               min_sigma=1e-2, render=False):
         """
@@ -105,7 +110,10 @@ class CEMAgent(Agent):
         timesteps_so_far = 0
         train_steps_so_far = 0
 
-        # for i in range(num_train_steps):
+        rollout_gen = do_rollout(
+            self, self._env, n_steps, greedy=False,
+            render=render)
+
         while True:
 
             if max_timesteps and timesteps_so_far >= max_timesteps:
@@ -132,10 +140,10 @@ class CEMAgent(Agent):
                 self._policy.G(
                     self._policy.sff,
                     {self._policy.theta: w})
-                rollout = self.rollout(render=render)
-                timesteps_so_far += len(rollout)
+                rollout = rollout_gen.__next__()
+                timesteps_so_far += len(rollout['dones'])
                 rollouts.append(rollout)
-                rollout_rewards.append(np.sum(rollout.rewards))
+                rollout_rewards.append(np.sum(rollout['rewards']))
 
             # get the num_best mean/var with highest reward
             rollout_rewards = np.array(rollout_rewards)

@@ -7,7 +7,6 @@ import gym
 
 from yarlp.agent.baseline_agents import RandomAgent
 
-
 class TestBaselines(unittest.TestCase):
 
     @classmethod

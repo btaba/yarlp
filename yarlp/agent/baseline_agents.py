@@ -3,6 +3,7 @@ Random actions as a baseline
 """
 
 from yarlp.agent.base_agent import Agent
+from yarlp.agent.base_agent import do_rollout
 
 import numpy as np
 
@@ -16,7 +17,8 @@ class RandomAgent(Agent):
 
         self._policy = self
 
-    def train(self, num_train_steps=1, num_test_steps=0,
+    def train(self, num_train_steps=1, n_steps=None,
+              num_test_steps=0,
               max_timesteps=0):
         """
 
@@ -41,6 +43,9 @@ class RandomAgent(Agent):
         timesteps_so_far = 0
         train_steps_so_far = 0
 
+        rollout_gen = do_rollout(
+            self, self._env, n_steps, greedy=False)
+
         while True:
 
             if max_timesteps and timesteps_so_far >= max_timesteps:
@@ -48,7 +53,7 @@ class RandomAgent(Agent):
             elif num_train_steps and train_steps_so_far >= num_train_steps:
                 break
 
-            rollout = self.rollout()
+            rollout = rollout_gen.__next__()
 
             self.logger.set_metrics_for_rollout(rollout, train=True)
             self.logger.log()

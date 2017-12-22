@@ -23,6 +23,7 @@ from yarlp.model.model_factories import pg_model_factory
 from yarlp.model.model_factories import value_function_model_factory
 from yarlp.model.linear_baseline import LinearFeatureBaseline
 from yarlp.utils.experiment_utils import get_network
+from yarlp.model.networks import mlp
 
 
 class REINFORCEAgent(BatchAgent):
@@ -46,7 +47,7 @@ class REINFORCEAgent(BatchAgent):
     """
 
     def __init__(self, env,
-                 policy_network=tf.contrib.layers.fully_connected,
+                 policy_network=None,
                  policy_network_params={},
                  policy_learning_rate=0.01,
                  baseline_network=LinearFeatureBaseline(),
@@ -58,6 +59,9 @@ class REINFORCEAgent(BatchAgent):
                  min_std=1e-6, gae_lambda=1.,
                  *args, **kwargs):
         super().__init__(env, *args, **kwargs)
+
+        if policy_network is None:
+            policy_network = mlp
 
         policy_network = get_network(policy_network, policy_network_params)
 
@@ -88,6 +92,6 @@ class REINFORCEAgent(BatchAgent):
 
     def update(self, path):
         loss = self._policy.update(
-            path['states'], path['advantages'],
+            path['observations'], path['advantages'],
             path['actions'])
         self.logger.add_metric('policy_loss', loss)

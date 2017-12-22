@@ -39,6 +39,7 @@ class Agent(ABC):
             self.logger._logger.info('Seed: {}'.format(seed))
             tf_utils.set_global_seeds(seed)
             env.seed(seed)
+
         self._env = env
         self._env_id = '{}_gym{}'.format(
             env.spec.id, gym.__version__)
@@ -61,10 +62,14 @@ class Agent(ABC):
         return GymEnv.get_env_action_space_dim(self._env)
 
     def get_baseline_pred(self, obs):
-        if self._baseline_model:
-            return self._baseline_model.predict(
-                np.array(obs)).flatten()
-        return np.zeros_like(obs)
+        if not hasattr(self, '_baseline_model'):
+            return np.zeros(len(obs))
+
+        if self._baseline_model is None:
+            return np.zeros(len(obs))
+
+        return self._baseline_model.predict(
+            np.array(obs)).flatten()
 
     def get_action(self, state, greedy=False):
         """
@@ -78,10 +83,7 @@ class Agent(ABC):
         with self._policy.G._session.as_default():
             a = self._policy.policy.predict(
                 self._policy.get_session(),
-                batch, greedy).squeeze()
-        # a, _ = self._policy.pi.act(not greedy, batch[0])
-        # return a
-        # return self._policy.act(not greedy, batch[0])
+                batch, greedy)[0]
         return a
 
     def argmax_break_ties(self, probs):
@@ -138,6 +140,10 @@ def do_rollout(agent, env, n_steps=None,
         if render and t and t % render_freq == 0:
             env.render()
 
+        is_truncated_rollout = n_steps is not None and t > 0 \
+            and t % n_steps == 0
+        is_completed_rollout = n_steps is None and done is True
+
         if done:
             episode_returns.append(episode_return)
             episode_lengths.append(episode_length)
@@ -145,10 +151,6 @@ def do_rollout(agent, env, n_steps=None,
             episode_length = 0
             observation = env.reset()
             done = False
-
-        is_truncated_rollout = n_steps is not None and t > 0 \
-            and t % n_steps == 0
-        is_completed_rollout = n_steps is None and done is True
 
         if is_truncated_rollout or is_completed_rollout:
 
@@ -166,6 +168,10 @@ def do_rollout(agent, env, n_steps=None,
                 "episode_returns": episode_returns,
                 "episode_lengths": episode_lengths
             }
+
+            print('obs', rollout['observations'])
+            print('rewards', rollout['rewards'])
+            print('actions', rollout['actions'])
 
             yield rollout
 
