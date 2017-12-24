@@ -130,7 +130,8 @@ def pg_model_factory(
         if len(action.shape) == 1:
             action = action.reshape(-1, 1)
         feed_dict = {model.state: state,
-                     model.Return: np.squeeze([return_]), model.action: action}
+                     model.Return: np.squeeze([return_]),
+                     model.action: action}
         return feed_dict
 
     if model_file_path is not None:
@@ -174,8 +175,10 @@ def trpo_model_factory(
             old_policy.distribution.kl(policy._distribution))
         entbonus = entropy_weight * entropy
 
+        model._kl = old_policy.distribution.kl(policy._distribution)
         ratio = policy.distribution.likelihood_ratio(
             model.action, old_policy.distribution)
+
         model.surrgain = tf.reduce_mean(
             ratio * model.Return)
 
@@ -216,7 +219,8 @@ def trpo_model_factory(
         if len(action.shape) == 1:
             action = action.reshape(-1, 1)
         feed_dict = {model.state: state, model.old_policy.input_node: state,
-                     model.Return: np.squeeze([return_]), model.action: action}
+                     model.Return: np.squeeze([return_]),
+                     model.action: action}
         return feed_dict
 
     build_graph = partial(build_graph, network=network,

@@ -50,8 +50,6 @@ class REINFORCEAgent(BatchAgent):
                  policy_network=None,
                  policy_network_params={},
                  policy_learning_rate=0.01,
-                 baseline_network=LinearFeatureBaseline(),
-                 baseline_model_learning_rate=0.01,
                  entropy_weight=0,
                  model_file_path=None,
                  adaptive_std=False,
@@ -78,14 +76,6 @@ class REINFORCEAgent(BatchAgent):
             'Policy network weight sums: {}'.format(policy_weight_sums))
 
         self._gae_lambda = gae_lambda
-
-        if isinstance(baseline_network, LinearFeatureBaseline)\
-                or baseline_network is None:
-            self._baseline_model = baseline_network
-        else:
-            self._baseline_model = value_function_model_factory(
-                env, policy_network,
-                learning_rate=baseline_model_learning_rate)
 
     def save_models(self, path):
         self._policy.save(path)

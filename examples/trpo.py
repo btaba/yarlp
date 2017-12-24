@@ -10,26 +10,25 @@ from yarlp.utils import tf_utils
 
 
 def main():
-    # env = NormalizedGymEnv('CartPole-v1')
     env = NormalizedGymEnv(
-        'Walker2d-v1',
+        'MountainCarContinuous-v0',
+        # 'Walker2d-v1',
         # 'CartPole-v1',
-        normalize_obs=True)
+        # 'Acrobot-v1',
+        # 'Pendulum-v0',
+        normalize_obs=True
+        )
 
-    seed = 10000
-    env.seed(seed)
-    tf_utils.set_global_seeds(seed)
+    print(env.action_space)
 
-    # env = NormalizedGymEnv('Acrobot-v1')
-    # env = NormalizedGymEnv('Pendulum-v0')
     agent = TRPOAgent(
         env, discount_factor=0.99,
-        policy_network=mlp, seed=seed,
+        policy_network=mlp, seed=123,
         gae_lambda=0.98, cg_iters=10,
         cg_damping=1e-1, max_kl=1e-2,
         init_std=1.0, min_std=1e-6,
-        baseline_train_iters=1,
-        baseline_model_learning_rate=1e-3,
+        baseline_train_iters=5,
+        baseline_model_learning_rate=1e-2,
         baseline_network=mlp
         )
     agent.train(max_timesteps=1000000)

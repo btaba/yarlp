@@ -25,9 +25,7 @@ agent.train(500, 0, n_steps=2048)
 ##### TODO:
 
 * benchmarks with experiment dir
-	- make yarlp perform same as baselines
-        - then replace policy model
-    - then do atari tasks
+* atari wrappers, policy
 * DQ, DDQ
 * serialization/deserialization of agents
 * docs

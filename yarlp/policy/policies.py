@@ -72,7 +72,7 @@ class CategoricalPolicy(Policy):
                              **network_params)
 
             self.action_placeholder = tf.placeholder(
-                dtype=tf.int32, shape=(None, 1), name='action')
+                dtype=tf.int32, shape=(None), name='action')
 
             self._distribution = Categorical(output)
 

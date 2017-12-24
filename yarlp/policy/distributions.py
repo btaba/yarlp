@@ -66,7 +66,7 @@ class Categorical(Distribution):
             tf.log(self.probs + tf_utils.EPSILON), axis=-1)
 
     def log_likelihood(self, x):
-        x_one_hot = tf.one_hot(x, depth=tf.shape(self.logits)[-1])
+        x_one_hot = tf.one_hot(tf.squeeze(x), depth=tf.shape(self.logits)[-1])
         return tf.reduce_sum(self.log_probs * x_one_hot, axis=-1)
 
     def likelihood_ratio(self, x, old_dist):

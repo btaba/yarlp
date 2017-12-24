@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow as tf
 
 from yarlp.agent import base_agent
-from yarlp.model.networks import normc_initializer, mlp
+from yarlp.model.networks import mlp
 from yarlp.model.model_factories import trpo_model_factory
 from yarlp.model.linear_baseline import LinearFeatureBaseline
 from yarlp.utils.experiment_utils import get_network
@@ -34,10 +34,6 @@ class TRPOAgent(base_agent.BatchAgent):
     def __init__(self, env,
                  policy_network=None,
                  policy_network_params={},
-                 baseline_network=None,
-                 baseline_model_learning_rate=1e-2,
-                 baseline_train_iters=3,
-                 baseline_network_params={'final_weights_initializer': normc_initializer(1.0)},
                  model_file_path=None,
                  adaptive_std=False,
                  gae_lambda=0.98, cg_iters=10,
@@ -51,7 +47,6 @@ class TRPOAgent(base_agent.BatchAgent):
         self.cg_damping = cg_damping
         self.max_kl = max_kl
         self._gae_lambda = gae_lambda
-        self.baseline_train_iters = baseline_train_iters
 
         if policy_network is None:
             policy_network = mlp
@@ -67,16 +62,6 @@ class TRPOAgent(base_agent.BatchAgent):
             [np.sum(a) for a in self._policy.get_weights()])
         self.logger._logger.info(
             'Policy network weight sums: {}'.format(policy_weight_sums))
-
-        if isinstance(baseline_network, LinearFeatureBaseline):
-            self._baseline_model = baseline_network
-        elif baseline_network is None:
-            self._baseline_model = LinearFeatureBaseline()
-        else:
-            baseline_network = get_network(baseline_network, baseline_network_params)
-            self._baseline_model = value_function_model_factory(
-                env, baseline_network,
-                learning_rate=baseline_model_learning_rate)
 
     def update(self, rollout):
         """
@@ -124,7 +109,6 @@ class TRPOAgent(base_agent.BatchAgent):
             lm = np.sqrt(shs / self.max_kl)
 
             fullstep = stepdir / lm
-            print('fullstep', fullstep.shape)
             expectedimprove = g.dot(fullstep)
             surrbefore = lossbefore[0]
             stepsize = 1.0
