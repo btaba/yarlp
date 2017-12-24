@@ -5,7 +5,7 @@ from setuptools import find_packages
 def setup_package():
     config = {
         'name': 'yarlp',
-        'version': '0.0.2',
+        'version': '0.0.3',
         'description': 'yarlp',
         'author': 'Baruch Tabanpour',
         'author_email': '',
