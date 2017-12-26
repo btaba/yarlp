@@ -19,7 +19,12 @@ def setup_package():
             upload_to_openai=yarlp.experiment.experiment:upload_to_openai
             run_benchmark=yarlp.experiment.experiment:run_benchmark
             compare_benchmark=yarlp.experiment.experiment:compare_benchmark
+            make_plots=yarlp.experiment.experiment:make_plots
         ''',
+        'install_requires': [
+            'gym[mujoco,atari,classic_control]',
+            'baselines'
+        ],
         'packages': find_packages()
     }
 

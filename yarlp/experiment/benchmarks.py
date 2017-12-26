@@ -79,15 +79,15 @@ _mujocosmall = [
 register_benchmark({
     'name': 'Mujoco1M',
     'description': 'Some small 2D MuJoCo tasks, run for 1M timesteps',
-    'tasks': [{'env_id': _envid, 'trials': 3, 'num_timesteps': int(1e6)} for _envid in _mujocosmall]
+    'tasks': [{'env_id': _envid, 'trials': 5, 'num_timesteps': int(1e6)} for _envid in _mujocosmall]
 })
 register_benchmark({
     'name': 'MujocoWalkers',
     'description': 'MuJoCo forward walkers, run for 8M, humanoid 100M',
     'tasks': [
-        {'env_id': "Hopper-v1", 'trials': 4, 'num_timesteps': 8 * 1000000},
-        {'env_id': "Walker2d-v1", 'trials': 4, 'num_timesteps': 8 * 1000000},
-        {'env_id': "Humanoid-v1", 'trials': 4, 'num_timesteps': 100 * 1000000},
+        {'env_id': "Hopper-v1", 'trials': 5, 'num_timesteps': 8 * 1000000},
+        {'env_id': "Walker2d-v1", 'trials': 5, 'num_timesteps': 8 * 1000000},
+        {'env_id': "Humanoid-v1", 'trials': 5, 'num_timesteps': 100 * 1000000},
     ]
 })
 

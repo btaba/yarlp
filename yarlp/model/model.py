@@ -17,7 +17,6 @@ class Model:
         """
         self._env = env
         tf_utils.reset_cache()
-        # tf.reset_default_graph()
         self.G = Graph()
         self.build_update_feed_dict = build_update_feed_dict
 
@@ -53,7 +52,6 @@ class Model:
 
     def eval_tensor(self, tensor, *args, **kwargs):
         # this is how we update the weights
-        name = kwargs.get('name', '')
         feed_dict = self.build_update_feed(*args)
         return self.G(tensor, feed_dict)
 
@@ -108,7 +106,7 @@ class Model:
 
     def add_input(self, name='', dtype=tf.float32, shape=None):
         if shape is None:
-            shape = (None, self.env.observation_space.shape[0])
+            shape = (None, *self.env.observation_space.shape)
 
         self.input_node = tf.placeholder(
             dtype=dtype,

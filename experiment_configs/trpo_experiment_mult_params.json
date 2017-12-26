@@ -1,0 +1,32 @@
+{
+    "runs": [
+        {
+            "param_run": 0,
+            "seed": 123,
+            "run_name": "Swimmer-v1",
+            "agent": {
+                "seeds": [
+                    123, 1245, 652
+                ],
+                "type": "TRPOAgent",
+                "params": {
+                    "policy_network": "mlp",
+                    "baseline_train_iters": [5],
+                    "baseline_model_learning_rate": [1e-3, 2.5e-3, 5e-3, 7.5e-4],
+                    "discount_factor": 0.99,
+                    "max_kl": 0.01
+                },
+                "training_params": {
+                    "max_timesteps": 1000000,
+                    "n_steps": 1024
+                }
+            },
+            "env": {
+                "normalize_obs": true,
+                "name": "Swimmer-v1",
+                "wrap_atari": "false",
+                "video": false
+            }
+        }
+    ]
+}

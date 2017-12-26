@@ -31,7 +31,7 @@ class Job(object):
         env_name = self._spec_dict['env']['name']
         env = NormalizedGymEnv(
             env_name, self._video, job_dir, force_reset=True,
-            normalize_obs=self._spec_dict['env'].get('normalize_obs', False))
+            **self._spec_dict['env'])
         if 'timestep_limit' in self._spec_dict['env']:
             env.spec.timestep_limit = self._spec_dict['env']['timestep_limit']
         return env

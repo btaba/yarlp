@@ -110,7 +110,7 @@ class MetricLogger:
             self['std_reward'] = np.mean([np.std(r['episode_returns']) for r in rollout])
             self['total_reward'] = np.mean([np.sum(r['episode_returns']) for r in rollout])
             self['time_elapsed'] = t
-        else: 
+        else:
             self['avg_episode_length'] = np.mean(rollout['episode_lengths'])
             self['episodes_this_iter'] = len(rollout['episode_returns'])
             self['timesteps_this_iter'] = len(rollout['dones'])

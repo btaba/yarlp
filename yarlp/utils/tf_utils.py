@@ -81,4 +81,5 @@ def iterbatches(arrays, batch_size=64):
     np.random.shuffle(inds)
     sections = np.arange(0, n, batch_size)[1:]
     for batch_inds in np.array_split(inds, sections):
-        yield tuple(a[batch_inds] for a in arrays)
+        if len(batch_inds) == batch_size:
+            yield tuple(a[batch_inds] for a in arrays)

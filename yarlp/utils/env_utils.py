@@ -2,6 +2,29 @@ import gym
 import numpy as np
 from gym.spaces import Discrete, Box
 from gym.core import Env
+from baselines.common.atari_wrappers import wrap_deepmind
+from baselines.common.atari_wrappers import NoopResetEnv, MaxAndSkipEnv
+
+
+def wrap_atari(env):
+    assert 'NoFrameskip' in env.spec.id,\
+        "{} is not an atari env".format(env)
+    env = NoopResetEnv(env, noop_max=30)
+    env = MaxAndSkipEnv(env, skip=4)
+    env = wrap_deepmind(env)
+    return NormPixels(env)
+
+
+class NormPixels(gym.Wrapper):
+    def __init__(self, env):
+        gym.Wrapper.__init__(self, env)
+
+    def _step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        return obs / 255.0, reward, done, info
+
+    def _reset(self, **kwargs):
+        return self.env.reset(**kwargs) / 255.0
 
 
 class CappedCubicVideoSchedule(object):
@@ -24,11 +47,16 @@ class GymEnv(Env):
 
     def __init__(self, env_name, video=False,
                  log_dir=None,
-                 force_reset=False):
+                 force_reset=False,
+                 is_atari=False):
         env = gym.envs.make(env_name)
-        self.env = env
+
+        if is_atari:
+            self.env = wrap_atari(env)
+        else:
+            self.env = env
+
         self.env_id = env.spec.id
-        self.observation_space = env.observation_space
 
         assert isinstance(video, bool)
         if log_dir is None:
@@ -65,6 +93,10 @@ class GymEnv(Env):
             return env.action_space.n
         return env.action_space.shape[0]
 
+    @property
+    def observation_space(self):
+        return self.env.observation_space
+
     def reset(self):
         if self._force_reset and self.monitoring:
             from gym.wrappers.monitoring import Monitor
@@ -93,6 +125,10 @@ class GymEnv(Env):
     def __str__(self):
         return "GymEnv: %s" % self.env
 
+    @property
+    def unwrapped(self):
+        return self.env.unwrapped
+
 
 class NormalizedGymEnv(GymEnv):
     """
@@ -109,26 +145,28 @@ class NormalizedGymEnv(GymEnv):
                  norm_obs_clip=5,
                  normalize_obs=False,
                  normalize_rewards=False,
-                 scale_continuous_actions=False):
+                 scale_continuous_actions=False,
+                 is_atari=False,
+                 *args, **kwargs):
         super().__init__(env_name=env_name, video=video,
-                         log_dir=log_dir, force_reset=force_reset)
+                         log_dir=log_dir, force_reset=force_reset,
+                         is_atari=is_atari)
         self._scale_reward = scale_reward
 
         self._normalize_obs = normalize_obs
         self._normalize_rewards = normalize_rewards
         self._scale_continuous_actions = scale_continuous_actions
 
-        if normalize_obs:
+        if normalize_obs is True:
+            assert is_atari is False,\
+                "normalize_obs must be False if is_atari is True"
             self._obs_rms = RunningMeanStd(
                 shape=(self.env.observation_space.shape),
                 min_std=min_obs_std, clip_val=norm_obs_clip)
 
-        if normalize_rewards:
+        if normalize_rewards is True:
             self._reward_rms = RunningMeanStd(
                 shape=(1), min_std=min_reward_std)
-
-    def update_rms(self):
-        self._obs_rms.update()
 
     @property
     def action_space(self):
@@ -150,6 +188,12 @@ class NormalizedGymEnv(GymEnv):
         if done:
             self._obs_rms.update()
         return obs
+
+    def reset(self):
+        ob = super().reset()
+        if self._normalize_obs:
+            return self._update_obs(ob, False)
+        return ob
 
     def step(self, action):
         if self._scale_continuous_actions:

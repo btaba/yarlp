@@ -5,6 +5,7 @@
 import gym
 import numpy as np
 from abc import ABCMeta, abstractmethod
+from gym.spaces import prng
 from yarlp.utils.env_utils import GymEnv
 from yarlp.utils.metric_logger import MetricLogger
 from yarlp.utils import tf_utils
@@ -42,6 +43,7 @@ class Agent(ABC):
             self.logger._logger.info('Seed: {}'.format(seed))
             tf_utils.set_global_seeds(seed)
             env.seed(seed)
+            prng.seed(seed)
 
         self._env = env
         self._env_id = '{}_gym{}'.format(
@@ -112,7 +114,7 @@ class Agent(ABC):
 
 
 def do_rollout(agent, env, n_steps=None,
-               render=False, render_freq=5, greedy=False):
+               render=False, render_freq=10, greedy=False):
     """
     Performs actions on the environment
     based on the agent's current weights for 1 single rollout
@@ -160,6 +162,9 @@ def do_rollout(agent, env, n_steps=None,
             next_baseline_pred = agent.get_baseline_pred(
                 [observation]) * (1 - dones[-1])
             baseline_preds = agent.get_baseline_pred(np.array(observations))
+
+            if len(episode_returns) == 0:
+                episode_returns = [sum(rewards)]
 
             rollout = {
                 "observations": np.array(observations),
@@ -218,9 +223,9 @@ class BatchAgent(Agent):
     """
 
     def __init__(self, env,
-                 baseline_network=None,
-                 baseline_model_learning_rate=1e-2,
-                 baseline_train_iters=3,
+                 baseline_network=mlp,
+                 baseline_model_learning_rate=1e-3,
+                 baseline_train_iters=5,
                  baseline_network_params={'final_weights_initializer': normc_initializer(1.0)},
                  *args, **kwargs):
         """
@@ -233,7 +238,8 @@ class BatchAgent(Agent):
         elif baseline_network is None:
             self._baseline_model = LinearFeatureBaseline()
         else:
-            baseline_network = get_network(baseline_network, baseline_network_params)
+            baseline_network = get_network(
+                baseline_network, baseline_network_params)
             self._baseline_model = value_function_model_factory(
                 env, baseline_network,
                 learning_rate=baseline_model_learning_rate)
@@ -279,6 +285,7 @@ class BatchAgent(Agent):
 
         rollout_gen = do_rollout(
             self, self._env, n_steps, greedy=False,
+            render=render,
             *args, **kwargs)
 
         train_steps_so_far = 0
@@ -298,8 +305,8 @@ class BatchAgent(Agent):
 
             add_advantage(rollout, self._discount, self._gae_lambda)
 
-            adv = rollout['advantages']
             if whiten_advantages:
+                adv = rollout['advantages']
                 adv = (adv - np.mean(adv)) / (np.std(adv) + 1e-8)
                 rollout['advantages'] = adv
 
@@ -308,19 +315,22 @@ class BatchAgent(Agent):
             # batch update the baseline model
             if isinstance(self._baseline_model, LinearFeatureBaseline):
                 self._baseline_model.fit(
-                    rollout['observations'], rollout['discounted_future_reward'])
+                    rollout['observations'],
+                    rollout['discounted_future_reward'])
             elif hasattr(self._baseline_model, 'G'):
-                data = [rollout['observations'], rollout['discounted_future_reward']]
+                data = [rollout['observations'],
+                        rollout['discounted_future_reward']]
                 self.logger.add_metric(
                     'Baseline_Loss_Before',
-                    self._baseline_model.eval_tensor(self._baseline_model.loss, *data))
+                    self._baseline_model.eval_tensor(
+                        self._baseline_model.loss, *data))
                 for _ in range(self.baseline_train_iters):
-                    for ob, a in tf_utils.iterbatches(
-                            [rollout['observations'], rollout['discounted_future_reward']]):
+                    for ob, a in tf_utils.iterbatches([*data]):
                         self._baseline_model.update(ob, a)
                 self.logger.add_metric(
                     'Baseline_Loss_After',
-                    self._baseline_model.eval_tensor(self._baseline_model.loss, *data))
+                    self._baseline_model.eval_tensor(
+                        self._baseline_model.loss, *data))
 
             self.logger.add_metric('timesteps_so_far', timesteps_so_far)
             self.logger.add_metric('env_id', self._env_id)
@@ -336,3 +346,5 @@ class BatchAgent(Agent):
                     r.append(rollout)
                 self.logger.set_metrics_for_rollout(r, train=False)
                 self.logger.log()
+
+        self._env.close()

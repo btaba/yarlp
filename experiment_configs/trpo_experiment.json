@@ -1,0 +1,32 @@
+{
+    "runs": [
+        {
+            "param_run": 0,
+            "seed": 154,
+            "run_name": "PongNoFrameskip-v4",
+            "agent": {
+                "seeds": [
+                    154
+                ],
+                "type": "TRPOAgent",
+                "params": {
+                    "policy_network": "cnn",
+                    "baseline_network": "cnn",
+                    "baseline_train_iters": 3,
+                    "baseline_model_learning_rate": 1e-4,
+                    "discount_factor": 1,
+                    "max_kl": 0.001
+                },
+                "training_params": {
+                    "max_timesteps": 100000000,
+                    "n_steps": 512
+                }
+            },
+            "env": {
+                "normalize_obs": false,
+                "name": "PongNoFrameskip-v4",
+                "is_atari": true
+            }
+        }
+    ]
+}

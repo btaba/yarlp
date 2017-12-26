@@ -4,9 +4,11 @@
 
 import unittest
 import gym
+import numpy as np
 # import shutil
 
 from yarlp.agent.pg_agents import REINFORCEAgent
+from yarlp.agent.base_agent import do_rollout
 
 
 class TestREINFORCECartPole(unittest.TestCase):
@@ -26,6 +28,19 @@ class TestREINFORCECartPole(unittest.TestCase):
             self.env,
             discount_factor=.95)
         agent.train(num_train_steps=1)
+
+    def test_seed(self):
+        agent = REINFORCEAgent(self.env, seed=143)
+        r = next(do_rollout(agent, self.env, n_steps=2))
+
+        agent = REINFORCEAgent(self.env, seed=143)
+        r2 = next(do_rollout(agent, self.env, n_steps=2))
+        assert np.all(
+            np.array(r['actions']) == np.array(r2['actions']))
+        assert np.all(
+            np.array(r['observations']) == np.array(r2['observations']))
+        assert np.all(
+            np.array(r['rewards']) == np.array(r2['rewards']))
 
     # def test_reinforce_save_models(self):
     #     agent = REINFORCEAgent(

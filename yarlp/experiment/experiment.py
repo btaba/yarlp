@@ -41,7 +41,8 @@ class Experiment(object):
         cls = cls(*args, **kwargs)
         assert json_spec_filename is not None
         assert os.path.exists(json_spec_filename) and\
-            os.path.isfile(json_spec_filename)
+            os.path.isfile(json_spec_filename),\
+            "spec-filename does not exist"
 
         spec_file_handle = open(json_spec_filename, 'r')
         _raw_spec = json.load(spec_file_handle)
@@ -110,7 +111,7 @@ class Experiment(object):
             assert env_name in env_list,\
                 "{} is not an available environment name.".format(env_name)
 
-            for r in s['agent']['seeds']:
+            for r in set(s['agent']['seeds']):
                 s_copy = copy.deepcopy(s)
                 run_name = '{}_{}_run{}'.format(
                     s['env']['name'], s['agent']['type'], r)
@@ -146,7 +147,7 @@ class Experiment(object):
             count = 0
             for g in grid_params:
                 new_s = copy.deepcopy(s)
-                new_s['agent']['param'] = g
+                new_s['agent']['params'] = g
                 new_s['param_run'] = count
                 param_name = '_param{}'.format(count)
                 new_s['run_name'] = new_s['run_name'] + param_name
@@ -211,7 +212,7 @@ def _merge_stats(experiment_dir):
         stats['run_name'] = spec['run_name']
         stats['agent'] = spec['agent']['type']
         stats['env'] = spec['env']['name']
-        stats['agent_params'] = str(spec['agent']['param'])
+        stats['agent_params'] = str(spec['agent']['params'])
         stats['seed'] = spec['seed']
         stats_list.append(stats)
 
@@ -264,19 +265,31 @@ def _merge_benchmark_stats(experiment_dir):
     return stats
 
 
+def generate_plots(yarlp_dir):
+    training_stats = _merge_stats(yarlp_dir)
+    for env in training_stats.env.unique():
+        training_stats['name'] = 'yarlp'
+        yarlp = training_stats[training_stats.env == env]
+        fig = plotting.make_plots(yarlp, env, 'run_name', 'param_run')
+        fig.savefig(
+            os.path.join(
+                yarlp_dir,
+                '{}.png'.format(env)))
+
+
 def generate_plots_benchmark_vs_yarlp(yarlp_dir, benchmark_dir):
     training_stats = _merge_stats(yarlp_dir)
     benchmark_stats = _merge_benchmark_stats(benchmark_dir)
     for env in training_stats.env.unique():
         benchmark = benchmark_stats[benchmark_stats.env == env].rename(
-            columns={'EpRewMean': 'avg_total_reward',
+            columns={'EpRewMean': 'Smoothed_total_reward',
                      'TimestepsSoFar': 'timesteps_so_far',
                      'TimeElapsed': 'time_elapsed',
                      'env': 'env_id'})
         benchmark['name'] = 'benchmark'
         benchmark['episode'] = 0
         for run_name in benchmark.run_name.unique():
-            benchmark.loc[benchmark.run_name == run_name, 'episode'] = list(
+            benchmark.loc[benchmark.run_name == run_name, 'Iteration'] = list(
                 range(benchmark[benchmark.run_name == run_name].shape[0]))
 
         training_stats['name'] = 'yarlp'
@@ -319,7 +332,7 @@ def upload_to_openai(upload_dir):
 @click.option('--benchmark-name', default='Mujoco1M')
 @click.option('--agent', default='TRPOAgent')
 def run_benchmark(benchmark_name, agent):
-    SEEDS = list(range(1, 100))
+    SEEDS = list(range(652, 752))
 
     from yarlp.experiment.benchmarks import _BENCHMARKS
     benchmark_dict = dict(
@@ -367,3 +380,9 @@ def run_benchmark(benchmark_name, agent):
 @click.argument('openai-benchmark-dir')
 def compare_benchmark(yarlp_dir, openai_benchmark_dir):
     generate_plots_benchmark_vs_yarlp(yarlp_dir, openai_benchmark_dir)
+
+
+@click.command()
+@click.argument('directory')
+def make_plots(directory):
+    generate_plots(directory)

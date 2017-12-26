@@ -3,14 +3,10 @@ TRPO
 """
 
 import numpy as np
-import tensorflow as tf
-
 from yarlp.agent import base_agent
 from yarlp.model.networks import mlp
 from yarlp.model.model_factories import trpo_model_factory
-from yarlp.model.linear_baseline import LinearFeatureBaseline
 from yarlp.utils.experiment_utils import get_network
-from yarlp.model.model_factories import value_function_model_factory
 
 
 class TRPOAgent(base_agent.BatchAgent):
@@ -70,14 +66,13 @@ class TRPOAgent(base_agent.BatchAgent):
 
         """
         ob, ac, atarg, tdlamret = rollout["observations"], rollout["actions"], rollout["advantages"], rollout["discounted_future_reward"]
-        vpredbefore = rollout["baseline_preds"] # predicted value function before udpate
-
         args = rollout["observations"], rollout["actions"], rollout["advantages"]
         fvpargs = [arr[::5] for arr in args]
         fvp_feed = self._policy.build_update_feed_dict(
             self._policy,
             fvpargs[0], fvpargs[2],
             fvpargs[1])
+
         def fisher_vector_product(p):
             fvp_feed[self._policy.flat_tangent] = p
             return self._policy.G(self._policy.fvp, fvp_feed) +\
@@ -105,7 +100,7 @@ class TRPOAgent(base_agent.BatchAgent):
             stepdir = conjugate_gradient(fisher_vector_product, g,
                                          self.cg_iters, verbose=True)
             assert np.isfinite(stepdir).all()
-            shs = .5*stepdir.dot(fisher_vector_product(stepdir))
+            shs = .5 * stepdir.dot(fisher_vector_product(stepdir))
             lm = np.sqrt(shs / self.max_kl)
 
             fullstep = stepdir / lm
@@ -117,15 +112,14 @@ class TRPOAgent(base_agent.BatchAgent):
             for _ in range(10):
                 thnew = thprev + fullstep * stepsize
                 set_from_flat(thnew)
-
                 surr = get_loss()[0]
-
                 improve = surr - surrbefore
 
                 kl = self._policy.G(self._policy.kl, feed)
                 meanlosses = (surr, kl)
 
-                print("Expected: %.3f Actual: %.3f" % (expectedimprove, improve))
+                print("Expected: {} Actual: {}".format(
+                    expectedimprove, improve))
                 if not np.isfinite(meanlosses).all():
                     print("Got non-finite value of losses -- bad!")
                 elif kl > self.max_kl * 1.5:
@@ -135,7 +129,7 @@ class TRPOAgent(base_agent.BatchAgent):
                 else:
                     print("Stepsize OK!")
                     break
-                stepsize *= .5
+                stepsize *= 0.5
             else:
                 print("couldn't compute a good step")
                 set_from_flat(thprev)

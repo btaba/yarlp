@@ -4,13 +4,12 @@ Sample run with reinforce agent
 
 from yarlp.agent.cem_agent import CEMAgent
 from yarlp.utils.env_utils import NormalizedGymEnv
-from yarlp.model.networks import mlp
 
 
 def main():
     env = NormalizedGymEnv(
-        'MountainCarContinuous-v0'
-        # 'CartPole-v1'
+        # 'MountainCarContinuous-v0'
+        'CartPole-v1'
         # 'Acrobot-v1'
         # 'Pendulum-v0'
         # 'HalfCheetah-v1'

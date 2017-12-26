@@ -17,7 +17,7 @@ def value_function_model_factory(
     def build_graph(model, network, lr, shape):
         input_node = model.add_input(shape=shape)
 
-        network = partial(network, activation_fn=None)
+        network = partial(network, final_activation_fn=None)
         output_node = model.add_output(network, num_outputs=1)
         model.value = output_node
 

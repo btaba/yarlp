@@ -40,13 +40,14 @@ def normalize_timesteps(data, x, by, steps):
     return data
 
 
-def normalize_to_seconds(data, time, by, experiment_name):
+def normalize_to_seconds(data, time, by, experiment_name, reward):
     """
     Round seconds and group reward by second for each experiment
     """
     data = data.copy()
     bys = data[by].unique()
 
+    max_time = int(data[time].max())
     return_data = pd.DataFrame()
     for b in bys:
         d = data.loc[data[by] == b]
@@ -56,42 +57,44 @@ def normalize_to_seconds(data, time, by, experiment_name):
         d.loc[:, by] = b
         d.loc[:, experiment_name] = exp_name
         d.index = d[time]
-        d = d.reindex(index=range(1, int(d[time].max())), method='ffill')
+        d = d.reindex(index=range(1, max_time), method='ffill')
         d[time] = d.index
         return_data = return_data.append(d)
 
     return return_data
 
 
-def make_plots(data, env):
+def make_plots(data, env, run='run_name', condition='name'):
     """
     Make plots by second, timestep, and episode
     """
 
-    figure, axes = plt.subplots(ncols=3, nrows=1, figsize=(3 * 6, 6))
+    figure, axes = plt.subplots(ncols=2, nrows=1, figsize=(2 * 6, 6))
 
     # plot episodes
     plot1 = plot_data(
-        data, 'avg_total_reward', 'episode', 'run_name', 'name', env, axes[0])
+        data, 'Smoothed_total_reward', 'Iteration',
+        run, condition, env, axes[0])
 
     # plot timesteps
     timestep_data = normalize_timesteps(
         data, 'timesteps_so_far', 'run_name', 1000)
     plot2 = plot_data(
-        timestep_data, 'avg_total_reward',
-        'timesteps_so_far', 'run_name', 'name',
+        timestep_data, 'Smoothed_total_reward',
+        'timesteps_so_far', run, condition,
         env, axes[1])
 
-    # plot by seconds
-    ts_data = normalize_to_seconds(
-        data, 'time_elapsed', 'run_name', 'name')
-    plot3 = plot_data(
-        ts_data, 'avg_total_reward', 'time_elapsed',
-        'run_name', 'name', env, axes[2])
+    # # plot by seconds
+    # ts_data = normalize_to_seconds(
+    #     data, 'time_elapsed', run, condition,
+    #     'Smoothed_total_reward')
+    # plot3 = plot_data(
+    #     ts_data, 'Smoothed_total_reward', 'time_elapsed',
+    #     run, condition, env, axes[2])
 
     figure.add_subplot(plot1)
     figure.add_subplot(plot2)
-    figure.add_subplot(plot3)
+    # figure.add_subplot(plot3)
 
     plt.tight_layout()
 

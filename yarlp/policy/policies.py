@@ -90,6 +90,7 @@ class GaussianPolicy(Policy):
         self.input_node = tf_utils.get_placeholder(
             name="observations",
             dtype=tf.float32, shape=shape)
+
         with tf.variable_scope(name) as s:
             self._scope = s
             mean = network(inputs=self.input_node, num_outputs=num_outputs,
@@ -107,6 +108,7 @@ class GaussianPolicy(Policy):
                     name='logstd',
                     shape=[1, num_outputs],
                     initializer=tf.zeros_initializer())
+                log_std = mean * 0.0 + log_std
 
             self.action_placeholder = tf.placeholder(
                 dtype=tf.float32, shape=(None, num_outputs), name='action')
@@ -118,6 +120,7 @@ class GaussianPolicy(Policy):
             tf.GraphKeys.TRAINABLE_VARIABLES,
             self._scope.name)
         return [t for t in tvars if not t.name.startswith('pi/logstd')]
+
 
 def make_policy(env, name, network_params={}, input_shape=None,
                 init_std=1.0, adaptive_std=False, network=mlp):
