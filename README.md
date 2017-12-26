@@ -4,7 +4,7 @@
 
 **Yet Another Reinforcement Learning Package**
 
-Implementations of [`CEM`](/yarlp/agent/cem_agent.py), [`REINFORCE`](/yarlp/agent/pg_agent.py), and [`TRPO`](/yarlp/agent/trpo_agent.py), benchmarked against OpenAI [baselines](https://github.com/openai/baselines), mostly done for educational purposes.
+Implementations of [`CEM`](/yarlp/agent/cem_agent.py), [`REINFORCE`](/yarlp/agent/pg_agents.py), and [`TRPO`](/yarlp/agent/trpo_agent.py), benchmarked against OpenAI [baselines](https://github.com/openai/baselines), mostly done for educational purposes.
 
 Quick example:
 
