@@ -21,3 +21,4 @@ Werkzeug
 jsonschema
 seaborn
 baselines==0.1.4
+opencv-python
