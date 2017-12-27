@@ -1,15 +1,14 @@
-FROM quay.io/travisci/ci-python:packer-1475058170
+FROM tensorflow/tensorflow:1.4.0-py3
 
-#USER travis
+RUN apt update &&\
+ 	apt install --yes libsm6 libxext6 libfontconfig1 libxrender1 python3-tk
 
 ADD . /yarlp
-#ADD ./external /yarlp/external
-#ADD setup.py /yarlp/setup.py
 
 WORKDIR /yarlp
 
-RUN /home/travis/virtualenv/python3.5/bin/pip install -r requirements.txt
+RUN pip install -r requirements.txt
 
-RUN /home/travis/virtualenv/python3.5/bin/python setup.py install
+RUN python setup.py install
 
-#RUN /home/travis/virtualenv/python3.5/bin/pytest
+RUN pytest
