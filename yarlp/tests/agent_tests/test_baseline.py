@@ -2,17 +2,14 @@
     Regression tests for baselines
 """
 
-import unittest
+import pytest
 import gym
 
 from yarlp.agent.baseline_agents import RandomAgent
 
-class TestBaselines(unittest.TestCase):
+env = gym.make('CartPole-v0')
 
-    @classmethod
-    def setUpClass(cls):
-        cls.env = gym.make('CartPole-v0')
 
-    def test_random(self):
-        agent = RandomAgent(self.env)
-        agent.train(num_train_steps=1)
+def test_random():
+    agent = RandomAgent(env)
+    agent.train(num_train_steps=1)

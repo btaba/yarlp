@@ -3,61 +3,62 @@
 """
 
 import os
-import unittest
+import pytest
 import shutil
 import tensorflow as tf
 from yarlp.model.graph import Graph
 
 
-class TestGraph(unittest.TestCase):
+def test_setitem():
+    tf.reset_default_graph()
+    G = Graph()
+    var = tf.placeholder(dtype=tf.float32, shape=(None,))
+    G['var'] = var
 
-    def test_setitem(self):
-        tf.reset_default_graph()
-        G = Graph()
-        var = tf.placeholder(dtype=tf.float32, shape=(None,))
+    with pytest.raises(KeyError):
         G['var'] = var
 
-        with self.assertRaises(KeyError):
-            G['var'] = var
 
-    def test_getitem(self):
-        tf.reset_default_graph()
-        G = Graph()
-        var = tf.placeholder(dtype=tf.float32, shape=(None,))
-        G['var'] = var
+def test_getitem():
+    tf.reset_default_graph()
+    G = Graph()
+    var = tf.placeholder(dtype=tf.float32, shape=(None,))
+    G['var'] = var
 
-        self.assertEqual(G['var'], var)
-        self.assertEqual(G[['var', 'var']], [var, var])
-
-    def test_contains(self):
-        tf.reset_default_graph()
-        G = Graph()
-        var = tf.placeholder(dtype=tf.float32, shape=(None,))
-        G['var'] = var
-        self.assertTrue('var' in G)
-
-    def test_global_vars(self):
-        tf.reset_default_graph()
-        G = Graph()
-        with G as g:
-            var = tf.Variable(tf.random_normal([10, 10]), trainable=False)
-            g['var'] = var
-
-        self.assertEqual(g.GLOBAL_VARIABLES, [var])
-
-    def test_trainable_vars(self):
-        tf.reset_default_graph()
-        G = Graph()
-        with G as g:
-            var = tf.Variable(tf.random_normal([10, 10]), trainable=True)
-            g['var'] = var
-
-        self.assertEqual(g.TRAINABLE_VARIABLES, [var])
+    assert G['var'] == var
+    assert G[['var', 'var']] == [var, var]
 
 
-class TestGraphSaveLoad(unittest.TestCase):
+def test_contains():
+    tf.reset_default_graph()
+    G = Graph()
+    var = tf.placeholder(dtype=tf.float32, shape=(None,))
+    G['var'] = var
+    assert 'var' in G
 
-    def test_load_and_save(self):
+
+def test_global_vars():
+    tf.reset_default_graph()
+    G = Graph()
+    with G as g:
+        var = tf.Variable(tf.random_normal([10, 10]), trainable=False)
+        g['var'] = var
+
+    assert g.GLOBAL_VARIABLES == [var]
+
+
+def test_trainable_vars():
+    tf.reset_default_graph()
+    G = Graph()
+    with G as g:
+        var = tf.Variable(tf.random_normal([10, 10]), trainable=True)
+        g['var'] = var
+
+    assert g.TRAINABLE_VARIABLES == [var]
+
+
+def test_load_and_save():
+    try:
         tf.reset_default_graph()
         G = Graph()
         with G as g:
@@ -69,7 +70,8 @@ class TestGraphSaveLoad(unittest.TestCase):
         G = Graph()
         G.load('test_load_and_save')
         assert 'var' in G
-
-    def tearDown(self):
+    except Exception as e:
+        raise e
+    else:
         if os.path.exists('test_load_and_save'):
             shutil.rmtree('test_load_and_save')

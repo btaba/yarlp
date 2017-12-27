@@ -2,8 +2,9 @@ import gym
 import numpy as np
 from gym.spaces import Discrete, Box
 from gym.core import Env
-from baselines.common.atari_wrappers import wrap_deepmind
-from baselines.common.atari_wrappers import NoopResetEnv, MaxAndSkipEnv
+from yarlp.external.baselines.baselines.common.atari_wrappers import wrap_deepmind
+from yarlp.external.baselines.baselines.common.atari_wrappers import NoopResetEnv
+from yarlp.external.baselines.baselines.common.atari_wrappers import MaxAndSkipEnv
 
 
 def wrap_atari(env):

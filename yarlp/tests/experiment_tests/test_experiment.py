@@ -1,22 +1,22 @@
-import unittest
+import pytest
 import os
 import shutil
 
 from yarlp.experiment.experiment import Experiment
 
 
-class TestExperiment(unittest.TestCase):
+@pytest.fixture
+def get_exp():
+    dirname = os.path.dirname(os.path.abspath(__file__))
+    file = os.path.join(dirname, 'test_experiment.json')
+    print(file)
+    e = Experiment.from_json_spec(file)
+    yield e
+    shutil.rmtree(os.path.dirname(e._experiment_dir))
 
-    def setUp(self):
-        dirname = os.path.dirname(os.path.abspath(__file__))
-        file = os.path.join(dirname, 'test_experiment.json')
-        print(file)
-        self.e = Experiment.from_json_spec(file)
 
-    def test_run(self):
-        self.e.run()
-        print(self.e._experiment_dir)
-        self.assertTrue(os.path.isdir(self.e._experiment_dir))
-
-    def tearDown(self):
-        shutil.rmtree(os.path.dirname(self.e._experiment_dir))
+def test_run(get_exp):
+    e = get_exp
+    e.run()
+    print(e._experiment_dir)
+    assert os.path.isdir(e._experiment_dir) is True

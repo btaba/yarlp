@@ -22,10 +22,10 @@ def setup_package():
             make_plots=yarlp.experiment.experiment:make_plots
         ''',
         'install_requires': [
-            'gym[mujoco,atari,classic_control]',
-            'baselines'
+            'gym[mujoco,atari,classic_control]'
         ],
-        'packages': find_packages()
+        'packages': find_packages(
+            exclude=("tests", ))
     }
 
     setup(**config)

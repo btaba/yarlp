@@ -1,76 +1,77 @@
-import unittest
+import pytest
 import numpy as np
 import tensorflow as tf
 import scipy.stats as stats
 from yarlp.policy.distributions import Categorical, DiagonalGaussian
 
 
-class TestDistributions(unittest.TestCase):
+def test_diag_gauss_ent_and_kl():
+    np.random.seed(1)
+    N = 200000
 
-    def test_diag_gauss_ent_and_kl(self):
-        np.random.seed(1)
-        N = 200000
+    # diagonal gaussian
+    mean = np.array([[-.2, .3, .4, -.5]], dtype='float32')
+    logstd = np.array([[.1, -.5, .1, 0.8]], dtype='float32')
+    mean2 = mean * np.random.randn(mean.shape[-1]) * 0.1
+    logstd2 = logstd * np.random.randn(mean.shape[-1]) * 0.1
 
-        # diagonal gaussian
-        mean = np.array([[-.2, .3, .4, -.5]], dtype='float32')
-        logstd = np.array([[.1, -.5, .1, 0.8]], dtype='float32')
-        mean2 = mean * np.random.randn(mean.shape[-1]) * 0.1
-        logstd2 = logstd * np.random.randn(mean.shape[-1]) * 0.1
+    means = np.vstack([mean] * N)
+    logstds = np.vstack([logstd] * N)
+    dist = DiagonalGaussian(means, logstds)
+    q_dist = DiagonalGaussian(
+        mean2.astype('float32'), logstd2.astype('float32'))
+    validate_probtype(dist, q_dist, N)
 
-        means = np.vstack([mean] * N)
-        logstds = np.vstack([logstd] * N)
-        dist = DiagonalGaussian(means, logstds)
-        q_dist = DiagonalGaussian(
-            mean2.astype('float32'), logstd2.astype('float32'))
-        validate_probtype(dist, q_dist, N)
 
-    def test_categorical_ent_and_kl(self):
-        np.random.seed(1)
-        N = 200000
+def test_categorical_ent_and_kl():
+    np.random.seed(1)
+    N = 200000
 
-        # categorical
-        logit = np.array([[.2, .3, .5]], dtype='float32')
-        logits = np.vstack([logit] * N)
-        dist = Categorical(logits)
-        output2 = logit + np.random.rand(logit.shape[-1]) * .1
-        q_dist = Categorical(output2.astype('float32'))
-        validate_probtype(dist, q_dist, N)
+    # categorical
+    logit = np.array([[.2, .3, .5]], dtype='float32')
+    logits = np.vstack([logit] * N)
+    dist = Categorical(logits)
+    output2 = logit + np.random.rand(logit.shape[-1]) * .1
+    q_dist = Categorical(output2.astype('float32'))
+    validate_probtype(dist, q_dist, N)
 
-    def test_diag_gauss_against_scipy(self):
-        sess = tf.Session()
-        mean = np.array([[-.2, .3, .4, -.5]], dtype='float32')
-        logstd = np.array([[.1, -.5, .1, 0.8]], dtype='float32')
-        dist = DiagonalGaussian(mean, logstd)
 
-        # validate log likelihood
-        n = stats.multivariate_normal(
-            mean=mean[0], cov=np.square(np.diag(np.exp(logstd[0]))))
-        x = np.array([[0, 0, 0, 0], [0.1, 0.2, 0.3, 0.4]], dtype='float32')
-        assert np.allclose(n.logpdf(x), sess.run(dist.log_likelihood(x)))
+def test_diag_gauss_against_scipy():
+    sess = tf.Session()
+    mean = np.array([[-.2, .3, .4, -.5]], dtype='float32')
+    logstd = np.array([[.1, -.5, .1, 0.8]], dtype='float32')
+    dist = DiagonalGaussian(mean, logstd)
 
-        # validate entropy
-        assert np.isclose(n.entropy(), sess.run(dist.entropy()))
+    # validate log likelihood
+    n = stats.multivariate_normal(
+        mean=mean[0], cov=np.square(np.diag(np.exp(logstd[0]))))
+    x = np.array([[0, 0, 0, 0], [0.1, 0.2, 0.3, 0.4]], dtype='float32')
+    assert np.allclose(n.logpdf(x), sess.run(dist.log_likelihood(x)))
 
-    def test_categorical_against_scipy(self):
-        sess = tf.Session()
-        logits = np.array([[.2, .3, .5]], dtype='float32')
-        dist = Categorical(logits)
+    # validate entropy
+    assert np.isclose(n.entropy(), sess.run(dist.entropy()))
 
-        probs = np.exp(logits) / np.exp(logits).sum()
-        c = stats.multinomial(p=probs, n=1)
 
-        assert np.allclose(sess.run(dist.probs), c.p)
+def test_categorical_against_scipy():
+    sess = tf.Session()
+    logits = np.array([[.2, .3, .5]], dtype='float32')
+    dist = Categorical(logits)
 
-        # validate log likelihood
-        x = np.array([[1], [2], [0]])
-        x_one_hot = np.zeros((3, 3))
-        x_one_hot[np.arange(3), x.flatten()] = 1
-        assert np.allclose(
-            sess.run(dist.log_likelihood(x)).squeeze(),
-            c.logpmf(x_one_hot))
+    probs = np.exp(logits) / np.exp(logits).sum()
+    c = stats.multinomial(p=probs, n=1)
 
-        # validate entropy
-        assert np.isclose(c.entropy()[0], sess.run(dist.entropy())[0])
+    assert np.allclose(sess.run(dist.probs), c.p)
+
+    # validate log likelihood
+    x = np.array([[1], [2], [0]])
+    x_one_hot = np.zeros((3, 3))
+    x_one_hot[np.arange(3), x.flatten()] = 1
+    assert np.allclose(
+        sess.run(dist.log_likelihood(x)).squeeze(),
+        c.logpmf(x_one_hot))
+
+    # validate entropy
+    assert np.isclose(c.entropy()[0], sess.run(dist.entropy())[0])
 
 
 def validate_probtype(dist, q_dist, N):

@@ -1,23 +1,22 @@
-import unittest
+import pytest
 import os
 from yarlp.utils.metric_logger import MetricLogger
 
 
-class TestMetricLogger(unittest.TestCase):
+@pytest.fixture
+def get_logger():
+    logger = MetricLogger(log_dir='.', logger_name='testytest')
+    yield logger
+    os.remove('stats.json.txt')
 
-    def setUp(self):
-        logger = MetricLogger(log_dir='.', logger_name='testytest')
-        self.logger = logger
 
-    def test_logger(self):
-        self.logger.add_metric('a', 1)
-        self.logger.log()
+def test_logger(get_logger):
+    logger = get_logger
+    logger.add_metric('a', 1)
+    logger.log()
 
-        self.logger.add_metric('a', 2)
-        self.assertEqual(self.logger._iteration, 1)
+    logger.add_metric('a', 2)
+    assert logger._iteration == 1
 
-        # check that csv was created
-        self.assertTrue(os.path.exists('stats.json.txt'))
-
-    def tearDown(self):
-        os.remove('stats.json.txt')
+    # check that csv was created
+    assert os.path.exists('stats.json.txt') is True
