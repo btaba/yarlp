@@ -10,3 +10,5 @@ jsonschema
 seaborn
 opencv-python
 pytest
+imageio
+PyOpenGL
