@@ -23,7 +23,7 @@ We benchmark against Openai [`baselines`](https://github.com/openai/baselines) u
 
 ### Mujoco1M
 
-We average over 5 random seeds instead of 3 for both `baselines` and `yarlp`. More seeds probably wouldn't hurt here.
+We average over 5 random seeds instead of 3 for both `baselines` and `yarlp`. More seeds probably wouldn't hurt here, we report 95th percent confidence intervals.
 
 |   |   |   |   |
 |---|---|---|---|

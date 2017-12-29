@@ -5,7 +5,7 @@ import seaborn as sns
 import numpy as np
 
 
-def plot_data(data, value, time, run, condition, title='', ax=None):
+def plot_data(data, value, time, run, condition, title='', ax=None, ci=95):
     """
     Plot time series data using sns.tsplot
 
@@ -23,7 +23,7 @@ def plot_data(data, value, time, run, condition, title='', ax=None):
     sns.set(style="darkgrid", font_scale=1.5)
     plot = sns.tsplot(
         data=data, time=time, value=value, unit=run, condition=condition,
-        ax=ax)
+        ax=ax, ci=ci)
     plt.title(title)
     return plot
 

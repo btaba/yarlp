@@ -117,6 +117,7 @@ class Experiment(object):
                     s['env']['name'], s['agent']['type'], r)
                 s_copy['run_name'] = run_name
                 s_copy['seed'] = r
+                s_copy['agent']['seeds'] = [r]
                 repeated_spec_list.append(s_copy)
 
         return repeated_spec_list

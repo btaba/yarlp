@@ -1,0 +1,166 @@
+{
+    "runs":
+    [
+        {
+            "env": {
+                "normalize_obs": true,
+                "name": "InvertedDoublePendulum-v1"
+            },
+            "run_name": "InvertedDoublePendulum-v1_TRPOAgent_run656_param0",
+            "agent": {
+                "type": "TRPOAgent",
+                "training_params": {
+                    "max_timesteps": 1000000
+                },
+                "params": {},
+                "seeds": [
+                    652,
+                    653,
+                    654,
+                    655,
+                    656
+                ]
+            },
+            "seed": 656,
+            "param_run": 0
+        },
+        {
+            "env": {
+                "normalize_obs": true,
+                "name": "InvertedPendulum-v1"
+            },
+            "run_name": "InvertedPendulum-v1_TRPOAgent_run656_param0",
+            "agent": {
+                "type": "TRPOAgent",
+                "training_params": {
+                    "max_timesteps": 1000000
+                },
+                "params": {},
+                "seeds": [
+                    652,
+                    653,
+                    654,
+                    655,
+                    656
+                ]
+            },
+            "seed": 656,
+            "param_run": 0
+        },
+        {
+            "env": {
+                "normalize_obs": true,
+                "name": "HalfCheetah-v1"
+            },
+            "run_name": "HalfCheetah-v1_TRPOAgent_run656_param0",
+            "agent": {
+                "type": "TRPOAgent",
+                "training_params": {
+                    "max_timesteps": 1000000
+                },
+                "params": {},
+                "seeds": [
+                    652,
+                    653,
+                    654,
+                    655,
+                    656
+                ]
+            },
+            "seed": 656,
+            "param_run": 0
+        },
+        {
+            "env": {
+                "normalize_obs": true,
+                "name": "Hopper-v1"
+            },
+            "run_name": "Hopper-v1_TRPOAgent_run656_param0",
+            "agent": {
+                "type": "TRPOAgent",
+                "training_params": {
+                    "max_timesteps": 1000000
+                },
+                "params": {},
+                "seeds": [
+                    652,
+                    653,
+                    654,
+                    655,
+                    656
+                ]
+            },
+            "seed": 656,
+            "param_run": 0
+        },
+        {
+            "env": {
+                "normalize_obs": true,
+                "name": "Walker2d-v1"
+            },
+            "run_name": "Walker2d-v1_TRPOAgent_run656_param0",
+            "agent": {
+                "type": "TRPOAgent",
+                "training_params": {
+                    "max_timesteps": 1000000
+                },
+                "params": {},
+                "seeds": [
+                    652,
+                    653,
+                    654,
+                    655,
+                    656
+                ]
+            },
+            "seed": 656,
+            "param_run": 0
+        },
+        {
+            "env": {
+                "normalize_obs": true,
+                "name": "Reacher-v1"
+            },
+            "run_name": "Reacher-v1_TRPOAgent_run656_param0",
+            "agent": {
+                "type": "TRPOAgent",
+                "training_params": {
+                    "max_timesteps": 1000000
+                },
+                "params": {},
+                "seeds": [
+                    652,
+                    653,
+                    654,
+                    655,
+                    656
+                ]
+            },
+            "seed": 656,
+            "param_run": 0
+        },        
+        {
+            "env": {
+                "normalize_obs": true,
+                "name": "Swimmer-v1"
+            },
+            "run_name": "Swimmer-v1_TRPOAgent_run656_param0",
+            "agent": {
+                "type": "TRPOAgent",
+                "training_params": {
+                    "max_timesteps": 1000000
+                },
+                "params": {},
+                "seeds": [
+                    652,
+                    653,
+                    654,
+                    655,
+                    656
+                ]
+            },
+            "seed": 656,
+            "param_run": 0
+        }
+    ]
+}
