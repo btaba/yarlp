@@ -16,12 +16,9 @@ REINFORCE Agent and Policy Gradient (PG) Actor Critic Agent
 """
 
 import numpy as np
-import tensorflow as tf
 
 from yarlp.agent.base_agent import BatchAgent
 from yarlp.model.model_factories import pg_model_factory
-from yarlp.model.model_factories import value_function_model_factory
-from yarlp.model.linear_baseline import LinearFeatureBaseline
 from yarlp.utils.experiment_utils import get_network
 from yarlp.model.networks import mlp
 

@@ -74,8 +74,8 @@ class TRPOAgent(base_agent.BatchAgent):
             fvpargs[1])
 
         def fisher_vector_product(p):
-            fvp_feed[self._policy.flat_tangent] = p
-            return self._policy.G(self._policy.fvp, fvp_feed) +\
+            fvp_feed[self._policy['flat_tangent']] = p
+            return self._policy.G(self._policy['fvp'], fvp_feed) +\
                 self.cg_damping * p
 
         feed = self._policy.build_update_feed_dict(
@@ -83,17 +83,17 @@ class TRPOAgent(base_agent.BatchAgent):
             rollout["observations"], rollout["advantages"],
             rollout["actions"])
 
-        self._policy.G(self._policy.set_old_pi_eq_new_pi)
+        self._policy.G(self._policy['set_old_pi_eq_new_pi'])
 
         def set_from_flat(th):
-            feed[self._policy.theta] = th
-            self._policy.G(self._policy.sff, feed)
+            feed[self._policy['theta']] = th
+            self._policy.G(self._policy['sff'], feed)
 
         def get_loss():
-            return self._policy.G(self._policy.losses, feed)
+            return self._policy.G(self._policy['losses'], feed)
 
         lossbefore = get_loss()
-        g = self._policy.G(self._policy.pg, feed)
+        g = self._policy.G(self._policy['pg'], feed)
         if np.allclose(g, 0):
             print("Got zero gradient. not updating")
         else:
@@ -108,14 +108,14 @@ class TRPOAgent(base_agent.BatchAgent):
             surrbefore = lossbefore[0]
             stepsize = 1.0
 
-            thprev = self._policy.G(self._policy.gf, feed)
+            thprev = self._policy.G(self._policy['gf'], feed)
             for _ in range(10):
                 thnew = thprev + fullstep * stepsize
                 set_from_flat(thnew)
                 surr = get_loss()[0]
                 improve = surr - surrbefore
 
-                kl = self._policy.G(self._policy.kl, feed)
+                kl = self._policy.G(self._policy['kl'], feed)
                 meanlosses = (surr, kl)
 
                 print("Expected: {} Actual: {}".format(

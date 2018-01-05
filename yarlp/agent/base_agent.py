@@ -323,14 +323,14 @@ class BatchAgent(Agent):
                 self.logger.add_metric(
                     'Baseline_Loss_Before',
                     self._baseline_model.eval_tensor(
-                        self._baseline_model.loss, *data))
+                        self._baseline_model['loss'], *data))
                 for _ in range(self.baseline_train_iters):
                     for ob, a in tf_utils.iterbatches([*data]):
                         self._baseline_model.update(ob, a)
                 self.logger.add_metric(
                     'Baseline_Loss_After',
                     self._baseline_model.eval_tensor(
-                        self._baseline_model.loss, *data))
+                        self._baseline_model['loss'], *data))
 
             self.logger.add_metric('timesteps_so_far', timesteps_so_far)
             self.logger.add_metric('env_id', self._env_id)

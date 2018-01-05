@@ -1,7 +1,8 @@
 """Tensorflow model that helps to creates a Graph
 """
 import tensorflow as tf
-
+import os
+import joblib
 from yarlp.model.graph import Graph
 from yarlp.utils.env_utils import GymEnv
 from yarlp.utils import tf_utils
@@ -12,33 +13,54 @@ class Model:
     A Tensorflow model
     """
 
-    def __init__(self, env, build_graph, build_update_feed_dict, path=None):
+    def __init__(self, env, build_graph,
+                 build_update_feed_dict,
+                 name='model'):
         """
         """
         self._env = env
+        self.build_update_feed_dict = build_update_feed_dict
+        self.name = name
+
         tf_utils.reset_cache()
         self.G = Graph()
-        self.build_update_feed_dict = build_update_feed_dict
-
-        if path is not None:
-            self.G.load(path)
-            return
 
         with self.G:
             build_graph(self)
             self.create_weight_setter_ops()
 
+    @classmethod
+    def load(cls, path, name='model'):
+        m = joblib.load(os.path.join(path, name + '.jbl'))
+        tf_utils.reset_cache()
+        m.G = Graph()
+        m.G.load(path)
+        return m
+
     def __setitem__(self, var_name, tf_node):
-        self.G[var_name] = tf_node
+        if hasattr(tf_node, '__module__') and\
+                tf_node.__module__.startswith('tensorflow'):
+            if var_name in self.G:
+                return
+            self.G[var_name] = tf_node
+        else:
+            self.__setattr__(var_name, tf_node)
 
     def __getitem__(self, var_name):
-        return self.G[var_name]
+        if var_name in self.G:
+            return self.G[var_name]
+        return self.__getattribute__(var_name)
 
     def get_session(self):
         return self.G._session
 
     def save(self, path):
         self.G.save(path)
+        # serialize myself in the path without graph
+        g = self.G
+        self.G = None
+        joblib.dump(self, os.path.join(path, self.name + '.jbl'))
+        self.G = g
 
     def update(self, *args, **kwargs):
         # this is how we update the weights
@@ -108,15 +130,17 @@ class Model:
         if shape is None:
             shape = (None, *self.env.observation_space.shape)
 
-        self.input_node = tf.placeholder(
+        input_node = tf.placeholder(
             dtype=dtype,
             shape=shape)
 
-        self.G['input:' + name] = self.input_node
+        self.G['input:' + name] = input_node
 
-        return self.input_node
+        return input_node
 
     def add_input_node(self, node, name=''):
+        if 'input:' + name in self.G:
+            return node
         self.G['input:' + name] = node
         return node
 
@@ -128,7 +152,7 @@ class Model:
             num_outputs = GymEnv.get_env_action_space_dim(self._env)
 
         if input_node is None:
-            input_node = self.input_node
+            input_node = self.G['input:']
 
         output_node = network(
             inputs=input_node, num_outputs=num_outputs)

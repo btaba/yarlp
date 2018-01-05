@@ -8,9 +8,9 @@ from yarlp.utils import tf_utils
 
 class Distribution(object):
 
-    def __init__(self):
-        self.sample_op = self.sample()
-        self.sample_greedy_op = self.sample_greedy()
+    def __init__(self, model):
+        self.model['sample_op'] = self.sample()
+        self.model['sample_greedy_op'] = self.sample_greedy()
 
     def kl(self, other):
         raise NotImplementedError()
@@ -40,30 +40,45 @@ class Distribution(object):
 
 class Categorical(Distribution):
 
-    def __init__(self, logits):
-        self.logits = logits
+    def __init__(self, model, logits):
+        self.model = model
+        model['dist:logits'] = logits
         logits1 = logits - tf.reduce_max(logits, axis=-1, keep_dims=True)
         exp_logits = tf.exp(logits1)
         Z = tf.reduce_sum(exp_logits, axis=-1, keep_dims=True)
-        self.probs = exp_logits / Z
-        self.log_probs = logits1 - tf.log(Z)
-        super().__init__()
+        model['dist:probs'] = exp_logits / Z
+        model['dist:log_probs'] = logits1 - tf.log(Z)
+        super().__init__(model)
 
     @property
     def output_node(self):
         return tf.squeeze(self.sample())
 
+    @property
+    def logits(self):
+        return self.model['dist:logits']
+
+    @property
+    def probs(self):
+        return self.model['dist:probs']
+
+    @property
+    def log_probs(self):
+        return self.model['dist:log_probs']
+
     def kl(self, old_dist):
+        probs = self.probs
+        old_probs = old_dist.probs
         return tf.reduce_sum(
-            old_dist.probs * (
-                tf.log(old_dist.probs + tf_utils.EPSILON) -
-                tf.log(self.probs + tf_utils.EPSILON)
+            old_probs * (
+                tf.log(old_probs + tf_utils.EPSILON) -
+                tf.log(probs + tf_utils.EPSILON)
             ), axis=-1)
 
     def entropy(self):
+        probs = self.probs
         return -tf.reduce_sum(
-            self.probs *
-            tf.log(self.probs + tf_utils.EPSILON), axis=-1)
+            probs * tf.log(probs + tf_utils.EPSILON), axis=-1)
 
     def log_likelihood(self, x):
         x_one_hot = tf.one_hot(tf.squeeze(x), depth=tf.shape(self.logits)[-1])
@@ -75,9 +90,9 @@ class Categorical(Distribution):
 
     def sample(self):
         # Gumbel max trick for sampling in log-space
-        u = tf.random_uniform(tf.shape(self.logits))
-        return tf.argmax(self.logits - tf.log(-tf.log(u)),
-                         axis=-1)
+        logits = self.logits
+        u = tf.random_uniform(tf.shape(logits))
+        return tf.argmax(logits - tf.log(-tf.log(u)), axis=-1)
 
     def sample_greedy(self):
         return tf.argmax(self.logits, axis=-1)
@@ -85,11 +100,24 @@ class Categorical(Distribution):
 
 class DiagonalGaussian(Distribution):
 
-    def __init__(self, mean, logstd):
-        self.mean = mean
-        self.logstd = logstd
-        self.std = tf.exp(logstd)
-        super().__init__()
+    def __init__(self, model, mean, logstd):
+        self.model = model
+        model['dist:mean'] = mean
+        model['dist:logstd'] = logstd
+        model['dist:std'] = tf.exp(logstd)
+        super().__init__(model)
+
+    @property
+    def std(self):
+        return self.model['dist:std']
+
+    @property
+    def mean(self):
+        return self.model['dist:mean']
+
+    @property
+    def logstd(self):
+        return self.model['dist:logstd']
 
     @property
     def output_node(self):

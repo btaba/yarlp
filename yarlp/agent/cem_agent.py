@@ -12,7 +12,6 @@ from yarlp.agent.base_agent import do_rollout
 from yarlp.model.networks import mlp
 
 import numpy as np
-import tensorflow as tf
 
 
 class CEMAgent(Agent):
@@ -53,7 +52,7 @@ class CEMAgent(Agent):
             model_file_path=model_file_path)
 
         # Get model shapes
-        theta = self._policy.G(self._policy.gf)
+        theta = self._policy.G(self._policy['gf'])
         self.model_total_sizes = theta.shape[0]
 
         # Mean and SD of our weights
@@ -138,8 +137,8 @@ class CEMAgent(Agent):
             for w in weight_samples:
                 # add weights to PolicyModel
                 self._policy.G(
-                    self._policy.sff,
-                    {self._policy.theta: w})
+                    self._policy['sff'],
+                    {self._policy['theta']: w})
                 rollout = rollout_gen.__next__()
                 timesteps_so_far += len(rollout['dones'])
                 rollouts.append(rollout)

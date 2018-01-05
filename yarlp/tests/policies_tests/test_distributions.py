@@ -17,9 +17,9 @@ def test_diag_gauss_ent_and_kl():
 
     means = np.vstack([mean] * N)
     logstds = np.vstack([logstd] * N)
-    dist = DiagonalGaussian(means, logstds)
+    dist = DiagonalGaussian({}, means, logstds)
     q_dist = DiagonalGaussian(
-        mean2.astype('float32'), logstd2.astype('float32'))
+        {}, mean2.astype('float32'), logstd2.astype('float32'))
     validate_probtype(dist, q_dist, N)
 
 
@@ -30,9 +30,9 @@ def test_categorical_ent_and_kl():
     # categorical
     logit = np.array([[.2, .3, .5]], dtype='float32')
     logits = np.vstack([logit] * N)
-    dist = Categorical(logits)
+    dist = Categorical({}, logits)
     output2 = logit + np.random.rand(logit.shape[-1]) * .1
-    q_dist = Categorical(output2.astype('float32'))
+    q_dist = Categorical({}, output2.astype('float32'))
     validate_probtype(dist, q_dist, N)
 
 
@@ -40,7 +40,7 @@ def test_diag_gauss_against_scipy():
     sess = tf.Session()
     mean = np.array([[-.2, .3, .4, -.5]], dtype='float32')
     logstd = np.array([[.1, -.5, .1, 0.8]], dtype='float32')
-    dist = DiagonalGaussian(mean, logstd)
+    dist = DiagonalGaussian({}, mean, logstd)
 
     # validate log likelihood
     n = stats.multivariate_normal(
@@ -55,7 +55,7 @@ def test_diag_gauss_against_scipy():
 def test_categorical_against_scipy():
     sess = tf.Session()
     logits = np.array([[.2, .3, .5]], dtype='float32')
-    dist = Categorical(logits)
+    dist = Categorical({}, logits)
 
     probs = np.exp(logits) / np.exp(logits).sum()
     c = stats.multinomial(p=probs, n=1)
@@ -84,9 +84,11 @@ def validate_probtype(dist, q_dist, N):
     sess = tf.Session()
     Xval = sess.run(dist.sample())
     Xval = np.array(Xval)
+    print(Xval)
     # get the mean negative log likelihood for sampled X
     negloglik = -1 * dist.log_likelihood(Xval)
     negloglik = sess.run(negloglik)
+    print(negloglik)
     # assert that the mean negative log likelihood is within
     # 3 standard errors of the entropy
     ent = sess.run(dist.entropy()).mean()

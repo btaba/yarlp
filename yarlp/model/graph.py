@@ -10,8 +10,7 @@ class Graph:
     Tensorflow Graph interface
     """
 
-    def __init__(self, finalize=False):
-        self._finalize = finalize
+    def __init__(self):
         self._graph = tf.Graph()
         self._graph.seed = tf.get_default_graph().seed
         self._session = tf.Session('', graph=self._graph)
@@ -27,8 +26,8 @@ class Graph:
             tf.variables_initializer(self.GLOBAL_VARIABLES)
         )
         self._saver = tf.train.Saver()
-        if self._finalize:
-            self._graph.finalize()
+        # if self._finalize:
+        #     self._graph.finalize()
         self._context.__exit__(*args)
 
     def __contains__(self, var_name):
@@ -64,7 +63,6 @@ class Graph:
         return self._graph.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
 
     def save(self, path):
-        # assert self._graph.finalized
         path = self._get_clean_path(path)
         if not os.path.exists(path):
             os.makedirs(path)
@@ -77,7 +75,7 @@ class Graph:
         with self._graph.as_default():
             self._saver = tf.train.import_meta_graph(path + '.meta')
             self._saver.restore(self._session, path)
-        self._graph.finalize()
+        # self._graph.finalize()
 
     def _get_clean_path(self, path):
         path = os.path.abspath(os.path.expanduser(path))
