@@ -9,8 +9,8 @@ from yarlp.utils import tf_utils
 class Distribution(object):
 
     def __init__(self, model):
-        self.model['sample_op'] = self.sample()
-        self.model['sample_greedy_op'] = self.sample_greedy()
+        self.model[self.scope + ':sample_op'] = self.sample()
+        self.model[self.scope + ':sample_greedy_op'] = self.sample_greedy()
 
     def kl(self, other):
         raise NotImplementedError()
@@ -42,12 +42,13 @@ class Categorical(Distribution):
 
     def __init__(self, model, logits):
         self.model = model
-        model['dist:logits'] = logits
+        self.scope = scope = tf.get_variable_scope().name
+        model[scope + ':logits'] = logits
         logits1 = logits - tf.reduce_max(logits, axis=-1, keep_dims=True)
         exp_logits = tf.exp(logits1)
         Z = tf.reduce_sum(exp_logits, axis=-1, keep_dims=True)
-        model['dist:probs'] = exp_logits / Z
-        model['dist:log_probs'] = logits1 - tf.log(Z)
+        model[scope + ':probs'] = exp_logits / Z
+        model[scope + ':log_probs'] = logits1 - tf.log(Z)
         super().__init__(model)
 
     @property
@@ -56,15 +57,15 @@ class Categorical(Distribution):
 
     @property
     def logits(self):
-        return self.model['dist:logits']
+        return self.model[self.scope + ':logits']
 
     @property
     def probs(self):
-        return self.model['dist:probs']
+        return self.model[self.scope + ':probs']
 
     @property
     def log_probs(self):
-        return self.model['dist:log_probs']
+        return self.model[self.scope + ':log_probs']
 
     def kl(self, old_dist):
         probs = self.probs
@@ -102,22 +103,23 @@ class DiagonalGaussian(Distribution):
 
     def __init__(self, model, mean, logstd):
         self.model = model
-        model['dist:mean'] = mean
-        model['dist:logstd'] = logstd
-        model['dist:std'] = tf.exp(logstd)
+        self.scope = scope = tf.get_variable_scope().name
+        model[scope + ':mean'] = mean
+        model[scope + ':logstd'] = logstd
+        model[scope + ':std'] = tf.exp(logstd)
         super().__init__(model)
 
     @property
     def std(self):
-        return self.model['dist:std']
+        return self.model[self.scope + ':std']
 
     @property
     def mean(self):
-        return self.model['dist:mean']
+        return self.model[self.scope + ':mean']
 
     @property
     def logstd(self):
-        return self.model['dist:logstd']
+        return self.model[self.scope + ':logstd']
 
     @property
     def output_node(self):

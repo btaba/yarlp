@@ -306,41 +306,27 @@ def generate_plots_benchmark_vs_yarlp(yarlp_dir, benchmark_dir):
                 '{}.png'.format(env)))
 
 
-@click.command()
-@click.option('--spec-file',
-              default='./experiment_configs/reinforce_experiment.json',
-              help=('Path to json file spec if continue=False'
-                    ', else path to experiment'))
-@click.option('--video', default=False, type=bool,
-              help='Whether to record video or not')
-@click.option('--n-jobs', default=1, type=int,
-              help='number of cpu cores to use when running experiments')
-def run_experiment(spec_file, video, n_jobs):
-    e = Experiment.from_json_spec(spec_file, video=video)
-    e.run(n_jobs=n_jobs)
-
-
-@click.command()
-@click.option(
-    '--upload-dir',
-    help='Path of openai gym session to upload')
-def upload_to_openai(upload_dir):
-    gym.scoreboard.api_key = os.environ.get('OPENAI_GYM_API_KEY', None)
-    gym.upload(upload_dir)
-
-
-@click.command()
-@click.option('--benchmark-name', default='Mujoco1M')
-@click.option('--agent', default='TRPOAgent')
-def run_benchmark(benchmark_name, agent):
-    SEEDS = list(range(652, 752))
-
+def get_benchmarks(benchmark_name):
     from yarlp.experiment.benchmarks import _BENCHMARKS
     benchmark_dict = dict(
         map(lambda x: (x[1]['name'], x[0]), enumerate(_BENCHMARKS)))
     assert benchmark_name in benchmark_dict
     benchmark_idx = benchmark_dict[benchmark_name]
     benchmark = _BENCHMARKS[benchmark_idx]
+    return benchmark
+
+
+@click.group()
+def cli():
+    pass
+
+
+@click.command()
+@click.option('--agent', default='TRPOAgent')
+def run_mujoco1m_benchmark(agent):
+    SEEDS = list(range(652, 752))
+
+    benchmark_name = 'Mujoco1M'
 
     # Make a master log directory
     experiment_dir = Experiment._get_experiment_dir(
@@ -377,6 +363,29 @@ def run_benchmark(benchmark_name, agent):
 
 
 @click.command()
+@click.option('--spec-file',
+              default='./experiment_configs/reinforce_experiment.json',
+              help=('Path to json file spec if continue=False'
+                    ', else path to experiment'))
+@click.option('--video', default=False, type=bool,
+              help='Whether to record video or not')
+@click.option('--n-jobs', default=1, type=int,
+              help='number of cpu cores to use when running experiments')
+def run_experiment(spec_file, video, n_jobs):
+    e = Experiment.from_json_spec(spec_file, video=video)
+    e.run(n_jobs=n_jobs)
+
+
+@click.command()
+@click.option(
+    '--upload-dir',
+    help='Path of openai gym session to upload')
+def upload_to_openai(upload_dir):
+    gym.scoreboard.api_key = os.environ.get('OPENAI_GYM_API_KEY', None)
+    gym.upload(upload_dir)
+
+
+@click.command()
 @click.argument('yarlp-dir')
 @click.argument('openai-benchmark-dir')
 def compare_benchmark(yarlp_dir, openai_benchmark_dir):
@@ -387,3 +396,14 @@ def compare_benchmark(yarlp_dir, openai_benchmark_dir):
 @click.argument('directory')
 def make_plots(directory):
     generate_plots(directory)
+
+
+cli.add_command(run_mujoco1m_benchmark)
+cli.add_command(run_experiment)
+cli.add_command(upload_to_openai)
+cli.add_command(compare_benchmark)
+cli.add_command(make_plots)
+
+
+if __name__ == '__main__':
+    cli()

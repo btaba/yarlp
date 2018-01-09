@@ -4,7 +4,7 @@ import tensorflow as tf
 from yarlp.policy.policies import make_policy
 from yarlp.model.model import Model
 from functools import partial
-from yarlp.model.networks import mlp
+from yarlp.model.networks import mlp, cnn
 from yarlp.utils import tf_utils
 
 
@@ -26,6 +26,18 @@ def build_pg_update_feed_dict(model, state, return_, action):
     feed_dict = {model['state']: state,
                  model['Return']: np.squeeze([return_]),
                  model['action']: action}
+    return feed_dict
+
+
+def build_ddqn_update_feed_dict(
+        model, state, action, reward, state_t1,
+        done, importance_weights):
+    feed_dict = {
+        model['state']: state, model['action']: action.astype(np.int32),
+        model['reward']: reward, model['next_state']: state_t1,
+        model['done']: done,
+        model['importance_weights']: importance_weights
+    }
     return feed_dict
 
 
@@ -65,6 +77,101 @@ def value_function_model_factory(
                  build_vf_update_feed_dict, name=name)
 
 
+def ddqn_model_factory(
+        env, network=cnn,
+        network_params={},
+        double_q=True, learning_rate=5e-4,
+        model_file_path=None, discount_factor=1,
+        grad_norm_clipping=10, name='ddqn'):
+
+    def build_graph(model):
+
+        # q network
+        q = make_policy(
+            env, 'q', model, network_params=network_params, network=network)
+        q_vars = q.get_trainable_variables()
+
+        # target q network
+        q_target = make_policy(
+            env, 'q_target', model, network_params=network_params,
+            network=network, input_node_name='next_observations')
+        q_target_vars = q_target.get_trainable_variables()
+
+        model['q'] = q
+        model['q_target'] = q_target
+        model['q_output'] = model['q:logits']
+        model['q_target_output'] = model['q_target:logits']
+        model['state'] = model['input:observations']
+        model['next_state'] = model['input:next_observations']
+        model['reward'] = tf.placeholder(
+            dtype=tf.float32, shape=(None,), name='reward')
+        model['done'] = tf.placeholder(tf.float32, (None,), name='done')
+        model['importance_weights'] = tf.placeholder(
+            tf.float32, (None,), name='imp_weights')
+
+        num_actions = tf.shape(model['q_output'])[-1]
+        # q values for actions selected
+        q_val = tf.reduce_sum(
+            model['q_output'] * tf.one_hot(
+                tf.squeeze(model['action']),
+                depth=num_actions),
+            axis=1)
+
+        # q values for greedy action
+        if double_q:
+            # user current network to get next greedy action
+            with tf.variable_scope('q', reuse=True):
+                q_next_state = network(
+                    inputs=model['next_state'],
+                    num_outputs=model['q_output'].get_shape().as_list()[-1],
+                    **network_params)
+            # model['q_next_state'] = q_next_state
+            q_for_next_state_max = tf.argmax(q_next_state, axis=1)
+            # model['q_for_next_state_max'] = q_for_next_state_max
+            print(q_next_state.get_shape().as_list())
+            print(q_for_next_state_max.get_shape().as_list())
+            q_target_max = tf.reduce_sum(
+                (model['q_target_output'] *
+                    tf.one_hot(q_for_next_state_max, depth=num_actions)),
+                axis=1
+            )
+        else:
+            q_target_max = tf.reduce_max(model['q_target_output'], 1)
+
+        # model['q_target_max'] = q_target_max
+
+        td_return = model['reward'] + \
+            discount_factor * q_target_max * (1 - model['done'])
+        td_errors = q_val - tf.stop_gradient(td_return)
+        model['td_errors'] = td_errors
+        errors = tf_utils.huber_loss(td_errors)
+        weighted_error = tf.reduce_mean(model['importance_weights'] * errors)
+        model['loss'] = weighted_error
+        model.add_loss(model['loss'])
+
+        optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+        if grad_norm_clipping is not None:
+            grad_clipping_func = partial(
+                tf.clip_by_norm, clip_norm=grad_norm_clipping)
+            model.create_gradient_ops_for_node(
+                optimizer, model['loss'],
+                transform_grad_func=grad_clipping_func,
+                tvars=q_vars, add_optimizer_op=True)
+        else:
+            model.add_optimizer(
+                optimizer, model['loss'],
+                var_list=q_vars)
+
+        model['update_target_network'] = tf.group(*[
+            qt.assign(q) for (q, qt) in
+            zip(q_vars, q_target_vars)])
+
+    if model_file_path is not None:
+        return Model.load(model_file_path, name)
+    return Model(env, build_graph,
+                 build_ddqn_update_feed_dict, name=name)
+
+
 def cem_model_factory(
         env, network=mlp, network_params={},
         input_shape=None,
@@ -76,13 +183,13 @@ def cem_model_factory(
 
     def build_graph(model, network=network,
                     input_shape=input_shape,
-                    network_params=network_params,
-                    init_std=init_std, adaptive_std=adaptive_std):
+                    network_params=network_params):
 
         policy = make_policy(
             env, 'pi', model, network_params=network_params,
             input_shape=input_shape,
-            init_std=init_std, adaptive_std=adaptive_std, network=network)
+            init_std=init_std, adaptive_std=adaptive_std,
+            min_std=min_std, network=network)
         model['policy'] = policy
         model.add_output_node(policy.distribution.output_node)
 
@@ -103,7 +210,7 @@ def cem_model_factory(
 
 def pg_model_factory(
         env, network=mlp, network_params={}, learning_rate=0.01,
-        entropy_weight=0.001, input_shape=None,
+        entropy_weight=0.001,
         min_std=1e-6, init_std=1.0, adaptive_std=False,
         model_file_path=None, name='pg'):
     """
@@ -111,16 +218,15 @@ def pg_model_factory(
     """
 
     def build_graph(model, network=network, lr=learning_rate,
-                    input_shape=input_shape,
                     network_params=network_params,
                     init_std=init_std, adaptive_std=adaptive_std):
 
         policy = make_policy(
             env, 'pi', model,
-            network_params=network_params, input_shape=input_shape,
+            network_params=network_params,
             init_std=init_std, adaptive_std=adaptive_std, network=network)
         model['policy'] = policy
-        model['state'] = model['input:']
+        model['state'] = model['input:observations']
         model['Return'] = tf.placeholder(
             dtype=tf.float32, shape=(None,), name='return')
         model['output_node'] = policy.distribution.output_node
@@ -168,7 +274,7 @@ def trpo_model_factory(
             init_std=init_std, adaptive_std=adaptive_std, network=network)
         model['old_policy'] = old_policy
 
-        model['state'] = model['input:']
+        model['state'] = model['input:observations']
         model['Return'] = tf.placeholder(
             dtype=tf.float32, shape=(None,), name='return')
         model['output_node'] = policy.distribution.output_node
@@ -190,13 +296,11 @@ def trpo_model_factory(
             ratio * model['Return'])
 
         model['optimgain'] = model['surrgain'] + entbonus
-        model.G['losses'] = [model['optimgain'], model['kl'],
-                             entbonus, model['surrgain'], entropy]
+        model['losses'] = tf.stack([model['optimgain'], model['kl'],
+                                    entbonus, model['surrgain'], entropy])
 
         var_list = policy.get_trainable_variables()
-        model.G['klgrads'] = tf.gradients(model['kl'], var_list)
-
-        model['logstd'] = policy.get_trainable_variables()[-1]
+        klgrads = tf.gradients(model['kl'], var_list)
 
         model['pg'] = tf_utils.flatgrad(model['optimgain'], var_list)
 
@@ -216,13 +320,13 @@ def trpo_model_factory(
 
         model['gvp'] = tf.add_n(
             [tf.reduce_sum(g * t)
-             for (g, t) in zip(model['klgrads'], tangents)])
+             for (g, t) in zip(klgrads, tangents)])
         model['fvp'] = tf_utils.flatgrad(model['gvp'], var_list)
         model['gf'] = tf_utils.flatten_vars(var_list)
         model['sff'] = tf_utils.setfromflat(var_list, model['theta'])
-        model.G['set_old_pi_eq_new_pi'] = [
+        model['set_old_pi_eq_new_pi'] = tf.group(*[
             tf.assign(old, new) for (old, new) in
-            zip(old_policy.get_variables(), policy.get_variables())]
+            zip(old_policy.get_variables(), policy.get_variables())])
 
     if model_file_path is not None:
         return Model.load(model_file_path, name=name)

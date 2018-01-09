@@ -83,3 +83,14 @@ def iterbatches(arrays, batch_size=64):
     for batch_inds in np.array_split(inds, sections):
         if len(batch_inds) == batch_size:
             yield tuple(a[batch_inds] for a in arrays)
+
+
+def huber_loss(x, delta=1.0):
+    """
+    Reference: https://en.wikipedia.org/wiki/Huber_loss
+    """
+    return tf.where(
+        tf.abs(x) < delta,
+        tf.square(x) * 0.5,
+        delta * (tf.abs(x) - 0.5 * delta)
+    )

@@ -4,6 +4,7 @@ import json
 import time
 import logging
 import numpy as np
+from functools import lru_cache
 from tabulate import tabulate
 from collections import deque
 
@@ -14,7 +15,7 @@ class MetricLogger:
 
     def __init__(self, log_dir=None, logger_name='yarlp'):
         self._log_dir = log_dir
-        self._logger = self._create_logger(logger_name)
+        self._logger_name = logger_name
         self._metric_dict = {'Iteration': 0}
         self._iteration = 0
 
@@ -42,8 +43,10 @@ class MetricLogger:
     def add_metric(self, metric_name, value):
         self[metric_name] = value
 
-    def _create_logger(self, name):
-        logger = logging.getLogger(name)
+    @property
+    @lru_cache(1)
+    def logger(self):
+        logger = logging.getLogger(self._logger_name)
 
         # remove old handlers
         for handler in logger.handlers:  # remove all old handlers
@@ -85,15 +88,26 @@ class MetricLogger:
         """
         Log to file in the log directory
         """
-        self._logger.info(self._tabulate())
+        self.logger.info('\n' + self._tabulate())
 
         if self._log_dir is not None:
-            self._logger.info('Writing stats to {}'.format(self._stat_file))
+            self.logger.info('Writing stats to {}'.format(self._stat_file))
             with open(self._stat_file, 'a') as f:
                 json.dump(self.metric_dict, f)
                 f.write('\n')
 
         self._reset_metrics()
+
+    def set_metrics_for_iter(self, episode_returns):
+        t = round(time.time() - self._start_time, 6)
+        self['episodes_this_iter'] = len(episode_returns)
+        self['min_reward'] = min(episode_returns)
+        self['max_reward'] = max(episode_returns)
+        self['avg_total_reward'] = np.mean(episode_returns)
+        [self._running_reward.append(r) for r in episode_returns]
+        self['Smoothed_total_reward'] = np.mean(self._running_reward)
+        self['std_reward'] = np.std(episode_returns)
+        self['time_elapsed'] = t
 
     def set_metrics_for_rollout(self, rollout, train=True):
         t = round(time.time() - self._start_time, 6)

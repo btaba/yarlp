@@ -40,37 +40,41 @@ class Policy:
     def predict(self, session, observations, greedy=False):
         if len(observations.shape) == 1:
             observations = np.expand_dims(observations, 0)
-        feed = {self.model['input:']: observations}
+        feed = {self.model['input:observations']: observations}
 
         if not greedy:
             return session.run(
-                self.model['sample_op'],
+                self.model['pi:sample_op'],
                 feed)
         return session.run(
-            self.model['sample_greedy_op'],
+            self.model['pi:sample_greedy_op'],
             feed)
 
 
 class CategoricalPolicy(Policy):
 
     def __init__(self, env, name, model, network_params,
-                 input_shape=None, network=mlp):
+                 input_node_name='observations',
+                 action_name='action',
+                 input_shape=None, network=mlp,
+                 reuse=False, **kwargs):
         super().__init__(env)
 
         if input_shape is None:
-            shape = [None] + list(self.observation_space.shape)
+            input_shape = [None] + list(self.observation_space.shape)
         num_outputs = GymEnv.get_env_action_space_dim(self.env)
 
         input_node = tf_utils.get_placeholder(
-            name="observations",
-            dtype=tf.float32, shape=shape)
-        model.add_input_node(input_node)
+            name=input_node_name,
+            dtype=tf.float32, shape=input_shape)
+        model.add_input_node(input_node, input_node_name)
         self.model = model
 
-        model['action'] = tf.placeholder(
-            dtype=tf.int32, shape=(None), name='action')
+        model[action_name] = tf_utils.get_placeholder(
+            name=action_name,
+            dtype=tf.int32, shape=(None))
 
-        with tf.variable_scope(name) as s:
+        with tf.variable_scope(name, reuse=reuse) as s:
             self._scope = s
             output = network(inputs=input_node,
                              num_outputs=num_outputs,
@@ -80,26 +84,31 @@ class CategoricalPolicy(Policy):
 
 
 class GaussianPolicy(Policy):
-    def __init__(self, env, name, model, network_params, input_shape=None,
+    def __init__(self, env, name, model, network_params,
                  init_std=1.0, adaptive_std=False,
-                 network=mlp):
+                 input_node_name='observations',
+                 action_name='action',
+                 input_shape=None, network=mlp,
+                 reuse=False, **kwargs):
         super().__init__(env)
         self.adaptive_std = adaptive_std
         if input_shape is None:
-            shape = [None] + list(self.observation_space.shape)
+            input_shape = [None] + list(self.observation_space.shape)
         num_outputs = GymEnv.get_env_action_space_dim(self.env)
 
         input_node = tf_utils.get_placeholder(
-            name='observations',
-            dtype=tf.float32, shape=shape)
-        model.add_input_node(input_node)
+            name=input_node_name,
+            dtype=tf.float32, shape=input_shape)
+        model.add_input_node(input_node, input_node_name)
         self.model = model
 
-        model['action'] = tf.placeholder(
-            dtype=tf.float32, shape=(None, num_outputs), name='action')
+        model[action_name] = tf_utils.get_placeholder(
+            name=action_name,
+            dtype=tf.float32, shape=(None, num_outputs))
 
-        with tf.variable_scope(name) as s:
+        with tf.variable_scope(name, reuse=reuse) as s:
             self._scope = s
+
             mean = network(inputs=input_node, num_outputs=num_outputs,
                            activation_fn=None,
                            **network_params)
@@ -128,13 +137,9 @@ class GaussianPolicy(Policy):
         return [t for t in tvars if not t.name.startswith('pi/logstd')]
 
 
-def make_policy(env, name, model, network_params={}, input_shape=None,
-                init_std=1.0, adaptive_std=False, network=mlp):
+def make_policy(env, name, model, **kwargs):
     if GymEnv.env_action_space_is_discrete(env):
         return CategoricalPolicy(
-            env, name, model, network_params=network_params,
-            input_shape=input_shape, network=network)
+            env, name, model, **kwargs)
     return GaussianPolicy(
-        env, name, model, network_params=network_params,
-        input_shape=input_shape, init_std=init_std,
-        adaptive_std=adaptive_std, network=network)
+        env, name, model, **kwargs)

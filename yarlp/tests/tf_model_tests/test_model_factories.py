@@ -8,6 +8,7 @@ from yarlp.model.model_factories import value_function_model_factory
 from yarlp.model.model_factories import cem_model_factory
 from yarlp.model.model_factories import pg_model_factory
 from yarlp.model.model_factories import trpo_model_factory
+from yarlp.model.model_factories import ddqn_model_factory
 
 
 def test_value_function():
@@ -78,3 +79,13 @@ def test_trpo_function_continuous():
     trpo_model_factory(
         env, model_file_path='test_load_and_save_trpo1')
     shutil.rmtree('test_load_and_save_trpo1')
+
+
+def test_ddqn_function():
+    env = gym.make('Pong-v0')
+    M = ddqn_model_factory(env)
+    M.save('test_load_and_save_ddqn')
+    del M
+    ddqn_model_factory(
+        env, model_file_path='test_load_and_save_ddqn')
+    shutil.rmtree('test_load_and_save_ddqn')

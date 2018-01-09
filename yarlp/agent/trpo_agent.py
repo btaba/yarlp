@@ -53,10 +53,10 @@ class TRPOAgent(base_agent.BatchAgent):
             env, network=policy_network, network_params=policy_network_params,
             min_std=min_std, init_std=init_std, adaptive_std=adaptive_std,
             input_shape=input_shape, model_file_path=model_file_path)
-
+        self.tf_object_attributes.add('_policy')
         policy_weight_sums = sum(
             [np.sum(a) for a in self._policy.get_weights()])
-        self.logger._logger.info(
+        self.logger.logger.info(
             'Policy network weight sums: {}'.format(policy_weight_sums))
 
     def update(self, rollout):

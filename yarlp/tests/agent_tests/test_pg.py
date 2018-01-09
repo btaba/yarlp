@@ -5,7 +5,7 @@
 import pytest
 import gym
 import numpy as np
-# import shutil
+import shutil
 
 from yarlp.agent.pg_agents import REINFORCEAgent
 from yarlp.agent.base_agent import do_rollout
@@ -41,15 +41,13 @@ def test_seed():
     assert np.all(
         np.array(r['rewards']) == np.array(r2['rewards']))
 
-# def test_reinforce_save_models():
-#     agent = REINFORCEAgent(
-#         env,
-#         discount_factor=.95)
-#     agent.save_models('testy_reinforce')
-#     agent = REINFORCEAgent(
-#         env,
-#         model_file_path='testy_reinforce')
-#     shutil.rmtree('testy_reinforce')
 
-# def tearDown():
-#     shutil.rmtree()
+def test_reinforce_save_models():
+    agent = REINFORCEAgent(
+        env,
+        discount_factor=.95)
+    agent.train(num_train_steps=1)
+    agent.save('testy_reinforce')
+    agent = REINFORCEAgent.load('testy_reinforce')
+    agent.train(num_train_steps=1)
+    shutil.rmtree('testy_reinforce')

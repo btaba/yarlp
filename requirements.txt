@@ -12,3 +12,5 @@ opencv-python
 pytest
 imageio
 PyOpenGL
+joblib
+cloudpickle

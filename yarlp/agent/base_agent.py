@@ -2,10 +2,13 @@
     Base Agent class, which takes in a PolicyModel object
 """
 
+import os
 import gym
+import joblib
 import numpy as np
 from abc import ABCMeta, abstractmethod
 from gym.spaces import prng
+from yarlp.model.model import Model
 from yarlp.utils.env_utils import GymEnv
 from yarlp.utils.metric_logger import MetricLogger
 from yarlp.utils import tf_utils
@@ -23,8 +26,7 @@ class Agent(ABC):
     """
 
     def __init__(self, env, discount_factor=0.99,
-                 logger=None, seed=None, gae_lambda=0,
-                 state_featurizer=lambda x: x):
+                 logger=None, seed=None, gae_lambda=0):
         """
         discount_factor : float
             Discount rewards by this factor
@@ -40,19 +42,39 @@ class Agent(ABC):
             self.logger = logger
 
         if seed is not None:
-            self.logger._logger.info('Seed: {}'.format(seed))
+            self.logger.logger.info('Seed: {}'.format(seed))
             tf_utils.set_global_seeds(seed)
             env.seed(seed)
             prng.seed(seed)
+
+        # any tensorflow models should be cached and serialized separately
+        self.tf_object_attributes = set()
 
         self._env = env
         self._env_id = '{}_gym{}'.format(
             env.spec.id, gym.__version__)
 
-        self._state_featurizer = state_featurizer
+    @classmethod
+    def load(cls, path, name='agent'):
+        m = joblib.load(os.path.join(path, name + '.jbl'))
+        for t in m.tf_object_attributes:
+            m.__setattr__(t, Model.load(path, name + t))
+        return m
 
-    def save_models(self, path):
-        raise NotImplementedError
+    def save(self, path, name='agent'):
+        tf_cache = []
+        for t in self.tf_object_attributes:
+            attr = getattr(self, t)
+            attr.save(path, name + t)
+            tf_cache.append(attr)
+            self.__setattr__(t, None)
+
+        # serialize myself in the path without graph
+        if not os.path.exists(path):
+            os.mkdir(path)
+        joblib.dump(self, os.path.join(path, name + '.jbl'))
+        for cache, t in zip(tf_cache, self.tf_object_attributes):
+            self.__setattr__(t, cache)
 
     @abstractmethod
     def train(self):
@@ -110,7 +132,7 @@ class Agent(ABC):
         Get the state, allows for building state featurizers here
         like tile coding
         """
-        return self._state_featurizer(state)
+        return state
 
 
 def do_rollout(agent, env, n_steps=None,
@@ -243,6 +265,7 @@ class BatchAgent(Agent):
             self._baseline_model = value_function_model_factory(
                 env, baseline_network,
                 learning_rate=baseline_model_learning_rate)
+            self.tf_object_attributes.add('_baseline_model')
 
     @abstractmethod
     def update(self, path):
@@ -284,7 +307,7 @@ class BatchAgent(Agent):
         """
 
         rollout_gen = do_rollout(
-            self, self._env, n_steps, greedy=False,
+            self, self._env, n_steps,
             render=render,
             *args, **kwargs)
 
@@ -336,6 +359,8 @@ class BatchAgent(Agent):
             self.logger.add_metric('env_id', self._env_id)
             self.logger.set_metrics_for_rollout(rollout, train=True)
             self.logger.log()
+            if self.logger._log_dir:
+                self.save(self.logger._log_dir)
 
             if num_test_steps > 0:
                 test_gen = do_rollout(

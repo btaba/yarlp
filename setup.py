@@ -17,7 +17,6 @@ def setup_package():
             [console_scripts]
             run_yarlp_experiment=yarlp.experiment.experiment:run_experiment
             upload_to_openai=yarlp.experiment.experiment:upload_to_openai
-            run_benchmark=yarlp.experiment.experiment:run_benchmark
             compare_benchmark=yarlp.experiment.experiment:compare_benchmark
             make_plots=yarlp.experiment.experiment:make_plots
         ''',

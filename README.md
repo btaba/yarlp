@@ -49,7 +49,12 @@ CLI convenience scripts will be installed with the package:
 ##### TODO:
 
 * DQ, DDQ
-* serialization/deserialization
+	- Implement dqn, and ddqn
+		- read dueling paper, prioritized Experience Replay
+	- run experiments on Pong, validate
+	- run Atari benchmarks
+* PPO2
+* A2C
+* DDPG
 * docs
 * pypi
-

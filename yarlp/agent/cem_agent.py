@@ -51,6 +51,8 @@ class CEMAgent(Agent):
             adaptive_std=adaptive_std,
             model_file_path=model_file_path)
 
+        self.tf_object_attributes.add('_policy')
+
         # Get model shapes
         theta = self._policy.G(self._policy['gf'])
         self.model_total_sizes = theta.shape[0]
@@ -65,9 +67,6 @@ class CEMAgent(Agent):
         # Number of best parameters to keep
         assert best_pct <= 1 and best_pct > 0
         self.num_best = int(best_pct * self.n_weight_samples)
-
-    def save_models(self, path):
-        self._policy.save(path)
 
     def train(self, num_train_steps=1, num_test_steps=0,
               max_timesteps=0, n_steps=None,

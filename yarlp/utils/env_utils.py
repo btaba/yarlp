@@ -7,12 +7,12 @@ from yarlp.external.baselines.baselines.common.atari_wrappers import NoopResetEn
 from yarlp.external.baselines.baselines.common.atari_wrappers import MaxAndSkipEnv
 
 
-def wrap_atari(env):
+def wrap_atari(env, frame_stack=False):
     assert 'NoFrameskip' in env.spec.id,\
         "{} is not an atari env".format(env)
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)
-    env = wrap_deepmind(env)
+    env = wrap_deepmind(env, frame_stack=frame_stack)
     return NormPixels(env)
 
 
@@ -22,10 +22,13 @@ class NormPixels(gym.Wrapper):
 
     def _step(self, action):
         obs, reward, done, info = self.env.step(action)
+        obs = np.array(obs).astype(np.float32)
         return obs / 255.0, reward, done, info
 
     def _reset(self, **kwargs):
-        return self.env.reset(**kwargs) / 255.0
+        obs = self.env.reset(**kwargs)
+        obs = np.array(obs).astype(np.float32)
+        return obs / 255.0
 
 
 class CappedCubicVideoSchedule(object):
@@ -49,11 +52,12 @@ class GymEnv(Env):
     def __init__(self, env_name, video=False,
                  log_dir=None,
                  force_reset=False,
-                 is_atari=False):
+                 is_atari=False,
+                 frame_stack=False):
         env = gym.envs.make(env_name)
-
+        self._original_env = env
         if is_atari:
-            self.env = wrap_atari(env)
+            self.env = wrap_atari(env, frame_stack=frame_stack)
         else:
             self.env = env
 
@@ -110,11 +114,11 @@ class GymEnv(Env):
     def step(self, action):
         return self.env.step(action)
 
-    def render(self):
-        self.env.render()
+    def render(self, *args, **kwargs):
+        self.env.render(*args, **kwargs)
 
     def close(self):
-        self.env.close()
+        self._original_env.close()
 
     def seed(self, i=None):
         return self.env.seed(i)
@@ -148,10 +152,11 @@ class NormalizedGymEnv(GymEnv):
                  normalize_rewards=False,
                  scale_continuous_actions=False,
                  is_atari=False,
+                 frame_stack=False,
                  *args, **kwargs):
         super().__init__(env_name=env_name, video=video,
                          log_dir=log_dir, force_reset=force_reset,
-                         is_atari=is_atari)
+                         is_atari=is_atari, frame_stack=frame_stack)
         self._scale_reward = scale_reward
 
         self._normalize_obs = normalize_obs
@@ -221,6 +226,9 @@ class NormalizedGymEnv(GymEnv):
 
 
 class RunningMeanStd(object):
+    """
+    RunningMeanStd
+    """
 
     def __init__(self, shape, min_std=1e-6, clip_val=None):
         self._min_std = min_std

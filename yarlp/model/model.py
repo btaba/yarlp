@@ -34,8 +34,19 @@ class Model:
         m = joblib.load(os.path.join(path, name + '.jbl'))
         tf_utils.reset_cache()
         m.G = Graph()
-        m.G.load(path)
+        m.G.load(os.path.join(path, name))
         return m
+
+    def save(self, path, name=None):
+        if name is None:
+            name = self.name
+        self.G.save(os.path.join(path, name))
+        # serialize myself in the path without graph
+        g = self.G
+        self.G = None
+        name += '.jbl'
+        joblib.dump(self, os.path.join(path, name))
+        self.G = g
 
     def __setitem__(self, var_name, tf_node):
         if hasattr(tf_node, '__module__') and\
@@ -53,14 +64,6 @@ class Model:
 
     def get_session(self):
         return self.G._session
-
-    def save(self, path):
-        self.G.save(path)
-        # serialize myself in the path without graph
-        g = self.G
-        self.G = None
-        joblib.dump(self, os.path.join(path, self.name + '.jbl'))
-        self.G = g
 
     def update(self, *args, **kwargs):
         # this is how we update the weights
@@ -126,7 +129,8 @@ class Model:
         self['optimizer_op:' + name] = optimizer.minimize(
             loss, *args, **kwargs)
 
-    def add_input(self, name='', dtype=tf.float32, shape=None):
+    def add_input(self, name='observations',
+                  dtype=tf.float32, shape=None):
         if shape is None:
             shape = (None, *self.env.observation_space.shape)
 
@@ -152,7 +156,7 @@ class Model:
             num_outputs = GymEnv.get_env_action_space_dim(self._env)
 
         if input_node is None:
-            input_node = self.G['input:']
+            input_node = self.G['input:observations']
 
         output_node = network(
             inputs=input_node, num_outputs=num_outputs)
@@ -174,10 +178,14 @@ class Model:
             self.G['set_weight_op:' + w.name] = w.assign(w_input)
 
     def create_gradient_ops_for_node(self, optimizer,
-                                     node, transform_grad_func=lambda x: x):
+                                     node, transform_grad_func=lambda x: x,
+                                     tvars=None, add_optimizer_op=False,
+                                     optimizer_op_name=''):
 
+        if tvars is None:
+            tvars = self.G.TRAINABLE_VARIABLES
         grads_and_vars = optimizer.compute_gradients(
-            node, self.G.TRAINABLE_VARIABLES)
+            node, tvars)
 
         for g, v in grads_and_vars:
             key = 'gradients:' + node.name + ':' + v.name
@@ -189,6 +197,10 @@ class Model:
         self.G['gradients_ops:' + node.name] = optimizer.apply_gradients(
             grads_and_vars)
 
+        if add_optimizer_op:
+            self['optimizer_op:' + optimizer_op_name] = \
+                self['gradients_ops:' + node.name]
+
     def get_gradients(self, name, feed_dict):
         return self.G(self.G['gradients:' + name], feed_dict)
 
@@ -198,4 +210,4 @@ class Model:
     def predict(self, inputs):
         return self.G._session.run(
             self.G['output:'],
-            feed_dict={self.G['input:']: inputs})
+            feed_dict={self.G['input:observations']: inputs})

@@ -66,16 +66,13 @@ class REINFORCEAgent(BatchAgent):
             entropy_weight=entropy_weight,
             min_std=min_std, init_std=init_std, adaptive_std=adaptive_std,
             model_file_path=model_file_path)
-
+        self.tf_object_attributes.add('_policy')
         policy_weight_sums = sum(
             [np.sum(a) for a in self._policy.get_weights()])
-        self.logger._logger.info(
+        self.logger.logger.info(
             'Policy network weight sums: {}'.format(policy_weight_sums))
 
         self._gae_lambda = gae_lambda
-
-    def save_models(self, path):
-        self._policy.save(path)
 
     def update(self, path):
         loss = self._policy.update(
