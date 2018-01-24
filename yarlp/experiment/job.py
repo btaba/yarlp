@@ -1,21 +1,32 @@
+import os
 import json
 import click
+import traceback
 import tensorflow as tf
 from yarlp.utils import experiment_utils
 from yarlp.utils.env_utils import NormalizedGymEnv
-from yarlp.utils.metric_logger import MetricLogger
 
 
 class Job(object):
-    def __init__(self, spec_dict, log_dir, video):
+    def __init__(self, spec_dict, log_dir, video, load_agent=False):
         self._spec_dict = spec_dict
         self._log_dir = log_dir
         self._video = video
+        self._load_agent = load_agent
 
     def _load(self):
-        self._job_dir = self._create_log_dir()
-        self._env = self._get_env(self._job_dir)
-        self._agent = self._get_agent()
+        existing_dirs = [d for d in os.listdir(self._log_dir)
+                         if d.startswith(self._spec_dict['run_name'])]
+        if self._load_agent and len(existing_dirs) > 0:
+            # load the agent from a saved directory if it exists
+            self._job_dir = os.path.join(self._log_dir, existing_dirs[0])
+            self._agent = self._get_agent()
+            self._env = self._agent.env
+        else:
+            # start fresh
+            self._job_dir = self._create_log_dir()
+            self._env = self._get_env(self._job_dir)
+            self._agent = self._get_agent()
 
     def __call__(self):
         self._load()
@@ -23,16 +34,18 @@ class Job(object):
         try:
             self._agent.train(**training_params)
         except Exception as e:
-            print(e)
+            traceback.print_exc()
         self._env.close()
         tf.reset_default_graph()
 
     def _get_env(self, job_dir):
         env_name = self._spec_dict['env']['name']
-        self._spec_dict['video'] = self._video
+        kwargs = {k: v for k, v in self._spec_dict['env'].items()
+                  if k != 'name'}
+        kwargs['video'] = self._video
         env = NormalizedGymEnv(
             env_name, log_dir=job_dir, force_reset=True,
-            **self._spec_dict['env'])
+            **kwargs)
         if 'timestep_limit' in self._spec_dict['env']:
             env.spec.timestep_limit = self._spec_dict['env']['timestep_limit']
         return env
@@ -42,8 +55,9 @@ class Job(object):
         params = self._spec_dict['agent'].get('params', {})
         params['seed'] = self._spec_dict['seed']
         agent_cls = cls_dict[self._spec_dict['agent']['type']]
-        metric_logger = MetricLogger(self._job_dir)
-        return agent_cls(env=self._env, logger=metric_logger, **params)
+        if self._load_agent:
+            return agent_cls.load(self._job_dir)
+        return agent_cls(env=self._env, log_dir=self._job_dir, **params)
 
     def _create_log_dir(self):
         dir_name = self._spec_dict['run_name']

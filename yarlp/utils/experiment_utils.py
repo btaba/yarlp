@@ -20,7 +20,8 @@ def _get_datetime_str():
 def _create_log_directory(name, prepend_dir_name):
     name += _get_datetime_str()
     full_dir = os.path.join(prepend_dir_name, name)
-    os.makedirs(full_dir)
+    if not os.path.exists(full_dir):
+        os.makedirs(full_dir)
     return full_dir
 
 

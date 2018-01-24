@@ -1,0 +1,29 @@
+{
+    "runs":
+    [
+        {
+            "agent": {
+                "seeds": [
+                    652
+                ],
+                "type": "DDQNAgent",
+                "training_params": {},
+                "params": {
+                    "exploration_final_eps": 0.05,
+                    "discount_factor": 0.99,
+                    "learning_start_timestep": 100,
+                    "buffer_size": 250000,
+                    "train_freq": 4,
+                    "policy_learning_rate": 0.00025,
+                    "max_timesteps": 10000000,
+                    "target_network_update_freq": 10000,
+                    "exploration_fraction": 0.1
+                }
+            },
+            "env": {
+                "name": "PongNoFrameskip-v4",
+                "is_atari": true
+            }
+        }
+    ]
+}

@@ -13,7 +13,9 @@ class Graph:
     def __init__(self):
         self._graph = tf.Graph()
         self._graph.seed = tf.get_default_graph().seed
-        self._session = tf.Session('', graph=self._graph)
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+        self._session = tf.Session('', graph=self._graph, config=config)
         self._saver = None
 
     def __enter__(self):

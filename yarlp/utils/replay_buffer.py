@@ -1,42 +1,39 @@
 import numpy as np
-from collections import namedtuple
-from collections import deque
 
 
 class ReplayBuffer:
-    def __init__(self, max_size=1000000):
+    def __init__(self, max_size):
         self.max_size = max_size
-        self.Buffer = namedtuple(
-            'Buffer', 'state, action, reward, next_state, terminal')
-        self.mem = deque()
+        self.mem = []
+        self._next_idx = 0
+        self.size = 0
 
-    def append(self, s, a, r, next_s, t):
-        b = self.Buffer(s, a, r, next_s, t)
-        if self.size >= self.max_size:
-            self.mem.popleft()
-        self.mem.append(b)
+    def add(self, s, a, r, next_s, t):
+        b = (s, a, r, next_s, t)
+        if self.size < self.max_size:
+            self.mem.append(b)
+        else:
+            self.mem[self._next_idx] = b
+        self._next_idx += 1
+        self.size = min(self.size + 1, self.max_size)
+        self._next_idx = self._next_idx % self.max_size
 
-    @property
-    def size(self):
-        return len(self.mem)
+    def __len__(self):
+        return self.size
 
-    def get_random_minibatch(self, batch_size, flatten=True):
+    def sample(self, batch_size):
         assert batch_size <= self.size
 
-        # O(N) runtime on get_random_minibatch, which I think is fine
-        mem = list(self.mem)
         idx = np.random.choice(self.size, size=batch_size, replace=False)
-        minibatch = [mem[i] for i in idx]
+        minibatch = [self.mem[i] for i in idx]
 
-        if flatten:
-            return self._flatten_batch(minibatch)
-        return minibatch
+        return self._flatten_batch(minibatch)
 
     def _flatten_batch(self, minibatch):
-        states = np.array([m.state for m in minibatch])
-        actions = np.array([m.action for m in minibatch])
-        rewards = np.array([m.reward for m in minibatch])
-        next_states = np.array([m.next_state for m in minibatch])
-        terminal = np.array([m.terminal for m in minibatch])
+        states = np.array([np.array(m[0]) for m in minibatch])
+        actions = np.array([m[1] for m in minibatch])
+        rewards = np.array([m[2] for m in minibatch])
+        next_states = np.array([np.array(m[3]) for m in minibatch])
+        done = np.array([m[4] for m in minibatch])
 
-        return self.Buffer(states, actions, rewards, next_states, terminal)
+        return states, actions, rewards, next_states, done

@@ -14,9 +14,10 @@ def normc_initializer(std=1.0):
 
 
 def mlp(inputs, num_outputs, final_activation_fn=None,
-        activation_fn=None, hidden_units=(32, 32),
+        activation_fn=None, hidden_units=[32, 32],
         weights_initializer=normc_initializer(1.0),
-        final_weights_initializer=normc_initializer(0.01)):
+        final_weights_initializer=normc_initializer(0.01),
+        *args, **kwargs):
     """
     Multi-Layer Perceptron
     """
@@ -94,18 +95,19 @@ def cnn1(inputs, num_outputs,
 
 def cnn2(inputs, num_outputs,
          convs=[(32, 8, 4), (64, 4, 2), (64, 3, 1)],
-         hidden_units=[256],
+         hidden_units=[512],
          final_activation_fn=None,
-         dueling=False):
+         dueling=False,
+         padding='same'):
 
     with tf.variable_scope('cnn'):
         x = inputs
         for n_out, kernel_size, strides in convs:
             x = tf.layers.conv2d(
                 x, filters=n_out,
-                kernel_size=(kernel_size, kernel_size),
-                strides=(strides, strides),
-                padding='valid',
+                kernel_size=kernel_size,
+                strides=strides,
+                padding=padding,
                 activation=tf.nn.relu,
                 kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
 

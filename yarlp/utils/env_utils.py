@@ -7,13 +7,15 @@ from yarlp.external.baselines.baselines.common.atari_wrappers import NoopResetEn
 from yarlp.external.baselines.baselines.common.atari_wrappers import MaxAndSkipEnv
 
 
-def wrap_atari(env, frame_stack=False):
-    assert 'NoFrameskip' in env.spec.id,\
-        "{} is not an atari env".format(env)
+def wrap_atari(env, frame_stack, norm_pixels=False):
+    # assert 'NoFrameskip' in env.spec.id,\
+    #     "{} is not an atari env".format(env)
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)
+    if norm_pixels:
+        return NormPixels(env)
     env = wrap_deepmind(env, frame_stack=frame_stack)
-    return NormPixels(env)
+    return env
 
 
 class NormPixels(gym.Wrapper):
@@ -22,13 +24,15 @@ class NormPixels(gym.Wrapper):
 
     def _step(self, action):
         obs, reward, done, info = self.env.step(action)
-        obs = np.array(obs).astype(np.float32)
-        return obs / 255.0, reward, done, info
+        obs = np.array(obs) / 255.
+        obs = obs.astype(np.float32)
+        return obs, reward, done, info
 
     def _reset(self, **kwargs):
         obs = self.env.reset(**kwargs)
-        obs = np.array(obs).astype(np.float32)
-        return obs / 255.0
+        obs = np.array(obs) / 255.
+        obs = obs.astype(np.float32)
+        return obs
 
 
 class CappedCubicVideoSchedule(object):
@@ -53,15 +57,18 @@ class GymEnv(Env):
                  log_dir=None,
                  force_reset=False,
                  is_atari=False,
-                 frame_stack=False):
-        env = gym.envs.make(env_name)
+                 frame_stack=True,
+                 norm_pixels=False):
+
+        self.env = env = gym.envs.make(env_name)
         self._original_env = env
+
         if is_atari:
-            self.env = wrap_atari(env, frame_stack=frame_stack)
+            self.env = wrap_atari(
+                env, frame_stack=frame_stack,
+                norm_pixels=norm_pixels)
         else:
             self.env = env
-
-        self.env_id = env.spec.id
 
         assert isinstance(video, bool)
         if log_dir is None:
@@ -76,6 +83,7 @@ class GymEnv(Env):
                 force=True)
             self.monitoring = True
 
+        self.env_id = env.spec.id
         self._log_dir = log_dir
         self._force_reset = force_reset
 
@@ -152,16 +160,15 @@ class NormalizedGymEnv(GymEnv):
                  normalize_rewards=False,
                  scale_continuous_actions=False,
                  is_atari=False,
-                 frame_stack=False,
                  *args, **kwargs):
         super().__init__(env_name=env_name, video=video,
                          log_dir=log_dir, force_reset=force_reset,
-                         is_atari=is_atari, frame_stack=frame_stack)
+                         is_atari=is_atari, *args, **kwargs)
         self._scale_reward = scale_reward
-
         self._normalize_obs = normalize_obs
         self._normalize_rewards = normalize_rewards
         self._scale_continuous_actions = scale_continuous_actions
+        self.is_atari = is_atari
 
         if normalize_obs is True:
             assert is_atari is False,\

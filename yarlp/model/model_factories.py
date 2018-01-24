@@ -125,11 +125,7 @@ def ddqn_model_factory(
                     inputs=model['next_state'],
                     num_outputs=model['q_output'].get_shape().as_list()[-1],
                     **network_params)
-            # model['q_next_state'] = q_next_state
             q_for_next_state_max = tf.argmax(q_next_state, axis=1)
-            # model['q_for_next_state_max'] = q_for_next_state_max
-            print(q_next_state.get_shape().as_list())
-            print(q_for_next_state_max.get_shape().as_list())
             q_target_max = tf.reduce_sum(
                 (model['q_target_output'] *
                     tf.one_hot(q_for_next_state_max, depth=num_actions)),
@@ -137,8 +133,6 @@ def ddqn_model_factory(
             )
         else:
             q_target_max = tf.reduce_max(model['q_target_output'], 1)
-
-        # model['q_target_max'] = q_target_max
 
         td_return = model['reward'] + \
             discount_factor * q_target_max * (1 - model['done'])
@@ -149,7 +143,10 @@ def ddqn_model_factory(
         model['loss'] = weighted_error
         model.add_loss(model['loss'])
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+        # optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+        optimizer = tf.train.RMSPropOptimizer(
+            learning_rate=learning_rate,
+            decay=0.99, epsilon=0.01)
         if grad_norm_clipping is not None:
             grad_clipping_func = partial(
                 tf.clip_by_norm, clip_norm=grad_norm_clipping)

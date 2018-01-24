@@ -4,7 +4,6 @@ import json
 import time
 import logging
 import numpy as np
-from functools import lru_cache
 from tabulate import tabulate
 from collections import deque
 
@@ -13,17 +12,18 @@ class MetricLogger:
     """Logs metrics to console and to file
     """
 
-    def __init__(self, log_dir=None, logger_name='yarlp'):
+    def __init__(self, log_dir=None, logger_name='yarlp', reward_len=40):
         self._log_dir = log_dir
         self._logger_name = logger_name
         self._metric_dict = {'Iteration': 0}
         self._iteration = 0
+        self._logger = self.set_logger()
 
         if self._log_dir is not None:
             self._stat_file = os.path.join(self._log_dir, 'stats.json.txt')
 
         self._start_time = time.time()
-        self._running_reward = deque(maxlen=40)
+        self._running_reward = deque(maxlen=reward_len)
 
     def __setitem__(self, metric_name, value):
         self._validate_header_name(metric_name)
@@ -44,12 +44,14 @@ class MetricLogger:
         self[metric_name] = value
 
     @property
-    @lru_cache(1)
     def logger(self):
+        return self._logger
+
+    def set_logger(self):
         logger = logging.getLogger(self._logger_name)
 
         # remove old handlers
-        for handler in logger.handlers:  # remove all old handlers
+        for handler in list(logger.handlers):  # remove all old handlers
             logger.removeHandler(handler)
 
         # add new handlers

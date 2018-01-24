@@ -26,9 +26,11 @@ class Experiment(object):
             every cube up until 1000, and then for every 1000 episodes.
         """
         self.video = video
+        self.reload_exp = False
 
     @classmethod
-    def from_json_spec(cls, json_spec_filename, log_dir=None, *args, **kwargs):
+    def from_json_spec(cls, json_spec_filename, log_dir=None, reload_exp=False,
+                       *args, **kwargs):
         """
         Reads in json_spec_filen of experiment, validates the experiment spec,
         creates a spec for each combination of agent/env/grid-search-params
@@ -37,8 +39,10 @@ class Experiment(object):
         ----------
         json_spec_filename (str): the file path of the json spec file for the
             complete experiment
+        reload_exp (bool): if True, try to reload experiment from a directory
         """
         cls = cls(*args, **kwargs)
+        cls.reload_exp = reload_exp
         assert json_spec_filename is not None
         assert os.path.exists(json_spec_filename) and\
             os.path.isfile(json_spec_filename),\
@@ -67,11 +71,11 @@ class Experiment(object):
                 json_spec_filename)
         else:
             cls._experiment_dir = log_dir
-        experiment_utils._save_spec_to_dir(cls._spec_list, cls._experiment_dir)
+        experiment_utils._save_spec_to_dir(_raw_spec, cls._experiment_dir)
         return cls
 
-    def run(self, n_jobs=None):
-        if self.video:
+    def run(self, parallel=True):
+        if self.video or not parallel:
             # GUI operations don't play nice with parallel execution
             for j in self._jobs:
                 j()
@@ -92,7 +96,7 @@ class Experiment(object):
     @property
     def _jobs(self):
         for s in self._spec_list:
-            yield Job(s, self._experiment_dir, self.video)
+            yield Job(s, self._experiment_dir, self.video, self.reload_exp)
 
     @property
     def spec_list(self):
@@ -333,7 +337,7 @@ def run_mujoco1m_benchmark(agent):
         benchmark_name)
     base_log_path = experiment_utils._create_log_directory(
         benchmark_name, experiment_dir)
-
+    benchmark = get_benchmarks(benchmark_name)
     # write the json config for this baseline
     j = []
     for t in benchmark['tasks']:
@@ -359,7 +363,58 @@ def run_mujoco1m_benchmark(agent):
     # run the experiment
     e = Experiment.from_json_spec(
         spec_file, log_dir=base_log_path)
-    e.run()
+    e.run(parallel=False)
+
+
+@click.command()
+@click.option('--agent', default='DDQNAgent')
+def run_atari50m_benchmark(agent):
+    SEEDS = list(range(652, 752))
+
+    benchmark_name = 'Atari10M'
+
+    # Make a master log directory
+    experiment_dir = Experiment._get_experiment_dir(
+        benchmark_name)
+    base_log_path = experiment_utils._create_log_directory(
+        benchmark_name, experiment_dir)
+    benchmark = get_benchmarks(benchmark_name)
+    # write the json config for this baseline
+    j = []
+    for t in benchmark['tasks']:
+        d = {
+            "env": {
+                "name": t['env_id'],
+                "is_atari": True
+            },
+            "agent": {
+                "type": agent,
+                "seeds": SEEDS[:t['trials']],
+                "training_params": {},
+                "params": {
+                    "max_timesteps": t['num_timesteps'],
+                    "discount_factor": 0.99,
+                    "learning_start_timestep": 50000,
+                    "target_network_update_freq": 20000,
+                    "train_freq": 1,
+                    "prioritized_replay": True,
+                    "exploration_final_eps": 0.1,
+                    "exploration_fraction": 0.1,
+                    "buffer_size": 250000,
+                    "policy_learning_rate": 1e-4
+                }
+            }
+        }
+        j.append(d)
+
+    j = {"runs": j}
+    spec_file = os.path.join(base_log_path, 'spec.json')
+    json.dump(j, open(spec_file, 'w'))
+
+    # run the experiment
+    e = Experiment.from_json_spec(
+        spec_file, log_dir=base_log_path, video=True)
+    e.run(parallel=False)
 
 
 @click.command()
@@ -369,11 +424,19 @@ def run_mujoco1m_benchmark(agent):
                     ', else path to experiment'))
 @click.option('--video', default=False, type=bool,
               help='Whether to record video or not')
-@click.option('--n-jobs', default=1, type=int,
-              help='number of cpu cores to use when running experiments')
-def run_experiment(spec_file, video, n_jobs):
-    e = Experiment.from_json_spec(spec_file, video=video)
-    e.run(n_jobs=n_jobs)
+@click.option('--parallel', default=True, type=bool,
+              help='Whether to run in parallel or not')
+@click.option('--reload-exp', default=False, type=bool,
+              help='Whether to restart from an experiment dir')
+def run_experiment(spec_file, video, parallel, reload_exp):
+    if reload_exp:
+        log_dir = os.path.dirname(spec_file)
+    else:
+        log_dir = None
+    e = Experiment.from_json_spec(
+        spec_file, log_dir=log_dir, video=video,
+        reload_exp=reload_exp)
+    e.run(parallel=parallel)
 
 
 @click.command()
@@ -399,6 +462,7 @@ def make_plots(directory):
 
 
 cli.add_command(run_mujoco1m_benchmark)
+cli.add_command(run_atari50m_benchmark)
 cli.add_command(run_experiment)
 cli.add_command(upload_to_openai)
 cli.add_command(compare_benchmark)

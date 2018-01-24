@@ -26,7 +26,8 @@ class Agent(ABC):
     """
 
     def __init__(self, env, discount_factor=0.99,
-                 logger=None, seed=None, gae_lambda=0):
+                 log_dir=None, seed=None, gae_lambda=0,
+                 reward_len=40):
         """
         discount_factor : float
             Discount rewards by this factor
@@ -36,10 +37,9 @@ class Agent(ABC):
         self._discount = discount_factor
         self.gae_lambda = 0
 
-        if logger is None:
-            self.logger = MetricLogger()
-        else:
-            self.logger = logger
+        self.log_dir = log_dir
+        self.reward_len = reward_len
+        self.set_logger(log_dir, reward_len)
 
         if seed is not None:
             self.logger.logger.info('Seed: {}'.format(seed))
@@ -59,9 +59,19 @@ class Agent(ABC):
         m = joblib.load(os.path.join(path, name + '.jbl'))
         for t in m.tf_object_attributes:
             m.__setattr__(t, Model.load(path, name + t))
+
+        # some default object we should set that wasn't serialized
+        m.set_logger(m.log_dir, m.reward_len)
+        if hasattr(m, 'set_replay_buffer'):
+            m.set_replay_buffer()
+
         return m
 
     def save(self, path, name='agent'):
+        self._env.render(close=True)
+        if hasattr(self._env.env, 'video_recorder'):
+            self._env.env.video_recorder.close()
+
         tf_cache = []
         for t in self.tf_object_attributes:
             attr = getattr(self, t)
@@ -69,12 +79,38 @@ class Agent(ABC):
             tf_cache.append(attr)
             self.__setattr__(t, None)
 
+        # some stuff we should not serialize, we just set
+        # these to a default on reload
+        unserializables = ['logger', 'replay_buffer']
+        unserializables_cache = {}
+        for u in unserializables:
+            unserializables_cache[u] = getattr(self, u, None)
+            setattr(self, u, None)
+
         # serialize myself in the path without graph
         if not os.path.exists(path):
             os.mkdir(path)
         joblib.dump(self, os.path.join(path, name + '.jbl'))
+
+        for k, v in unserializables_cache.items():
+            setattr(self, k, v)
+
         for cache, t in zip(tf_cache, self.tf_object_attributes):
             self.__setattr__(t, cache)
+
+    def norm_obs_if_atari(self, obs):
+        """
+        Normalize obs for atari if it hasn't been already.
+        This is used so that storage of obs in replay buffer is
+        more efficient with uint8, but can still converted
+        for the network computations when needed.
+        """
+        obs = np.array(obs)
+        if hasattr(self._env, 'is_atari') and self._env.is_atari\
+                and obs.dtype == np.uint8:
+            obs = np.copy(obs) / 255.
+            return obs.astype(np.float32)
+        return obs
 
     @abstractmethod
     def train(self):
@@ -87,6 +123,13 @@ class Agent(ABC):
     @property
     def num_actions(self):
         return GymEnv.get_env_action_space_dim(self._env)
+
+    def set_logger(self, log_dir, reward_len):
+        if log_dir is None:
+            self.logger = MetricLogger(reward_len=reward_len)
+        else:
+            self.logger = MetricLogger(
+                log_dir=log_dir, reward_len=reward_len)
 
     def get_baseline_pred(self, obs):
         if not hasattr(self, '_baseline_model'):
