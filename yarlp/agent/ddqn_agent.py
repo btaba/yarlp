@@ -148,6 +148,7 @@ class DDQNAgent(Agent):
 
         obs = self._env.reset()
         self.t = 0
+        self.episodes = 0
         self.episode_returns = []
         self.total_reward = 0
         self.last_saved_reward = None
@@ -157,14 +158,16 @@ class DDQNAgent(Agent):
                 np.expand_dims(self.norm_obs_if_atari(obs), 0),
                 epsilon)
             new_obs, reward, done, _ = self._env.step(action[0])
+            self.total_reward += reward
+            reward = self.clip_reward_if_atari(reward)
             self.replay_buffer.add(obs, action, reward, new_obs, float(done))
             obs = new_obs
-            self.total_reward += reward
 
             if done:
                 obs = self._env.reset()
                 self.episode_returns.append(self.total_reward)
                 self.total_reward = 0
+                self.episodes += 1
 
             if self.t > self.learning_start_timestep \
                     and self.t % self.train_freq == 0:
@@ -210,6 +213,7 @@ class DDQNAgent(Agent):
                     self.logger.add_metric(
                         'beta', self.beta_schedule.value(self.global_t))
                 self.logger.add_metric('env_id', self._env_id)
+                self.logger.add_metric('episodes', self.episodes)
                 self.logger.log()
                 self.episode_returns = []
 
@@ -247,5 +251,5 @@ class DDQNAgent(Agent):
             obs = self.norm_obs_for_atari(obs)
             obs = np.expand_dims(obs, 0)
             obs, _, done, _ = env.step(
-                self.get_action(obs, epsilon=0.1))
+                self.get_action(obs, epsilon=0.05))
             env.render()

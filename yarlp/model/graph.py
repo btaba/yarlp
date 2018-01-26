@@ -81,5 +81,5 @@ class Graph:
 
     def _get_clean_path(self, path):
         path = os.path.abspath(os.path.expanduser(path))
-        path = os.path.join(path, '')
+        path = os.path.join(path, 'graph.ckpt')
         return path

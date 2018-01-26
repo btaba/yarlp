@@ -4,7 +4,7 @@
 
 **Yet Another Reinforcement Learning Package**
 
-Implementations of [`CEM`](/yarlp/agent/cem_agent.py), [`REINFORCE`](/yarlp/agent/pg_agents.py), and [`TRPO`](/yarlp/agent/trpo_agent.py), benchmarked against OpenAI [baselines](https://github.com/openai/baselines), mostly done for educational purposes.
+Implementations of [`CEM`](/yarlp/agent/cem_agent.py), [`REINFORCE`](/yarlp/agent/pg_agents.py), [`TRPO`](/yarlp/agent/trpo_agent.py), [`DDQN`](/yarlp/agent/ddqn_agent.py), benchmarked against OpenAI [baselines](https://github.com/openai/baselines), mostly done for educational purposes.
 
 Quick example:
 
@@ -23,12 +23,21 @@ We benchmark against Openai [`baselines`](https://github.com/openai/baselines) u
 
 ### Mujoco1M
 
+#### TRPO
+
 We average over 5 random seeds instead of 3 for both `baselines` and `yarlp`. More seeds probably wouldn't hurt here, we report 95th percent confidence intervals.
 
 |   |   |   |   |
 |---|---|---|---|
 |![Hopper-v1](/assets/mujoco1m/trpo/Hopper-v1.png)|![HalfCheetah-v1](/assets/mujoco1m/trpo/HalfCheetah-v1.png)|![Reacher-v1](/assets/mujoco1m/trpo/Reacher-v1.png)|![Swimmer-v1](/assets/mujoco1m/trpo/Swimmer-v1.png)|
 |![InvertedDoublePendulum-v1](/assets/mujoco1m/trpo/InvertedDoublePendulum-v1.png)|![Walker2d-v1](/assets/mujoco1m/trpo/Walker2d-v1.png)|![InvertedPendulum-v1](/assets/mujoco1m/trpo/InvertedPendulum-v1.png)|
+
+### Atari10M
+
+#### DDQN with dueling networks and prioritized replay
+
+
+I don't compare to OpenAI baselines because the OpenAI DDQN implementation is **not** currently able to reproduce published results as of 2018-01-20. See [this github issue](https://github.com/openai/baselines/issues/176).
 
 
 ## CLI scripts
@@ -47,14 +56,9 @@ CLI convenience scripts will be installed with the package:
 
 
 ##### TODO:
-
-* DQ, DDQ
-	- Implement dqn, and ddqn
-		- read dueling paper, prioritized Experience Replay
-	- run experiments on Pong, validate
-	- run Atari benchmarks
-* PPO2
+* DDQN
+	- test atari
 * A2C
-* DDPG
+* PPO2
 * docs
 * pypi

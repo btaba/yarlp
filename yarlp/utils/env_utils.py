@@ -14,7 +14,7 @@ def wrap_atari(env, frame_stack, norm_pixels=False):
     env = MaxAndSkipEnv(env, skip=4)
     if norm_pixels:
         return NormPixels(env)
-    env = wrap_deepmind(env, frame_stack=frame_stack)
+    env = wrap_deepmind(env, frame_stack=frame_stack, clip_rewards=False)
     return env
 
 

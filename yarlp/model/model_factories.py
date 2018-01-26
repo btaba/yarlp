@@ -138,15 +138,12 @@ def ddqn_model_factory(
             discount_factor * q_target_max * (1 - model['done'])
         td_errors = q_val - tf.stop_gradient(td_return)
         model['td_errors'] = td_errors
-        errors = tf_utils.huber_loss(td_errors)
+        errors = tf.losses.huber_loss(tf.stop_gradient(td_return), q_val)
         weighted_error = tf.reduce_mean(model['importance_weights'] * errors)
         model['loss'] = weighted_error
         model.add_loss(model['loss'])
 
-        # optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-        optimizer = tf.train.RMSPropOptimizer(
-            learning_rate=learning_rate,
-            decay=0.99, epsilon=0.01)
+        optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
         if grad_norm_clipping is not None:
             grad_clipping_func = partial(
                 tf.clip_by_norm, clip_norm=grad_norm_clipping)

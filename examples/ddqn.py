@@ -6,29 +6,28 @@ from yarlp.agent.ddqn_agent import DDQNAgent
 from yarlp.utils.env_utils import NormalizedGymEnv
 from yarlp.model.networks import mlp, cnn
 from functools import partial
-import gym_ple
 
 
 def main():
-    # env = NormalizedGymEnv(
-    #     'PongNoFrameskip-v4',
-    #     is_atari=True
-    # )
+    env = NormalizedGymEnv(
+        'SeaquestNoFrameskip-v4',
+        is_atari=True
+    )
 
-    # agent = DDQNAgent(
-    #     env=env,
-    #     discount_factor=0.99,
-    #     learning_start_timestep=10000,
-    #     target_network_update_freq=10000,
-    #     train_freq=4,
-    #     exploration_final_eps=0.05,
-    #     exploration_fraction=0.1,
-    #     buffer_size=250000,
-    #     policy_learning_rate=1e-4,
-    #     policy_network=cnn,
-    #     max_timesteps=int(10e6),
-    #     seed=123)
-    # agent.train()
+    agent = DDQNAgent(
+        env=env,
+        discount_factor=0.99,
+        learning_start_timestep=10000,
+        target_network_update_freq=10000,
+        train_freq=4,
+        exploration_final_eps=0.05,
+        exploration_fraction=0.1,
+        buffer_size=250000,
+        policy_learning_rate=1e-4,
+        policy_network=cnn,
+        max_timesteps=int(10e6),
+        seed=123)
+    agent.train()
 
     env = NormalizedGymEnv(
         'CartPole-v0'

@@ -112,6 +112,11 @@ class Agent(ABC):
             return obs.astype(np.float32)
         return obs
 
+    def clip_reward_if_atari(self, reward):
+        if hasattr(self._env, 'is_atari') and self._env.is_atari:
+            reward = np.sign(reward)
+        return reward
+
     @abstractmethod
     def train(self):
         pass
