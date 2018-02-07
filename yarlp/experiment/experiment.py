@@ -74,13 +74,13 @@ class Experiment(object):
         experiment_utils._save_spec_to_dir(_raw_spec, cls._experiment_dir)
         return cls
 
-    def run(self, parallel=True):
-        if self.video or not parallel:
+    def run(self, parallel=True, n_jobs=None):
+        if not parallel:
             # GUI operations don't play nice with parallel execution
             for j in self._jobs:
                 j()
         else:
-            with ProcessPoolExecutor() as ex:
+            with ProcessPoolExecutor(max_workers=n_jobs) as ex:
                 ex.map(self.run_job, self._spec_list)
 
     def run_job(self, s):
@@ -363,12 +363,13 @@ def run_mujoco1m_benchmark(agent):
     # run the experiment
     e = Experiment.from_json_spec(
         spec_file, log_dir=base_log_path)
-    e.run(parallel=False)
+    e.run()
 
 
 @click.command()
 @click.option('--agent', default='DDQNAgent')
-def run_atari50m_benchmark(agent):
+@click.option('--n-jobs', default=1)
+def run_atari10m_benchmark(agent, n_jobs):
     SEEDS = list(range(652, 752))
 
     benchmark_name = 'Atari10M'
@@ -389,19 +390,19 @@ def run_atari50m_benchmark(agent):
             },
             "agent": {
                 "type": agent,
-                "seeds": SEEDS[:t['trials']],
+                "seeds": [SEEDS[0]],
                 "training_params": {},
                 "params": {
+                    "exploration_final_eps": 0.1,
                     "max_timesteps": t['num_timesteps'],
                     "discount_factor": 0.99,
                     "learning_start_timestep": 50000,
-                    "target_network_update_freq": 20000,
-                    "train_freq": 1,
+                    "target_network_update_freq": 10000,
+                    "train_freq": 4,
                     "prioritized_replay": True,
-                    "exploration_final_eps": 0.1,
                     "exploration_fraction": 0.1,
-                    "buffer_size": 250000,
-                    "policy_learning_rate": 1e-4
+                    "buffer_size": 1000000,
+                    "policy_learning_rate": 0.00025
                 }
             }
         }
@@ -414,7 +415,10 @@ def run_atari50m_benchmark(agent):
     # run the experiment
     e = Experiment.from_json_spec(
         spec_file, log_dir=base_log_path, video=True)
-    e.run(parallel=False)
+    if n_jobs > 1:
+        e.run(parallel=True, n_jobs=n_jobs)
+    else:
+        e.run(parallel=False)
 
 
 @click.command()
@@ -462,7 +466,7 @@ def make_plots(directory):
 
 
 cli.add_command(run_mujoco1m_benchmark)
-cli.add_command(run_atari50m_benchmark)
+cli.add_command(run_atari10m_benchmark)
 cli.add_command(run_experiment)
 cli.add_command(upload_to_openai)
 cli.add_command(compare_benchmark)
@@ -471,3 +475,4 @@ cli.add_command(make_plots)
 
 if __name__ == '__main__':
     cli()
+

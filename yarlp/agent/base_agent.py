@@ -68,9 +68,13 @@ class Agent(ABC):
         return m
 
     def save(self, path, name='agent'):
-        self._env.render(close=True)
+
         if hasattr(self._env.env, 'video_recorder'):
             self._env.env.video_recorder.close()
+
+        if self._env.unwrapped.viewer:
+            self._env.unwrapped.viewer.close()
+            self._env.unwrapped.viewer = None
 
         tf_cache = []
         for t in self.tf_object_attributes:
@@ -98,25 +102,6 @@ class Agent(ABC):
         for cache, t in zip(tf_cache, self.tf_object_attributes):
             self.__setattr__(t, cache)
 
-    def norm_obs_if_atari(self, obs):
-        """
-        Normalize obs for atari if it hasn't been already.
-        This is used so that storage of obs in replay buffer is
-        more efficient with uint8, but can still converted
-        for the network computations when needed.
-        """
-        obs = np.array(obs)
-        if hasattr(self._env, 'is_atari') and self._env.is_atari\
-                and obs.dtype == np.uint8:
-            obs = np.copy(obs) / 255.
-            return obs.astype(np.float32)
-        return obs
-
-    def clip_reward_if_atari(self, reward):
-        if hasattr(self._env, 'is_atari') and self._env.is_atari:
-            reward = np.sign(reward)
-        return reward
-
     @abstractmethod
     def train(self):
         pass
@@ -128,6 +113,20 @@ class Agent(ABC):
     @property
     def num_actions(self):
         return GymEnv.get_env_action_space_dim(self._env)
+
+    def norm_obs_if_atari(self, obs):
+        """
+        Normalize obs for atari if it hasn't been already.
+        This is used so that storage of obs in replay buffer is
+        more efficient with uint8, but can still be converted
+        for the network computations when needed.
+        """
+        obs = np.array(obs)
+        if hasattr(self._env, 'is_atari') and self._env.is_atari\
+                and obs.dtype == np.uint8:
+            obs = np.copy(obs) / 255.
+            return obs.astype(np.float32)
+        return obs
 
     def set_logger(self, log_dir, reward_len):
         if log_dir is None:
@@ -305,6 +304,7 @@ class BatchAgent(Agent):
         self.baseline_train_iters = baseline_train_iters
         if isinstance(baseline_network, LinearFeatureBaseline):
             self._baseline_model = baseline_network
+            self.tf_object_attributes.add('_baseline_model')
         elif baseline_network is None:
             self._baseline_model = LinearFeatureBaseline()
         else:
@@ -421,3 +421,4 @@ class BatchAgent(Agent):
                 self.logger.log()
 
         self._env.close()
+

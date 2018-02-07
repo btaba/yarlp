@@ -68,12 +68,12 @@ class Graph:
         path = self._get_clean_path(path)
         if not os.path.exists(path):
             os.makedirs(path)
-        self._saver.save(
-            self._session, path)
+        self._saver.save(self._session, path)
 
     def load(self, path):
         path = self._get_clean_path(path)
         assert os.path.isdir(path)
+        # saver = tf.train.Saver()
         with self._graph.as_default():
             self._saver = tf.train.import_meta_graph(path + '.meta')
             self._saver.restore(self._session, path)

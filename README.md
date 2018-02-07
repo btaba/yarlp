@@ -57,8 +57,12 @@ CLI convenience scripts will be installed with the package:
 
 ##### TODO:
 * DDQN
-	- test atari
+    - see if new reward with MonitorEnv can match Breakout
+    - blog post
+        - add normalize_to_seconds for timesteps plot
+        - https://github.com/devsisters/DQN-tensorflow
 * A2C
 * PPO2
 * docs
 * pypi
+

@@ -148,26 +148,20 @@ class DDQNAgent(Agent):
 
         obs = self._env.reset()
         self.t = 0
-        self.episodes = 0
-        self.episode_returns = []
-        self.total_reward = 0
         self.last_saved_reward = None
+        num_episodes = 0
+
         while self.global_t < self.max_timesteps:
             epsilon = self.exploration.value(self.global_t)
             action = self.get_action(
                 np.expand_dims(self.norm_obs_if_atari(obs), 0),
                 epsilon)
-            new_obs, reward, done, _ = self._env.step(action[0])
-            self.total_reward += reward
-            reward = self.clip_reward_if_atari(reward)
+            new_obs, reward, done, info = self._env.step(action[0])
             self.replay_buffer.add(obs, action, reward, new_obs, float(done))
             obs = new_obs
 
             if done:
                 obs = self._env.reset()
-                self.episode_returns.append(self.total_reward)
-                self.total_reward = 0
-                self.episodes += 1
 
             if self.t > self.learning_start_timestep \
                     and self.t % self.train_freq == 0:
@@ -197,10 +191,11 @@ class DDQNAgent(Agent):
                         batch_idx, new_priorities)
 
             if self.t > 0 \
-                    and len(self.episode_returns) > 10\
+                    and len(info['rewards']) > num_episodes\
                     and self.t > self.learning_start_timestep:
                 # log things
-                self.logger.set_metrics_for_iter(self.episode_returns)
+                self.logger.set_metrics_for_iter(info['rewards'][num_episodes:])
+                num_episodes = len(info['rewards'])
                 self.logger.add_metric('timesteps_so_far', self.global_t)
                 eta = (self.max_timesteps - self.global_t) / (self.global_t /
                     round(time.time() - self.logger._start_time, 6))
@@ -213,9 +208,8 @@ class DDQNAgent(Agent):
                     self.logger.add_metric(
                         'beta', self.beta_schedule.value(self.global_t))
                 self.logger.add_metric('env_id', self._env_id)
-                self.logger.add_metric('episodes', self.episodes)
+                self.logger.add_metric('episodes', num_episodes)
                 self.logger.log()
-                self.episode_returns = []
 
             if self.t > self.learning_start_timestep \
                     and self.t % self.target_network_update_freq == 0:
@@ -243,13 +237,16 @@ class DDQNAgent(Agent):
 
         env = self.env
         done = True
-
+        rewards = 0
         while True:
 
             if done:
                 obs = env.reset()
-            obs = self.norm_obs_for_atari(obs)
+                print(rewards)
+                rewards = 0
+            obs = self.norm_obs_if_atari(obs)
             obs = np.expand_dims(obs, 0)
-            obs, _, done, _ = env.step(
+            obs, r, done, _ = env.step(
                 self.get_action(obs, epsilon=0.05))
+            rewards += r
             env.render()

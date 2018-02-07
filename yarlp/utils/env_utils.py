@@ -2,20 +2,57 @@ import gym
 import numpy as np
 from gym.spaces import Discrete, Box
 from gym.core import Env
+from collections import deque
 from yarlp.external.baselines.baselines.common.atari_wrappers import wrap_deepmind
 from yarlp.external.baselines.baselines.common.atari_wrappers import NoopResetEnv
 from yarlp.external.baselines.baselines.common.atari_wrappers import MaxAndSkipEnv
 
 
 def wrap_atari(env, frame_stack, norm_pixels=False):
-    # assert 'NoFrameskip' in env.spec.id,\
-    #     "{} is not an atari env".format(env)
+    assert 'NoFrameskip' in env.spec.id,\
+        "{} is not an atari env".format(env)
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)
-    if norm_pixels:
-        return NormPixels(env)
-    env = wrap_deepmind(env, frame_stack=frame_stack, clip_rewards=False)
+    env = MonitorEnv(env)
+    env = wrap_deepmind(env, frame_stack=frame_stack,
+                        clip_rewards=False, scale=norm_pixels)
     return env
+
+
+class MonitorEnv(gym.Wrapper):
+    def __init__(self, env=None):
+        """
+        """
+        super().__init__(env)
+        self._current_reward = None
+        self._num_steps = None
+        self._total_steps = None
+        self._episode_rewards = deque(maxlen=1000)
+        self._episode_lengths = deque(maxlen=1000)
+
+    def _reset(self):
+        obs = self.env.reset()
+
+        if self._total_steps is None:
+            self._total_steps = sum(self._episode_lengths)
+
+        if self._current_reward is not None:
+            self._episode_rewards.append(self._current_reward)
+            self._episode_lengths.append(self._num_steps)
+
+        self._current_reward = 0
+        self._num_steps = 0
+
+        return obs
+
+    def _step(self, action):
+        obs, rew, done, info = self.env.step(action)
+        self._current_reward += rew
+        self._num_steps += 1
+        self._total_steps += 1
+        info['steps'] = self._total_steps
+        info['rewards'] = self._episode_rewards
+        return (obs, rew, done, info)
 
 
 class NormPixels(gym.Wrapper):
@@ -58,7 +95,8 @@ class GymEnv(Env):
                  force_reset=False,
                  is_atari=False,
                  frame_stack=True,
-                 norm_pixels=False):
+                 norm_pixels=False,
+                 *args, **kwargs):
 
         self.env = env = gym.envs.make(env_name)
         self._original_env = env
@@ -68,7 +106,7 @@ class GymEnv(Env):
                 env, frame_stack=frame_stack,
                 norm_pixels=norm_pixels)
         else:
-            self.env = env
+            self.env = MonitorEnv(env)
 
         assert isinstance(video, bool)
         if log_dir is None:
@@ -112,8 +150,7 @@ class GymEnv(Env):
 
     def reset(self):
         if self._force_reset and self.monitoring:
-            from gym.wrappers.monitoring import Monitor
-            assert isinstance(self.env, Monitor)
+            assert isinstance(self.env, gym.wrappers.Monitor)
             recorder = self.env.stats_recorder
             if recorder is not None:
                 recorder.done = True
@@ -281,3 +318,4 @@ class RunningMeanStd(object):
             self._count += X.shape[0]
             self._mean = self._mean + delta * X.shape[0] / self._count
         self._cache = []
+

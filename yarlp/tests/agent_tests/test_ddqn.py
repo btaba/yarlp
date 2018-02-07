@@ -3,14 +3,16 @@
 """
 
 import pytest
-import gym
 import numpy as np
 import shutil
-
+from yarlp.utils.env_utils import NormalizedGymEnv
 from yarlp.agent.ddqn_agent import DDQNAgent
 
 
-env = gym.make('PongNoFrameskip-v4')
+env = NormalizedGymEnv(
+    'PongNoFrameskip-v4',
+    is_atari=True
+)
 
 
 def test_ddqn():

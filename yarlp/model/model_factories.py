@@ -144,6 +144,9 @@ def ddqn_model_factory(
         model.add_loss(model['loss'])
 
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+        # optimizer = tf.train.RMSPropOptimizer(
+        #     learning_rate, momentum=.95,
+        #     decay=0.99)
         if grad_norm_clipping is not None:
             grad_clipping_func = partial(
                 tf.clip_by_norm, clip_norm=grad_norm_clipping)
@@ -326,3 +329,4 @@ def trpo_model_factory(
         return Model.load(model_file_path, name=name)
     return Model(env, build_graph, build_pg_update_feed_dict,
                  name=name)
+

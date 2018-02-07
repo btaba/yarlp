@@ -63,7 +63,8 @@ class Job(object):
         dir_name = self._spec_dict['run_name']
         job_dir = experiment_utils._create_log_directory(
             dir_name, self._log_dir)
-        experiment_utils._save_spec_to_dir(self._spec_dict, job_dir)
+        experiment_utils._save_spec_to_dir(
+            {"runs": self._spec_dict}, job_dir)
         return job_dir
 
 
@@ -78,3 +79,4 @@ def run_job(spec, log_dir, video):
 
 if __name__ == '__main__':
     run_job()
+

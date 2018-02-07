@@ -73,9 +73,9 @@ register_benchmark({
 # MuJoCo
 
 _mujocosmall = [
-    'InvertedDoublePendulum-v1', 'InvertedPendulum-v1',
-    'HalfCheetah-v1', 'Hopper-v1', 'Walker2d-v1',
-    'Reacher-v1', 'Swimmer-v1']
+    'InvertedDoublePendulum-v2', 'InvertedPendulum-v2',
+    'HalfCheetah-v2', 'Hopper-v2', 'Walker2d-v2',
+    'Reacher-v2', 'Swimmer-v2']
 register_benchmark({
     'name': 'Mujoco1M',
     'description': 'Some small 2D MuJoCo tasks, run for 1M timesteps',
@@ -85,9 +85,9 @@ register_benchmark({
     'name': 'MujocoWalkers',
     'description': 'MuJoCo forward walkers, run for 8M, humanoid 100M',
     'tasks': [
-        {'env_id': "Hopper-v1", 'trials': 5, 'num_timesteps': 8 * 1000000},
-        {'env_id': "Walker2d-v1", 'trials': 5, 'num_timesteps': 8 * 1000000},
-        {'env_id': "Humanoid-v1", 'trials': 5, 'num_timesteps': 100 * 1000000},
+        {'env_id': "Hopper-v2", 'trials': 5, 'num_timesteps': 8 * 1000000},
+        {'env_id': "Walker2d-v2", 'trials': 5, 'num_timesteps': 8 * 1000000},
+        {'env_id': "Humanoid-v2", 'trials': 5, 'num_timesteps': 100 * 1000000},
     ]
 })
 
