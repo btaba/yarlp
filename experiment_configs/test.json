@@ -14,7 +14,7 @@
                     "learning_start_timestep": 10000,
                     "buffer_size": 1000000,
                     "train_freq": 4,
-                    "policy_learning_rate": 0.00025,
+                    "policy_learning_rate": 0.0001,
                     "max_timesteps": 10000000,
                     "target_network_update_freq": 10000,
                     "exploration_fraction": 0.1,

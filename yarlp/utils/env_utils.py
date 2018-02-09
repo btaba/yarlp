@@ -27,8 +27,9 @@ class MonitorEnv(gym.Wrapper):
         self._current_reward = None
         self._num_steps = None
         self._total_steps = None
-        self._episode_rewards = deque(maxlen=1000)
-        self._episode_lengths = deque(maxlen=1000)
+        self._episode_rewards = deque(maxlen=100)
+        self._episode_lengths = deque(maxlen=100)
+        self._num_episodes = 0
 
     def _reset(self):
         obs = self.env.reset()
@@ -39,6 +40,7 @@ class MonitorEnv(gym.Wrapper):
         if self._current_reward is not None:
             self._episode_rewards.append(self._current_reward)
             self._episode_lengths.append(self._num_steps)
+            self._num_episodes += 1
 
         self._current_reward = 0
         self._num_steps = 0
@@ -52,6 +54,7 @@ class MonitorEnv(gym.Wrapper):
         self._total_steps += 1
         info['steps'] = self._total_steps
         info['rewards'] = self._episode_rewards
+        info['num_episodes'] = self._num_episodes
         return (obs, rew, done, info)
 
 

@@ -12,7 +12,7 @@ class MetricLogger:
     """Logs metrics to console and to file
     """
 
-    def __init__(self, log_dir=None, logger_name='yarlp', reward_len=40):
+    def __init__(self, log_dir=None, logger_name='yarlp', reward_len=100):
         self._log_dir = log_dir
         self._logger_name = logger_name
         self._metric_dict = {'Iteration': 0}

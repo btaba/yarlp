@@ -191,11 +191,12 @@ class DDQNAgent(Agent):
                         batch_idx, new_priorities)
 
             if self.t > 0 \
-                    and len(info['rewards']) > num_episodes\
+                    and info['num_episodes'] > num_episodes\
                     and self.t > self.learning_start_timestep:
                 # log things
-                self.logger.set_metrics_for_iter(info['rewards'][num_episodes:])
-                num_episodes = len(info['rewards'])
+                self.logger.set_metrics_for_iter(
+                    list(info['rewards'])[-1:])
+                num_episodes = info['num_episodes']
                 self.logger.add_metric('timesteps_so_far', self.global_t)
                 eta = (self.max_timesteps - self.global_t) / (self.global_t /
                     round(time.time() - self.logger._start_time, 6))
