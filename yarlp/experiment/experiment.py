@@ -398,7 +398,8 @@ def run_atari10m_benchmark(agent, n_jobs):
     benchmark = get_benchmarks(benchmark_name)
     # write the json config for this baseline
     j = []
-    for t in benchmark['tasks']:
+    print(benchmark['tasks'])
+    for t in benchmark['tasks'][4:]:
         d = {
             "env": {
                 "name": t['env_id'],
@@ -416,6 +417,7 @@ def run_atari10m_benchmark(agent, n_jobs):
                     "policy_learning_rate": 0.0001,
                     "max_timesteps": t['num_timesteps'],
                     "target_network_update_freq": 10000,
+                    "save_freq": 50000,
                     "prioritized_replay": False,
                     "double_q": True,
                     "policy_network_params": {"dueling": True},
