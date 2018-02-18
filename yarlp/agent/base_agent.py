@@ -27,7 +27,7 @@ class Agent(ABC):
 
     def __init__(self, env, discount_factor=0.99,
                  log_dir=None, seed=None, gae_lambda=0,
-                 reward_len=40):
+                 reward_len=100):
         """
         discount_factor : float
             Discount rewards by this factor
@@ -113,20 +113,6 @@ class Agent(ABC):
     @property
     def num_actions(self):
         return GymEnv.get_env_action_space_dim(self._env)
-
-    def norm_obs_if_atari(self, obs):
-        """
-        Normalize obs for atari if it hasn't been already.
-        This is used so that storage of obs in replay buffer is
-        more efficient with uint8, but can still be converted
-        for the network computations when needed.
-        """
-        obs = np.array(obs)
-        if hasattr(self._env, 'is_atari') and self._env.is_atari\
-                and obs.dtype == np.uint8:
-            obs = np.copy(obs) / 255.
-            return obs.astype(np.float32)
-        return obs
 
     def set_logger(self, log_dir, reward_len):
         if log_dir is None:

@@ -1,0 +1,174 @@
+{
+    "runs":
+    [
+        {
+            "agent": {
+                "seeds": [
+                    654
+                ],
+                "type": "DDQNAgent",
+                "training_params": {},
+                "params": {
+                    "discount_factor": 0.99,
+                    "learning_start_timestep": 10000,
+                    "buffer_size": 1000000,
+                    "train_freq": 4,
+                    "policy_learning_rate": 0.0001,
+                    "max_timesteps": 7500000,
+                    "target_network_update_freq": 10000,
+                    "prioritized_replay": false,
+                    "double_q": false,
+                    "policy_network_params": {"dueling": false},
+                    "learning_rate_schedule": [
+                        [0, 1e-4],
+                        [1e6, 1e-4],
+                        [5e6, 5e-5]
+                    ],
+                    "exploration_schedule": [
+                        [0, 1.0],
+                        [1e6, 0.1],
+                        [5e6, 0.01]
+                    ]
+                }
+            },
+            "env": {
+                "name": "BeamRiderNoFrameskip-v4",
+                "is_atari": true
+            }
+        },
+        {
+            "agent": {
+                "seeds": [
+                    654
+                ],
+                "type": "DDQNAgent",
+                "training_params": {},
+                "params": {
+                    "discount_factor": 0.99,
+                    "learning_start_timestep": 10000,
+                    "buffer_size": 1000000,
+                    "train_freq": 4,
+                    "policy_learning_rate": 0.0001,
+                    "max_timesteps": 7500000,
+                    "target_network_update_freq": 10000,
+                    "prioritized_replay": false,
+                    "double_q": false,
+                    "policy_network_params": {"dueling": false},
+                    "learning_rate_schedule": null,
+                    "policy_learning_rate": 7.5e-5,
+                    "exploration_fraction": 0.1,
+                    "exploration_final_eps": 0.05
+                }
+            },
+            "env": {
+                "name": "BeamRiderNoFrameskip-v4",
+                "is_atari": true
+            }
+        },
+        {
+            "agent": {
+                "seeds": [
+                    654
+                ],
+                "type": "DDQNAgent",
+                "training_params": {},
+                "params": {
+                    "discount_factor": 0.99,
+                    "learning_start_timestep": 10000,
+                    "buffer_size": 1000000,
+                    "train_freq": 4,
+                    "policy_learning_rate": 0.0001,
+                    "max_timesteps": 7500000,
+                    "target_network_update_freq": 10000,
+                    "prioritized_replay": false,
+                    "double_q": true,
+                    "policy_network_params": {"dueling": false},
+                    "learning_rate_schedule": [
+                        [0, 1e-4],
+                        [1e6, 1e-4],
+                        [5e6, 5e-5]
+                    ],
+                    "exploration_schedule": [
+                        [0, 1.0],
+                        [1e6, 0.1],
+                        [5e6, 0.01]
+                    ]
+                }
+            },
+            "env": {
+                "name": "BeamRiderNoFrameskip-v4",
+                "is_atari": true
+            }
+        },
+        {
+            "agent": {
+                "seeds": [
+                    654
+                ],
+                "type": "DDQNAgent",
+                "training_params": {},
+                "params": {
+                    "discount_factor": 0.99,
+                    "learning_start_timestep": 10000,
+                    "buffer_size": 1000000,
+                    "train_freq": 4,
+                    "policy_learning_rate": 0.0001,
+                    "max_timesteps": 7500000,
+                    "target_network_update_freq": 10000,
+                    "prioritized_replay": false,
+                    "double_q": true,
+                    "policy_network_params": {"dueling": true},
+                    "learning_rate_schedule": [
+                        [0, 1e-4],
+                        [1e6, 1e-4],
+                        [5e6, 5e-5]
+                    ],
+                    "exploration_schedule": [
+                        [0, 1.0],
+                        [1e6, 0.1],
+                        [5e6, 0.01]
+                    ]
+                }
+            },
+            "env": {
+                "name": "BeamRiderNoFrameskip-v4",
+                "is_atari": true
+            }
+        },
+        {
+            "agent": {
+                "seeds": [
+                    654
+                ],
+                "type": "DDQNAgent",
+                "training_params": {},
+                "params": {
+                    "discount_factor": 0.99,
+                    "learning_start_timestep": 10000,
+                    "buffer_size": 1000000,
+                    "train_freq": 4,
+                    "policy_learning_rate": 0.0001,
+                    "max_timesteps": 7500000,
+                    "target_network_update_freq": 10000,
+                    "prioritized_replay": true,
+                    "double_q": true,
+                    "policy_network_params": {"dueling": true},
+                    "learning_rate_schedule": [
+                        [0, 1e-4],
+                        [1e6, 1e-4],
+                        [5e6, 5e-5]
+                    ],
+                    "exploration_schedule": [
+                        [0, 1.0],
+                        [1e6, 0.1],
+                        [5e6, 0.01]
+                    ]
+                }
+            },
+            "env": {
+                "name": "BeamRiderNoFrameskip-v4",
+                "is_atari": true
+            }
+        }
+    ]
+}

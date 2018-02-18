@@ -6,6 +6,7 @@ import copy
 import click
 import subprocess
 import pandas as pd
+import numpy as np
 
 from jsonschema import validate
 from itertools import product
@@ -87,8 +88,9 @@ class Experiment(object):
         env = os.environ.copy()
         python_path = sys.executable
         command = ('{} -m yarlp.experiment.job --log-dir {}'
-                   ' --video {} --spec \'{}\'').format(
-            python_path, self._experiment_dir, self.video, json.dumps(s))
+                   ' --video {} --spec \'{}\' --reload-exp \'{}\'').format(
+            python_path, self._experiment_dir, self.video, json.dumps(s),
+            self.reload_exp)
         p = subprocess.Popen(command, env=env, shell=True)
         out, err = p.communicate()
         return out, err
@@ -135,14 +137,16 @@ class Experiment(object):
 
         grid_search = []
 
-        for s in spec_list:
+        for scount, s in enumerate(spec_list):
 
             # expand the grid of params
             params = s['agent'].get('params', {})
             singleton_params = {
-                k: v for k, v in params.items() if not isinstance(v, list)}
+                k: v for k, v in params.items() if not isinstance(v, list) or
+                k.endswith('schedule')}
             grid_params = {
-                k: v for k, v in params.items() if isinstance(v, list)}
+                k: v for k, v in params.items() if isinstance(v, list) and
+                not k.endswith('schedule')}
             grid_params = [
                 dict(zip(grid_params.keys(), x))
                 for x in product(*grid_params.values())]
@@ -154,7 +158,7 @@ class Experiment(object):
                 new_s = copy.deepcopy(s)
                 new_s['agent']['params'] = g
                 new_s['param_run'] = count
-                param_name = '_param{}'.format(count)
+                param_name = '_param{}_spec{}'.format(count, scount)
                 new_s['run_name'] = new_s['run_name'] + param_name
                 grid_search.append(new_s)
                 count += 1
@@ -213,6 +217,7 @@ def _merge_stats(experiment_dir):
             stats = list(map(json.loads, f.readlines()))
         stats = pd.DataFrame(stats)
 
+        spec = spec['runs']
         stats['param_run'] = spec['param_run']
         stats['run_name'] = spec['run_name']
         stats['agent'] = spec['agent']['type']
@@ -270,16 +275,27 @@ def _merge_benchmark_stats(experiment_dir):
     return stats
 
 
-def generate_plots(yarlp_dir):
-    training_stats = _merge_stats(yarlp_dir)
-    for env in training_stats.env.unique():
-        training_stats['name'] = 'yarlp'
-        yarlp = training_stats[training_stats.env == env]
-        fig = plotting.make_plots(yarlp, env, 'run_name', 'param_run')
+def generate_plots(yarlp_dir, by_field='env'):
+    ts = _merge_stats(yarlp_dir)
+    ts['run_name'] = ts['run_name'].apply(
+        lambda x: '_'.join(x.split('_')[-2:]))
+    for rn in ts['run_name'].unique():
+        ts.loc[ts['run_name'] == rn, 'Iteration'] = np.arange(
+            ts[ts['run_name'] == rn].shape[0])
+    for f in ts[by_field].unique():
+        ts['name'] = 'yarlp'
+        yarlp = ts[ts[by_field] == f]
+        fig = plotting.make_plots(yarlp, f, 'run_name', 'param_run')
         fig.savefig(
             os.path.join(
                 yarlp_dir,
-                '{}.png'.format(env)))
+                '{}.png'.format(f)))
+
+        fig = plotting.make_plots(yarlp, f, 'run_name', 'run_name')
+        fig.savefig(
+            os.path.join(
+                yarlp_dir,
+                '{}_all_runs.png'.format(f)))
 
 
 def generate_plots_benchmark_vs_yarlp(yarlp_dir, benchmark_dir):
@@ -393,16 +409,26 @@ def run_atari10m_benchmark(agent, n_jobs):
                 "seeds": [SEEDS[0]],
                 "training_params": {},
                 "params": {
-                    "exploration_final_eps": 0.1,
-                    "max_timesteps": t['num_timesteps'],
                     "discount_factor": 0.99,
-                    "learning_start_timestep": 50000,
-                    "target_network_update_freq": 10000,
-                    "train_freq": 4,
-                    "prioritized_replay": True,
-                    "exploration_fraction": 0.1,
+                    "learning_start_timestep": 10000,
                     "buffer_size": 1000000,
-                    "policy_learning_rate": 0.00025
+                    "train_freq": 4,
+                    "policy_learning_rate": 0.0001,
+                    "max_timesteps": t['num_timesteps'],
+                    "target_network_update_freq": 10000,
+                    "prioritized_replay": False,
+                    "double_q": True,
+                    "policy_network_params": {"dueling": True},
+                    "learning_rate_schedule": [
+                        [0, 1e-4],
+                        [1e6, 1e-4],
+                        [5e6, 5e-5]
+                    ],
+                    "exploration_schedule": [
+                        [0, 1.0],
+                        [1e6, 0.1],
+                        [5e6, 0.01]
+                    ]
                 }
             }
         }
@@ -430,9 +456,10 @@ def run_atari10m_benchmark(agent, n_jobs):
               help='Whether to record video or not')
 @click.option('--parallel', default=True, type=bool,
               help='Whether to run in parallel or not')
+@click.option('--n-jobs', default=1)
 @click.option('--reload-exp', default=False, type=bool,
               help='Whether to restart from an experiment dir')
-def run_experiment(spec_file, video, parallel, reload_exp):
+def run_experiment(spec_file, video, parallel, n_jobs, reload_exp):
     if reload_exp:
         log_dir = os.path.dirname(spec_file)
     else:
@@ -440,7 +467,7 @@ def run_experiment(spec_file, video, parallel, reload_exp):
     e = Experiment.from_json_spec(
         spec_file, log_dir=log_dir, video=video,
         reload_exp=reload_exp)
-    e.run(parallel=parallel)
+    e.run(parallel=parallel, n_jobs=n_jobs)
 
 
 @click.command()
@@ -461,8 +488,9 @@ def compare_benchmark(yarlp_dir, openai_benchmark_dir):
 
 @click.command()
 @click.argument('directory')
-def make_plots(directory):
-    generate_plots(directory)
+@click.option('--by-field', default='env')
+def make_plots(directory, by_field):
+    generate_plots(directory, by_field)
 
 
 cli.add_command(run_mujoco1m_benchmark)
@@ -475,4 +503,3 @@ cli.add_command(make_plots)
 
 if __name__ == '__main__':
     cli()
-

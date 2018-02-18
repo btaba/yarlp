@@ -8,14 +8,13 @@ from yarlp.external.baselines.baselines.common.atari_wrappers import NoopResetEn
 from yarlp.external.baselines.baselines.common.atari_wrappers import MaxAndSkipEnv
 
 
-def wrap_atari(env, frame_stack, norm_pixels=False):
+def wrap_atari(env):
     assert 'NoFrameskip' in env.spec.id,\
         "{} is not an atari env".format(env)
+    env = MonitorEnv(env)
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)
-    env = MonitorEnv(env)
-    env = wrap_deepmind(env, frame_stack=frame_stack,
-                        clip_rewards=False, scale=norm_pixels)
+    env = wrap_deepmind(env, frame_stack=True, clip_rewards=True, scale=False)
     return env
 
 
@@ -27,11 +26,11 @@ class MonitorEnv(gym.Wrapper):
         self._current_reward = None
         self._num_steps = None
         self._total_steps = None
-        self._episode_rewards = deque(maxlen=100)
-        self._episode_lengths = deque(maxlen=100)
+        self._episode_rewards = []
+        self._episode_lengths = []
         self._num_episodes = 0
 
-    def _reset(self):
+    def reset(self):
         obs = self.env.reset()
 
         if self._total_steps is None:
@@ -47,15 +46,21 @@ class MonitorEnv(gym.Wrapper):
 
         return obs
 
-    def _step(self, action):
+    def step(self, action):
         obs, rew, done, info = self.env.step(action)
         self._current_reward += rew
         self._num_steps += 1
         self._total_steps += 1
-        info['steps'] = self._total_steps
-        info['rewards'] = self._episode_rewards
-        info['num_episodes'] = self._num_episodes
         return (obs, rew, done, info)
+
+    def get_episode_rewards(self):
+        return self._episode_rewards
+
+    def get_episode_lengths(self):
+        return self._episode_lengths
+
+    def get_total_steps(self):
+        return self._total_steps
 
 
 class NormPixels(gym.Wrapper):
@@ -97,17 +102,15 @@ class GymEnv(Env):
                  log_dir=None,
                  force_reset=False,
                  is_atari=False,
-                 frame_stack=True,
-                 norm_pixels=False,
                  *args, **kwargs):
 
         self.env = env = gym.envs.make(env_name)
         self._original_env = env
 
         if is_atari:
-            self.env = wrap_atari(
-                env, frame_stack=frame_stack,
-                norm_pixels=norm_pixels)
+            self.env = wrap_atari(env)
+            # from yarlp.utils.wrap_atari import wrap_deepmind, wrap_deepmind2
+            # self.env = wrap_deepmind2(env_name)
         else:
             self.env = MonitorEnv(env)
 
@@ -229,6 +232,7 @@ class NormalizedGymEnv(GymEnv):
         return self.env.action_space
 
     def _update_rewards(self, r, done):
+        print('hi')
         self._reward_rms.cache(r)
         r = self._reward_rms.normalize(r)
         if done:
@@ -236,6 +240,7 @@ class NormalizedGymEnv(GymEnv):
         return r
 
     def _update_obs(self, obs, done):
+        print('hi2')
         self._obs_rms.cache(obs)
         obs = self._obs_rms.normalize(obs)
         if done:
@@ -322,3 +327,14 @@ class RunningMeanStd(object):
             self._mean = self._mean + delta * X.shape[0] / self._count
         self._cache = []
 
+
+def get_wrapper_by_name(env, classname):
+    currentenv = env
+    while True:
+        if classname in currentenv.__class__.__name__:
+            return currentenv
+        elif hasattr(env, 'env'):
+            currentenv = currentenv.env
+        else:
+            raise ValueError(
+                'Could not find wrapper named {}'.format(classname))

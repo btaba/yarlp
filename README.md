@@ -57,11 +57,9 @@ CLI convenience scripts will be installed with the package:
 
 ##### TODO:
 * DDQN
-    - see if new reward with MonitorEnv can match Breakout
-    - blog post
-        - add normalize_to_seconds for timesteps plot
-        - https://github.com/devsisters/DQN-tensorflow
+	- benchmark plots, ablation plots
 * A2C
+	- run a2c on breakout...can i get good results???!
 * PPO2
 * docs
 * pypi

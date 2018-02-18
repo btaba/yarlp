@@ -31,12 +31,14 @@ def build_pg_update_feed_dict(model, state, return_, action):
 
 def build_ddqn_update_feed_dict(
         model, state, action, reward, state_t1,
-        done, importance_weights):
+        done, importance_weights, learning_rate):
     feed_dict = {
-        model['state']: state, model['action']: action.astype(np.int32),
+        model['state']: state,
+        model['action']: action.astype(np.int32),
         model['reward']: reward, model['next_state']: state_t1,
         model['done']: done,
-        model['importance_weights']: importance_weights
+        model['importance_weights']: importance_weights,
+        model['learning_rate']: learning_rate
     }
     return feed_dict
 
@@ -80,7 +82,7 @@ def value_function_model_factory(
 def ddqn_model_factory(
         env, network=cnn,
         network_params={},
-        double_q=True, learning_rate=5e-4,
+        double_q=True,
         model_file_path=None, discount_factor=1,
         grad_norm_clipping=10, name='ddqn'):
 
@@ -89,13 +91,13 @@ def ddqn_model_factory(
         # q network
         q = make_policy(
             env, 'q', model, network_params=network_params, network=network)
-        q_vars = q.get_trainable_variables()
+        q_vars = q.get_variables()
 
         # target q network
         q_target = make_policy(
             env, 'q_target', model, network_params=network_params,
             network=network, input_node_name='next_observations')
-        q_target_vars = q_target.get_trainable_variables()
+        q_target_vars = q_target.get_variables()
 
         model['q'] = q
         model['q_target'] = q_target
@@ -108,13 +110,18 @@ def ddqn_model_factory(
         model['done'] = tf.placeholder(tf.float32, (None,), name='done')
         model['importance_weights'] = tf.placeholder(
             tf.float32, (None,), name='imp_weights')
+        model['learning_rate'] = tf.placeholder(
+            tf.float32, (), name="learning_rate")
 
-        num_actions = tf.shape(model['q_output'])[-1]
+        q_target = model['q_target_output']
+        q = model['q_output']
+
+        num_actions = model['q_output'].get_shape().as_list()[-1]
+
         # q values for actions selected
         q_val = tf.reduce_sum(
             model['q_output'] * tf.one_hot(
-                tf.squeeze(model['action']),
-                depth=num_actions),
+                tf.squeeze(model['action']), depth=num_actions),
             axis=1)
 
         # q values for greedy action
@@ -123,30 +130,31 @@ def ddqn_model_factory(
             with tf.variable_scope('q', reuse=True):
                 q_next_state = network(
                     inputs=model['next_state'],
-                    num_outputs=model['q_output'].get_shape().as_list()[-1],
+                    num_outputs=num_actions,
                     **network_params)
             q_for_next_state_max = tf.argmax(q_next_state, axis=1)
             q_target_max = tf.reduce_sum(
                 (model['q_target_output'] *
                     tf.one_hot(q_for_next_state_max, depth=num_actions)),
-                axis=1
-            )
+                axis=1)
         else:
-            q_target_max = tf.reduce_max(model['q_target_output'], 1)
+            q_target_max = tf.reduce_max(model['q_target_output'], axis=1)
 
         td_return = model['reward'] + \
             discount_factor * q_target_max * (1 - model['done'])
         td_errors = q_val - tf.stop_gradient(td_return)
+        # errors = tf.losses.huber_loss(
+        #     tf.stop_gradient(td_return), q_val,
+        #     reduction=tf.losses.Reduction.NONE)
         model['td_errors'] = td_errors
-        errors = tf.losses.huber_loss(tf.stop_gradient(td_return), q_val)
-        weighted_error = tf.reduce_mean(model['importance_weights'] * errors)
+        errors = 0.5 * tf.square(td_errors)
+        weighted_error = tf.reduce_mean(
+            model['importance_weights'] * errors)
         model['loss'] = weighted_error
         model.add_loss(model['loss'])
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-        # optimizer = tf.train.RMSPropOptimizer(
-        #     learning_rate, momentum=.95,
-        #     decay=0.99)
+        optimizer = tf.train.AdamOptimizer(
+            learning_rate=model['learning_rate'])
         if grad_norm_clipping is not None:
             grad_clipping_func = partial(
                 tf.clip_by_norm, clip_norm=grad_norm_clipping)
@@ -161,7 +169,8 @@ def ddqn_model_factory(
 
         model['update_target_network'] = tf.group(*[
             qt.assign(q) for (q, qt) in
-            zip(q_vars, q_target_vars)])
+            zip(sorted(q_vars, key=lambda x: x.name),
+                sorted(q_target_vars, key=lambda x: x.name))])
 
     if model_file_path is not None:
         return Model.load(model_file_path, name)
@@ -329,4 +338,5 @@ def trpo_model_factory(
         return Model.load(model_file_path, name=name)
     return Model(env, build_graph, build_pg_update_feed_dict,
                  name=name)
+
 

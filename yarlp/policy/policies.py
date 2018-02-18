@@ -64,15 +64,23 @@ class CategoricalPolicy(Policy):
             input_shape = [None] + list(self.observation_space.shape)
         num_outputs = GymEnv.get_env_action_space_dim(self.env)
 
-        input_node = tf_utils.get_placeholder(
-            name=input_node_name,
-            dtype=tf.float32, shape=input_shape)
-        model.add_input_node(input_node, input_node_name)
+        if hasattr(env, 'is_atari') and env.is_atari:
+            input_node = tf_utils.get_placeholder(
+                name=input_node_name,
+                dtype=tf.uint8, shape=input_shape)
+            model.add_input_node(input_node, input_node_name)
+            input_node = tf.cast(input_node, tf.float32) / 255.0
+        else:
+            input_node = tf_utils.get_placeholder(
+                name=input_node_name,
+                dtype=tf.float32, shape=input_shape)
+            model.add_input_node(input_node, input_node_name)
+
         self.model = model
 
         model[action_name] = tf_utils.get_placeholder(
             name=action_name,
-            dtype=tf.int32, shape=(None))
+            dtype=tf.int32, shape=(None, 1))
 
         with tf.variable_scope(name, reuse=reuse) as s:
             self._scope = s

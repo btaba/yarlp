@@ -28,48 +28,74 @@ def plot_data(data, value, time, run, condition, title='', ax=None, ci=95):
     return plot
 
 
-def normalize_timesteps(data, x, by, steps):
+def normalize_timesteps(data, xname, rew, by, condition):
     """
     Normalize timesteps to fit in sns.tsplots
     """
-    data = data.copy()
-    for b in data[by].unique():
-        data.loc[data[by] == b, x] = \
-            np.arange(0, data[data[by] == b].shape[0] * steps, steps)
-
-    return data
-
-
-def normalize_to_seconds(data, time, by, experiment_name, reward):
-    """
-    Round seconds and group reward by second for each experiment
-    """
-    data = data.copy()
-    bys = data[by].unique()
-
-    max_time = int(data[time].max())
     return_data = pd.DataFrame()
-    for b in bys:
-        d = data.loc[data[by] == b]
-        d.loc[:, time] = d[time].apply(lambda x: round(x, 0))
-        exp_name = d[experiment_name][0]
-        d = d.groupby(time).mean().reset_index()
-        d.loc[:, by] = b
-        d.loc[:, experiment_name] = exp_name
-        d.index = d[time]
-        d = d.reindex(index=range(1, max_time), method='ffill')
-        d[time] = d.index
-        return_data = return_data.append(d)
+    ts = data.copy()
+
+    for b in data[by].unique():
+        x, y = subsample(
+            ts[ts[by] == b][xname],
+            ts[ts[by] == b][rew],
+            np.linspace(0, ts[xname].max(),
+                        int(ts.shape[0] / 10)))
+        units = [b] * x.shape[0]
+        cond = [ts[ts[by] == b][condition].unique()[0]] * x.shape[0]
+        data = pd.DataFrame(
+            {xname: x, by: units,
+             rew: y, condition: cond})
+        return_data = return_data.append(data)
 
     return return_data
 
 
-def make_plots(data, env, run='run_name', condition='name'):
+def subsample(t, vt, bins):
+    """
+    Given a data such that value vt[i] was observed at time t[i],
+    group it into bins: (bins[j], bins[j+1]) such that values
+    for bin j is equal to average of all vt[k], such that
+    bin[j] <= t[k] < bin[j+1].
+
+    Parameters
+    ----------
+    t: np.array
+        times at which the values are observed
+    vt: np.array
+        values for those times
+    bins: np.array
+        endpoints of the bins.
+        for n bins it shall be of length n + 1.
+
+    Returns
+    -------
+    x: np.array
+        endspoints of all the bins
+    y: np.array
+        average values in all bins
+    """
+    bin_idx = np.digitize(t, bins) - 1
+    v_sums = np.zeros(len(bins), dtype=np.float32)
+    v_cnts = np.zeros(len(bins), dtype=np.float32)
+    np.add.at(v_sums, bin_idx, vt)
+    np.add.at(v_cnts, bin_idx, 1)
+    # ensure graph has no holes
+    zs = np.where(v_cnts == 0)
+    assert v_cnts[0] > 0
+    for zero_idx in zs:
+        v_sums[zero_idx] = v_sums[zero_idx - 1]
+        v_cnts[zero_idx] = v_cnts[zero_idx - 1]
+
+    return bins[1:], (v_sums / v_cnts)[1:]
+
+
+def make_plots(data, env, run='run_name', condition='param_run'):
     """
     Make plots by second, timestep, and episode
     """
 
-    figure, axes = plt.subplots(ncols=2, nrows=1, figsize=(2 * 6, 6))
+    figure, axes = plt.subplots(ncols=3, nrows=1, figsize=(3 * 6, 6))
 
     # plot episodes
     plot1 = plot_data(
@@ -78,23 +104,24 @@ def make_plots(data, env, run='run_name', condition='name'):
 
     # plot timesteps
     timestep_data = normalize_timesteps(
-        data, 'timesteps_so_far', 'run_name', 1000)
+        data, 'timesteps_so_far', 'Smoothed_total_reward',
+        run, condition)
     plot2 = plot_data(
         timestep_data, 'Smoothed_total_reward',
         'timesteps_so_far', run, condition,
         env, axes[1])
 
     # # plot by seconds
-    # ts_data = normalize_to_seconds(
-    #     data, 'time_elapsed', run, condition,
-    #     'Smoothed_total_reward')
-    # plot3 = plot_data(
-    #     ts_data, 'Smoothed_total_reward', 'time_elapsed',
-    #     run, condition, env, axes[2])
+    ts_data = normalize_timesteps(
+        data, 'time_elapsed', 'Smoothed_total_reward',
+        run, condition)
+    plot3 = plot_data(
+        ts_data, 'Smoothed_total_reward', 'time_elapsed',
+        run, condition, env, axes[2])
 
     figure.add_subplot(plot1)
     figure.add_subplot(plot2)
-    # figure.add_subplot(plot3)
+    figure.add_subplot(plot3)
 
     plt.tight_layout()
 

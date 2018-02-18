@@ -16,18 +16,21 @@ env = NormalizedGymEnv(
 
 
 def test_ddqn():
-    agent = DDQNAgent(env, max_timesteps=2)
+    agent = DDQNAgent(env, max_timesteps=10,
+                      learning_start_timestep=1,
+                      train_freq=5,
+                      batch_size=1)
     agent.train()
 
 
 def test_seed():
     agent = DDQNAgent(env, seed=143, max_timesteps=2)
     agent.train()
-    ob, *_ = agent.replay_buffer.sample(5, 0.4)
+    ob, *_ = agent.replay_buffer.sample(1)
 
     agent = DDQNAgent(env, seed=143, max_timesteps=2)
     agent.train()
-    ob2, *_ = agent.replay_buffer.sample(5, 0.4)
+    ob2, *_ = agent.replay_buffer.sample(1)
 
     assert np.all(
         np.array(ob) == np.array(ob2))
