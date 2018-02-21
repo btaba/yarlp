@@ -14,7 +14,7 @@ WORKDIR /yarlp
 RUN python3 setup.py install
 
 # Patch gym install for ALE...
-WORKDIR /usr/local/lib/python3.5/dist-packages/atari_py-0.1.1-py3.5.egg/atari_py/ale_interface/
+WORKDIR `python3 -c "import atari_py; import os; print(os.path.dirname(atari_py.__file__))"`
 RUN make
 
 WORKDIR /yarlp
