@@ -19,11 +19,13 @@ agent.train(max_timesteps=1000000)
 
 ## Benchmarks
 
-We benchmark against Openai [`baselines`](https://github.com/openai/baselines) using [`run_benchmark`](/yarlp/experiment/experiment.py#334). Benchmark scripts for Openai `baselines` were made ad-hoc, such as [this one](https://github.com/btaba/baselines/blob/master/baselines/trpo_mpi/run_trpo_experiment.py).
+We benchmark against Openai [`baselines`](https://github.com/openai/baselines) using [`yarlp/experiment/experiment.py`](/yarlp/experiment/experiment.py). Benchmark scripts for Openai `baselines` were made ad-hoc, such as [this one](https://github.com/btaba/baselines/blob/master/baselines/trpo_mpi/run_trpo_experiment.py).
 
 ### Mujoco1M
 
 #### TRPO
+
+`python yarlp/experiment/experiment.py run_mujoco1m_benchmark`
 
 We average over 5 random seeds instead of 3 for both `baselines` and `yarlp`. More seeds probably wouldn't hurt here, we report 95th percent confidence intervals.
 
@@ -36,8 +38,27 @@ We average over 5 random seeds instead of 3 for both `baselines` and `yarlp`. Mo
 
 #### DDQN with dueling networks and prioritized replay
 
+`python yarlp/experiment/experiment.py run_atari10m_benchmark`
 
-I don't compare to OpenAI baselines because the OpenAI DDQN implementation is **not** currently able to reproduce published results as of 2018-01-20. See [this github issue](https://github.com/openai/baselines/issues/176).
+
+I trained 6 Atari environments for 10M time-steps (**40M frames**), using 1 random seed, since I only have 1 GPU and limited time on this Earth. I used DDQN with dueling networks, but no prioritized replay (although it's implemented). I compare the final mean 100 episode raw scores for yarlp (with exploration of 0.01) with results from [Hasselt et al, 2015](https://arxiv.org/pdf/1509.06461.pdf) and [Wang et al, 2016](https://arxiv.org/pdf/1511.06581.pdf) which train for **200M frames** and evaluate on 100 episodes (exploration of 0.05).
+
+I don't compare to OpenAI baselines because the OpenAI DDQN implementation is **not** currently able to reproduce published results as of 2018-01-20. See [this github issue](https://github.com/openai/baselines/issues/176), although I found [these benchmark plots](https://github.com/openai/baselines-results/blob/master/dqn_results.ipynb) to be pretty helpful.
+
+|env|yarlp DUEL 40M Frames|Hasselt et al DDQN 200M Frames|Wang et al DUEL 200M Frames|
+|---|---|---|---|
+|BeamRider|8705|7654|12164|
+|Breakout|423.5|375|345|
+|Pong|20.73|21|21|
+|Q*Bert|5410.75|14875|19220.3|
+|Seaquest|5300.5|7995|50245.2|
+|SpaceInvaders|1978.2|3154.6|6427.3|
+
+
+|   |   |   |   |
+|---|---|---|---|
+|![BeamRiderNoFrameskip-v4](/assets/atari10m/ddqn/BeamRiderNoFrameskip-v4.png)|![BreakoutNoFrameskip-v4](/assets/atari10m/ddqn/BreakoutNoFrameskip-v4)|![PongNoFrameskip-v4](/assets/atari10m/ddqn/PongNoFrameskip-v4.png)|![QbertNoFrameskip-v4](/assets/atari10m/ddqn/QbertNoFrameskip-v4.png)|
+|![SeaquestNoFrameskip-v4](/assets/atari10m/ddqn/SeaquestNoFrameskip-v4.png)|![SpaceInvadersNoFrameskip-v4](/assets/atari10m/ddqn/SpaceInvadersNoFrameskip-v4.png)||
 
 
 ## CLI scripts
@@ -45,7 +66,7 @@ I don't compare to OpenAI baselines because the OpenAI DDQN implementation is **
 CLI convenience scripts will be installed with the package:
 
 * Run a benchmark:
-	* `run_benchmark`
+	* `python yarlp/experiment/experiment.py --help`
 * Plot `yarlp` compared to Openai `baselines` benchmarks:
 	* `compare_benchmark <yarlp-experiment-dir> <baseline-experiment-dir>`
 * Experiments:
@@ -56,11 +77,7 @@ CLI convenience scripts will be installed with the package:
 
 
 ##### TODO:
-* DDQN
-	- benchmark plots, ablation plots
+
 * A2C
-	- run a2c on breakout...can i get good results???!
-* PPO2
 * docs
 * pypi
-

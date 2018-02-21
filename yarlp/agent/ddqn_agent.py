@@ -278,8 +278,8 @@ class DDQNAgent(Agent):
         if self.logger._log_dir:
             self.save(self.logger._log_dir)
 
-    def enjoy(self):
-
+    def enjoy(self, t):
+        from time import sleep
         env = self.env
         done = True
         rewards = 0
@@ -287,8 +287,9 @@ class DDQNAgent(Agent):
 
             if done:
                 obs = env.reset()
-                print(rewards)
+                print(rewards, 'done')
                 rewards = 0
+            sleep(t)
             obs = np.expand_dims(obs, 0)
             obs, r, done, _ = env.step(
                 self.get_action(obs, epsilon=0.05))

@@ -1,10 +1,12 @@
+setuptools
 click
 gym
+gym[atari]
 numpy
 pyglet
 scipy
 tabulate
-tensorflow==1.4.0
+tensorflow==1.5.0
 tensorflow-tensorboard
 jsonschema
 seaborn
