@@ -57,7 +57,7 @@ I don't compare to OpenAI baselines because the OpenAI DDQN implementation is **
 
 |   |   |   |   |
 |---|---|---|---|
-|![BeamRiderNoFrameskip-v4](/assets/atari10m/ddqn/BeamRiderNoFrameskip-v4.png)|![BreakoutNoFrameskip-v4](/assets/atari10m/ddqn/BreakoutNoFrameskip-v4i.png)|![PongNoFrameskip-v4](/assets/atari10m/ddqn/PongNoFrameskip-v4.png)|![QbertNoFrameskip-v4](/assets/atari10m/ddqn/QbertNoFrameskip-v4.png)|
+|![BeamRiderNoFrameskip-v4](/assets/atari10m/ddqn/BeamRiderNoFrameskip-v4.png)|![BreakoutNoFrameskip-v4](/assets/atari10m/ddqn/BreakoutNoFrameskip-v4.png)|![PongNoFrameskip-v4](/assets/atari10m/ddqn/PongNoFrameskip-v4.png)|![QbertNoFrameskip-v4](/assets/atari10m/ddqn/QbertNoFrameskip-v4.png)|
 |![SeaquestNoFrameskip-v4](/assets/atari10m/ddqn/SeaquestNoFrameskip-v4.png)|![SpaceInvadersNoFrameskip-v4](/assets/atari10m/ddqn/SpaceInvadersNoFrameskip-v4.png)||
 
 
