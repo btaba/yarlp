@@ -50,14 +50,14 @@ I don't compare to OpenAI baselines because the OpenAI DDQN implementation is **
 |BeamRider|8705|7654|12164|
 |Breakout|423.5|375|345|
 |Pong|20.73|21|21|
-|Q*Bert|5410.75|14875|19220.3|
+|QBert|5410.75|14875|19220.3|
 |Seaquest|5300.5|7995|50245.2|
 |SpaceInvaders|1978.2|3154.6|6427.3|
 
 
 |   |   |   |   |
 |---|---|---|---|
-|![BeamRiderNoFrameskip-v4](/assets/atari10m/ddqn/BeamRiderNoFrameskip-v4.png)|![BreakoutNoFrameskip-v4](/assets/atari10m/ddqn/BreakoutNoFrameskip-v4)|![PongNoFrameskip-v4](/assets/atari10m/ddqn/PongNoFrameskip-v4.png)|![QbertNoFrameskip-v4](/assets/atari10m/ddqn/QbertNoFrameskip-v4.png)|
+|![BeamRiderNoFrameskip-v4](/assets/atari10m/ddqn/BeamRiderNoFrameskip-v4.png)|![BreakoutNoFrameskip-v4](/assets/atari10m/ddqn/BreakoutNoFrameskip-v4i.png)|![PongNoFrameskip-v4](/assets/atari10m/ddqn/PongNoFrameskip-v4.png)|![QbertNoFrameskip-v4](/assets/atari10m/ddqn/QbertNoFrameskip-v4.png)|
 |![SeaquestNoFrameskip-v4](/assets/atari10m/ddqn/SeaquestNoFrameskip-v4.png)|![SpaceInvadersNoFrameskip-v4](/assets/atari10m/ddqn/SpaceInvadersNoFrameskip-v4.png)||
 
 
