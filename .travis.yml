@@ -9,8 +9,8 @@ install:
   - pip install -r requirements.txt
   - python setup.py install
   - pwd=$PWD
-  - cd `python3 -c "import atari_py; import os; print(os.path.dirname(atari_py.__file__))"`
-  - cd ale_interface
+  - cd `python3 -c "import gym; import os; print(os.path.dirname(gym.__file__) + '/..')"` 
+  - cd atari_py-0.1.1-py3.5.egg/atari_py/ale_interface
   - make
   - cd $pwd
 script: pytest
