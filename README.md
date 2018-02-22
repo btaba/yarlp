@@ -61,6 +61,11 @@ I don't compare to OpenAI baselines because the OpenAI DDQN implementation is **
 |![SeaquestNoFrameskip-v4](/assets/atari10m/ddqn/SeaquestNoFrameskip-v4.png)|![SpaceInvadersNoFrameskip-v4](/assets/atari10m/ddqn/SpaceInvadersNoFrameskip-v4.png)||
 
 
+||||
+|---|---|---|
+|![BeamRider](/assets/atari10m/ddqn/beamrider.gif)|![Breakout](/assets/atari10m/ddqn/breakout.gif)|![Pong](/assets/atari10m/ddqn/pong.gif)|
+|![QBert](/assets/atari10m/ddqn/qbert.gif)|![Seaquest](/assets/atari10m/ddqn/seaquest.gif)|![SpaceInvaders](/assets/atari10m/ddqn/spaceinvaders.gif)|
+
 ## CLI scripts
 
 CLI convenience scripts will be installed with the package:
