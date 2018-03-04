@@ -6,7 +6,7 @@
 
 Implementations of [`CEM`](/yarlp/agent/cem_agent.py), [`REINFORCE`](/yarlp/agent/pg_agents.py), [`TRPO`](/yarlp/agent/trpo_agent.py), [`DDQN`](/yarlp/agent/ddqn_agent.py) with reproducible benchmarks. Experiments are templated using `jsonschema` and are compared to published results. This is meant to be a starting point for working implementations of classic RL algorithms. Unfortunately even implementations from OpenAI baselines are [not always reproducible](https://github.com/openai/baselines/issues/176).
 
-A working Dockerfile with `yarlp installend` can be run with:
+A working Dockerfile with `yarlp` installed can be run with:
 
 * `docker build -t "yarlpd" .`
 * `docker run -it yarlpd bash`
