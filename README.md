@@ -4,9 +4,19 @@
 
 **Yet Another Reinforcement Learning Package**
 
-Implementations of [`CEM`](/yarlp/agent/cem_agent.py), [`REINFORCE`](/yarlp/agent/pg_agents.py), [`TRPO`](/yarlp/agent/trpo_agent.py), [`DDQN`](/yarlp/agent/ddqn_agent.py), benchmarked against OpenAI [baselines](https://github.com/openai/baselines), mostly done for educational purposes.
+Implementations of [`CEM`](/yarlp/agent/cem_agent.py), [`REINFORCE`](/yarlp/agent/pg_agents.py), [`TRPO`](/yarlp/agent/trpo_agent.py), [`DDQN`](/yarlp/agent/ddqn_agent.py) with reproducible benchmarks. Experiments are templated using `jsonschema` and are compared to published results. This is meant to be a starting point for working implementations of classic RL algorithms. Unfortunately even implementations from OpenAI baselines are [not always reproducible](https://github.com/openai/baselines/issues/176).
 
-Quick example:
+A working Dockerfile with `yarlp installend` can be run with:
+
+* `docker build -t "yarlpd" .`
+* `docker run -it yarlpd bash`
+
+To run a benchmark, simply:
+
+`python yarlp/experiment/experiment.py --help`
+
+
+If you want to run things manually:
 
 ```python
 from yarlp.agent.trpo_agent import TRPOAgent
@@ -19,7 +29,7 @@ agent.train(max_timesteps=1000000)
 
 ## Benchmarks
 
-We benchmark against Openai [`baselines`](https://github.com/openai/baselines) using [`yarlp/experiment/experiment.py`](/yarlp/experiment/experiment.py). Benchmark scripts for Openai `baselines` were made ad-hoc, such as [this one](https://github.com/btaba/baselines/blob/master/baselines/trpo_mpi/run_trpo_experiment.py).
+We benchmark against published results and Openai [`baselines`](https://github.com/openai/baselines) where available using [`yarlp/experiment/experiment.py`](/yarlp/experiment/experiment.py). Benchmark scripts for Openai `baselines` were made ad-hoc, such as [this one](https://github.com/btaba/baselines/blob/master/baselines/trpo_mpi/run_trpo_experiment.py).
 
 ### Mujoco1M
 
