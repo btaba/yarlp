@@ -94,5 +94,11 @@ CLI convenience scripts will be installed with the package:
 ##### TODO:
 
 * A2C
+    - implement according to https://arxiv.org/pdf/1602.01783.pdf
+    - but done synchronously (easier to implement)
+    - add max grad norm
+    - add LR schedule
+    - Test and make it work - run experiments
+    - Add LSTM policy for fun
 * docs
 * pypi

@@ -169,8 +169,6 @@ class DDQNAgent(Agent):
         self.last_saved_reward = -np.inf
         update_target_network = self._policy['update_target_network']
         update_fn = self._policy['optimizer_op:']
-        # num_episodes = 0
-        # best_mean_episode_reward = -np.inf
 
         while self.global_t < self.max_timesteps:
 

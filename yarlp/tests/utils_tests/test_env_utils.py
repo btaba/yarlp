@@ -3,6 +3,7 @@ import numpy as np
 from yarlp.utils.env_utils import GymEnv
 from yarlp.utils.env_utils import NormalizedGymEnv
 from yarlp.utils.env_utils import RunningMeanStd
+from yarlp.utils.env_utils import ParallelEnvs
 
 
 def test_discrete_action_space():
@@ -84,3 +85,10 @@ def test_clip():
     rms = RunningMeanStd((1), clip_val=2)
     assert np.equal(rms.normalize(3), 2.)
     assert np.equal(rms.normalize(-3), -2.)
+
+
+def test_parallel_env():
+    env = ParallelEnvs('BreakoutNoFrameSkip-v4', 3)
+    assert env.reset().shape[0] == 3
+    assert env.step([0, 0, 0])[0].shape[0] == 3
+    assert np.all(np.array(env.get_total_steps()) > 1)

@@ -146,6 +146,19 @@ class Agent(ABC):
                 batch, greedy)[0]
         return a
 
+    def get_batch_actions(self, states, greedy=False):
+        """
+        Generate an action from our policy model
+
+        Returns
+        ----------
+        action : numpy array or integer
+        """
+        with self._policy.G._session.as_default():
+            return self._policy.policy.predict(
+                self._policy.get_session(),
+                states, greedy)
+
     def argmax_break_ties(self, probs):
         """
         Breaks ties randomly in an array of probabilities

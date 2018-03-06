@@ -44,7 +44,7 @@ def build_ddqn_update_feed_dict(
 
 
 def value_function_model_factory(
-        env, network=mlp,
+        env, network=mlp, network_params={},
         learning_rate=0.01, input_shape=None, model_file_path=None,
         name='value_function'):
     """
@@ -54,7 +54,7 @@ def value_function_model_factory(
     def build_graph(model, network, lr, shape):
         input_node = model.add_input(shape=shape)
 
-        network = partial(network, final_activation_fn=None)
+        network = partial(network, final_activation_fn=None, **network_params)
         output_node = model.add_output(network, num_outputs=1)
         model['value'] = output_node
 
@@ -176,6 +176,53 @@ def ddqn_model_factory(
         return Model.load(model_file_path, name)
     return Model(env, build_graph,
                  build_ddqn_update_feed_dict, name=name)
+
+
+# def a2c_model_factory(
+#         env, network=cnn, network_params={}, learning_rate=0.01,
+#         entropy_weight=0.001,
+#         min_std=1e-6, init_std=1.0, adaptive_std=False,
+#         model_file_path=None, name='a2c'):
+
+#     def build_graph(model, network=network, lr=learning_rate,
+#                     network_params=network_params,
+#                     init_std=init_std, adaptive_std=adaptive_std):
+
+#         policy = make_policy(
+#             env, 'pi', model,
+#             network_params=network_params,
+#             init_std=init_std, adaptive_std=adaptive_std, network=network)
+#         model['policy'] = policy
+#         model['state'] = model['input:observations']
+#         model['Return'] = tf.placeholder(
+#             dtype=tf.float32, shape=(None,), name='return')
+#         model['output_node'] = policy.distribution.output_node
+#         model.add_output_node(model['output_node'])
+
+#         # with tf.variable_scope('value_fn', reuse=False):
+#         #     value_fn = network(
+#         #         inputs=model['state'],
+#         #         num_outputs=1, **network_params)
+
+#         # model['value_fn'] = value_fn
+#         model['log_pi'] = policy.distribution.log_likelihood(model['action'])
+#         entropy = tf.reduce_mean(policy.distribution.entropy())
+
+#         model['loss'] = -tf.reduce_mean(
+#             model['log_pi'] * model['Return']) +\
+#             entropy_weight * entropy
+
+#         optimizer = tf.train.AdamOptimizer(
+#             learning_rate=lr)
+#         model.add_loss(model['loss'])
+#         model.add_optimizer(
+#             optimizer, model['loss'],
+#             var_list=policy.get_trainable_variables())
+
+#     if model_file_path is not None:
+#         return Model.load(model_file_path, name)
+#     return Model(env, build_graph, build_pg_update_feed_dict,
+#                  name=name)
 
 
 def cem_model_factory(

@@ -2,6 +2,7 @@ import gym
 import numpy as np
 from gym.spaces import Discrete, Box
 from gym.core import Env
+from multiprocessing import Process, Pipe
 from yarlp.utils.atari_wrappers import wrap_deepmind
 from yarlp.utils.atari_wrappers import NoopResetEnv, MaxAndSkipEnv
 
@@ -336,3 +337,135 @@ def get_wrapper_by_name(env, classname):
         else:
             raise ValueError(
                 'Could not find wrapper named {}'.format(classname))
+
+
+def make_parallel_atari_envs(env_id, num_envs, start_seed, is_atari, **kwargs):
+    envs = [NormalizedGymEnv('BeamRiderNoFrameskip-v4', is_atari=is_atari, **kwargs)
+            for _ in range(num_envs)]
+    [envs[i].seed(start_seed + i) for i in range(num_envs)]
+    return envs
+
+
+def worker(remote, parent_remote, env):
+    """
+    Taken from OpenAI baselines
+    """
+    parent_remote.close()
+    while True:
+        cmd, data = remote.recv()
+        if cmd == 'step':
+            ob, reward, done, info = env.step(data)
+            if done:
+                ob = env.reset()
+            remote.send((ob, reward, done, info))
+        elif cmd == 'reset':
+            ob = env.reset()
+            remote.send(ob)
+        elif cmd == 'reset_task':
+            ob = env.reset_task()
+            remote.send(ob)
+        elif cmd == 'close':
+            remote.close()
+            break
+        elif cmd == 'get_spaces':
+            remote.send((env.seed(data)))
+        elif cmd == 'seed':
+            remote.send((env.observation_space, env.action_space))
+        elif cmd == 'get_episode_rewards':
+            remote.send(get_wrapper_by_name(env, 'MonitorEnv').get_episode_rewards())
+        elif cmd == 'get_total_steps':
+            remote.send(get_wrapper_by_name(env, 'MonitorEnv').get_total_steps())
+        else:
+            raise NotImplementedError
+
+
+class ParallelEnvs:
+    """
+    Adapted from OpenAI baselines
+    """
+
+    def __init__(self, env_id, num_envs, start_seed=1, is_atari=True, **kwargs):
+        """
+        :param env_id: str, environment id
+        :param num_envs: int, number of environments
+        :param start_seed: int, seed for environment, gets incremented by 1
+            for each additional env
+        """
+        envs = make_parallel_atari_envs(env_id, num_envs,
+                                        start_seed, is_atari, **kwargs)
+
+        self.waiting = False
+        self.closed = False
+        self.num_envs = len(envs)
+        self.parents, self.children = zip(*[Pipe() for _ in range(self.num_envs)])
+        self.ps = [
+            Process(target=worker, args=(child, parent, env))
+            for (child, parent, env) in
+            zip(self.children, self.parents, envs)]
+        for p in self.ps:
+            # daemons are killed if parent is killed
+            p.daemon = True
+            p.start()
+        for child in self.children:
+            child.close()
+
+        self.parents[0].send(('get_spaces', None))
+        observation_space, action_space = self.parents[0].recv()
+        self.observation_space = observation_space
+        self.action_space = action_space
+        self.spec = envs[0].spec
+
+    def step_async(self, actions):
+        for parent, action in zip(self.parents, actions):
+            parent.send(('step', action))
+        self.waiting = True
+
+    def step_wait(self):
+        results = [parent.recv() for parent in self.parents]
+        self.waiting = False
+        obs, rews, dones, infos = zip(*results)
+        return np.stack(obs), np.stack(rews), np.stack(dones), infos
+
+    def reset(self):
+        for parent in self.parents:
+            parent.send(('reset', None))
+        return np.stack([parent.recv() for parent in self.parents])
+
+    def reset_task(self):
+        for parent in self.parents:
+            parent.send(('reset_task', None))
+        return np.stack([parents.recv() for parents in self.parents])
+
+    def step(self, actions):
+        self.step_async(actions)
+        return self.step_wait()
+
+    def get_episode_rewards(self):
+        for parent in self.parents:
+            parent.send(('get_episode_rewards', None))
+        results = [parent.recv() for parent in self.parents]
+        return results
+
+    def get_total_steps(self):
+        for parent in self.parents:
+            parent.send(('get_total_steps', None))
+        results = [parent.recv() for parent in self.parents]
+        return results
+
+    def seed(self, i):
+        for parent in self.parents:
+            parent.send(('seed', i))
+            i += 1
+        return [parent.recv() for parent in self.parents]
+
+    def close(self):
+        if self.closed:
+            return
+        if self.waiting:
+            for parent in self.parents:
+                parent.recv()
+        for parent in self.parents:
+            parent.send(('close', None))
+        for p in self.ps:
+            p.join()
+        self.closed = True
