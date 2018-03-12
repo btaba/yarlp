@@ -18,7 +18,8 @@ class Model:
                  name='model'):
         """
         """
-        self._env = env
+        self.num_outputs = GymEnv.get_env_action_space_dim(env)
+        self.observation_space = env.observation_space
         self.build_update_feed_dict = build_update_feed_dict
         self.name = name
 
@@ -86,10 +87,6 @@ class Model:
         return self.build_update_feed_dict(self, *args)
 
     @property
-    def env(self):
-        return self._env
-
-    @property
     def weights(self):
         return self.G.TRAINABLE_VARIABLES
 
@@ -132,7 +129,7 @@ class Model:
     def add_input(self, name='observations',
                   dtype=tf.float32, shape=None):
         if shape is None:
-            shape = (None, *self.env.observation_space.shape)
+            shape = (None, *self.observation_space.shape)
 
         input_node = tf.placeholder(
             dtype=dtype,
@@ -153,7 +150,7 @@ class Model:
         """ Add output node created from network
         """
         if num_outputs is None:
-            num_outputs = GymEnv.get_env_action_space_dim(self._env)
+            num_outputs = self.num_outputs
 
         if input_node is None:
             input_node = self.G['input:observations']

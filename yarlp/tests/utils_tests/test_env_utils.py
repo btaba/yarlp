@@ -88,7 +88,7 @@ def test_clip():
 
 
 def test_parallel_env():
-    env = ParallelEnvs('BreakoutNoFrameSkip-v4', 3)
+    env = ParallelEnvs('BreakoutNoFrameskip-v4', 3)
     assert env.reset().shape[0] == 3
     assert env.step([0, 0, 0])[0].shape[0] == 3
     assert np.all(np.array(env.get_total_steps()) > 1)

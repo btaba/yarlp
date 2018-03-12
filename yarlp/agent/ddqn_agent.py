@@ -230,8 +230,8 @@ class DDQNAgent(Agent):
                 self.logger.set_metrics_for_iter(episode_rewards[-100:])
                 num_episodes = len(episode_rewards)
                 self.logger.add_metric('timesteps_so_far', self.global_t)
-                eta = (self.max_timesteps - self.global_t) / (self.global_t /
-                    round(time.time() - self.logger._start_time, 6))
+                eta = (self.max_timesteps - self.t) /\
+                    (self.t / round(time.time() - self.logger._start_time, 6))
                 self.logger.add_metric(
                     'ETA',
                     str(rd(seconds=eta)))

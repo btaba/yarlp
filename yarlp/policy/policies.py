@@ -13,17 +13,11 @@ from yarlp.utils.env_utils import GymEnv
 class Policy:
 
     def __init__(self, env):
-        self.env = env
+        self.observation_space = env.observation_space
+        self.action_space = env.action_space
+        self.num_outputs = GymEnv.get_env_action_space_dim(env)
         self._distribution = None
         self._scope = None
-
-    @property
-    def observation_space(self):
-        return self.env.observation_space
-
-    @property
-    def action_space(self):
-        return self.env.action_space
 
     @property
     def distribution(self):
@@ -62,7 +56,6 @@ class CategoricalPolicy(Policy):
 
         if input_shape is None:
             input_shape = [None] + list(self.observation_space.shape)
-        num_outputs = GymEnv.get_env_action_space_dim(self.env)
 
         if hasattr(env, 'is_atari') and env.is_atari:
             input_node = tf_utils.get_placeholder(
@@ -85,7 +78,7 @@ class CategoricalPolicy(Policy):
         with tf.variable_scope(name, reuse=reuse) as s:
             self._scope = s
             output = network(inputs=input_node,
-                             num_outputs=num_outputs,
+                             num_outputs=self.num_outputs,
                              **network_params)
 
             self._distribution = Categorical(model, output)
@@ -102,7 +95,6 @@ class GaussianPolicy(Policy):
         self.adaptive_std = adaptive_std
         if input_shape is None:
             input_shape = [None] + list(self.observation_space.shape)
-        num_outputs = GymEnv.get_env_action_space_dim(self.env)
 
         input_node = tf_utils.get_placeholder(
             name=input_node_name,
@@ -112,25 +104,25 @@ class GaussianPolicy(Policy):
 
         model[action_name] = tf_utils.get_placeholder(
             name=action_name,
-            dtype=tf.float32, shape=(None, num_outputs))
+            dtype=tf.float32, shape=(None, self.num_outputs))
 
         with tf.variable_scope(name, reuse=reuse) as s:
             self._scope = s
 
-            mean = network(inputs=input_node, num_outputs=num_outputs,
+            mean = network(inputs=input_node, num_outputs=self.num_outputs,
                            activation_fn=None,
                            **network_params)
 
             if adaptive_std:
                 log_std = network(inputs=input_node,
-                                  num_outputs=num_outputs,
+                                  num_outputs=self.num_outputs,
                                   activation_fn=None,
                                   weights_initializer=tf.zeros_initializer(),
                                   **network_params)
             else:
                 log_std = tf.get_variable(
                     name='logstd',
-                    shape=[1, num_outputs],
+                    shape=[1, self.num_outputs],
                     initializer=tf.zeros_initializer())
                 log_std = mean * 0.0 + log_std
 

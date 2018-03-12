@@ -49,6 +49,7 @@ class Agent(ABC):
 
         # any tensorflow models should be cached and serialized separately
         self.tf_object_attributes = set()
+        self.unserializables = set(['logger', 'replay_buffer'])
 
         self._env = env
         self._env_id = '{}_gym{}'.format(
@@ -65,29 +66,41 @@ class Agent(ABC):
         if hasattr(m, 'set_replay_buffer'):
             m.set_replay_buffer()
 
+        if hasattr(m, 'set_env'):
+            m.set_env()
+
         return m
 
     def save(self, path, name='agent'):
 
-        if hasattr(self._env.env, 'video_recorder'):
-            self._env.env.video_recorder.close()
+        envs = []
+        if hasattr(self._env, 'env'):
+            envs.append(self._env)
+        elif hasattr(self._env, 'envs'):
+            envs.extend(self._env.envs)
 
-        if self._env.unwrapped.viewer:
-            self._env.unwrapped.viewer.close()
-            self._env.unwrapped.viewer = None
+        for e in envs:
+            if hasattr(e, 'video_recorder'):
+                e.video_recorder.close()
+
+            if e.unwrapped.viewer:
+                e.unwrapped.viewer.close()
+                e.unwrapped.viewer = None
 
         tf_cache = []
         for t in self.tf_object_attributes:
             attr = getattr(self, t)
+            print(attr, t)
+            if hasattr(attr, 'env') or hasattr(attr, '_env'):
+                print(attr, 'has env')
             attr.save(path, name + t)
             tf_cache.append(attr)
             self.__setattr__(t, None)
 
         # some stuff we should not serialize, we just set
         # these to a default on reload
-        unserializables = ['logger', 'replay_buffer']
         unserializables_cache = {}
-        for u in unserializables:
+        for u in self.unserializables:
             unserializables_cache[u] = getattr(self, u, None)
             setattr(self, u, None)
 

@@ -29,8 +29,8 @@ class MonitorEnv(gym.Wrapper):
         self._episode_lengths = []
         self._num_episodes = 0
 
-    def reset(self):
-        obs = self.env.reset()
+    def reset(self, **kwargs):
+        obs = self.env.reset(**kwargs)
 
         if self._total_steps is None:
             self._total_steps = sum(self._episode_lengths)
@@ -60,23 +60,6 @@ class MonitorEnv(gym.Wrapper):
 
     def get_total_steps(self):
         return self._total_steps
-
-
-class NormPixels(gym.Wrapper):
-    def __init__(self, env):
-        gym.Wrapper.__init__(self, env)
-
-    def _step(self, action):
-        obs, reward, done, info = self.env.step(action)
-        obs = np.array(obs) / 255.
-        obs = obs.astype(np.float32)
-        return obs, reward, done, info
-
-    def _reset(self, **kwargs):
-        obs = self.env.reset(**kwargs)
-        obs = np.array(obs) / 255.
-        obs = obs.astype(np.float32)
-        return obs
 
 
 class CappedCubicVideoSchedule(object):
@@ -231,7 +214,6 @@ class NormalizedGymEnv(GymEnv):
         return self.env.action_space
 
     def _update_rewards(self, r, done):
-        print('hi')
         self._reward_rms.cache(r)
         r = self._reward_rms.normalize(r)
         if done:
@@ -239,7 +221,6 @@ class NormalizedGymEnv(GymEnv):
         return r
 
     def _update_obs(self, obs, done):
-        print('hi2')
         self._obs_rms.cache(obs)
         obs = self._obs_rms.normalize(obs)
         if done:
@@ -339,8 +320,8 @@ def get_wrapper_by_name(env, classname):
                 'Could not find wrapper named {}'.format(classname))
 
 
-def make_parallel_atari_envs(env_id, num_envs, start_seed, is_atari, **kwargs):
-    envs = [NormalizedGymEnv('BeamRiderNoFrameskip-v4', is_atari=is_atari, **kwargs)
+def make_parallel_envs(env_id, num_envs, start_seed, is_atari, **kwargs):
+    envs = [NormalizedGymEnv(env_id, is_atari=is_atari, **kwargs)
             for _ in range(num_envs)]
     [envs[i].seed(start_seed + i) for i in range(num_envs)]
     return envs
@@ -361,16 +342,13 @@ def worker(remote, parent_remote, env):
         elif cmd == 'reset':
             ob = env.reset()
             remote.send(ob)
-        elif cmd == 'reset_task':
-            ob = env.reset_task()
-            remote.send(ob)
         elif cmd == 'close':
             remote.close()
             break
         elif cmd == 'get_spaces':
-            remote.send((env.seed(data)))
-        elif cmd == 'seed':
             remote.send((env.observation_space, env.action_space))
+        elif cmd == 'seed':
+            remote.send((env.seed(data)))
         elif cmd == 'get_episode_rewards':
             remote.send(get_wrapper_by_name(env, 'MonitorEnv').get_episode_rewards())
         elif cmd == 'get_total_steps':
@@ -391,9 +369,12 @@ class ParallelEnvs:
         :param start_seed: int, seed for environment, gets incremented by 1
             for each additional env
         """
-        envs = make_parallel_atari_envs(env_id, num_envs,
-                                        start_seed, is_atari, **kwargs)
+        envs = make_parallel_envs(env_id, num_envs,
+                                  start_seed, is_atari, **kwargs)
 
+        self.envs = envs
+        self.start_seed = start_seed
+        self.env_id = env_id
         self.waiting = False
         self.closed = False
         self.num_envs = len(envs)
@@ -414,6 +395,7 @@ class ParallelEnvs:
         self.observation_space = observation_space
         self.action_space = action_space
         self.spec = envs[0].spec
+        self.is_atari = is_atari
 
     def step_async(self, actions):
         for parent, action in zip(self.parents, actions):
@@ -431,20 +413,23 @@ class ParallelEnvs:
             parent.send(('reset', None))
         return np.stack([parent.recv() for parent in self.parents])
 
-    def reset_task(self):
-        for parent in self.parents:
-            parent.send(('reset_task', None))
-        return np.stack([parents.recv() for parents in self.parents])
-
     def step(self, actions):
         self.step_async(actions)
         return self.step_wait()
 
-    def get_episode_rewards(self):
+    def get_episode_rewards(self, last_n=None):
+        """
+        :param last_n: int, get the last_n rewards per env
+        """
         for parent in self.parents:
             parent.send(('get_episode_rewards', None))
         results = [parent.recv() for parent in self.parents]
-        return results
+        if last_n:
+            results = [r[-last_n:] for r in results]
+        flat_results = []
+        for r in results:
+            flat_results.extend(r)
+        return flat_results
 
     def get_total_steps(self):
         for parent in self.parents:
