@@ -383,9 +383,9 @@ def run_mujoco1m_benchmark(agent):
 
 
 @click.command()
-@click.option('--agent', default='DDQNAgent')
 @click.option('--n-jobs', default=1)
-def run_atari10m_benchmark(agent, n_jobs):
+def run_atari10m_ddqn_benchmark(n_jobs):
+    agent = 'DDQNAgent'
     SEEDS = list(range(652, 752))
 
     benchmark_name = 'Atari10M'
@@ -399,7 +399,7 @@ def run_atari10m_benchmark(agent, n_jobs):
     # write the json config for this baseline
     j = []
     print(benchmark['tasks'])
-    for t in benchmark['tasks'][4:]:
+    for t in benchmark['tasks']:
         d = {
             "env": {
                 "name": t['env_id'],
@@ -450,6 +450,71 @@ def run_atari10m_benchmark(agent, n_jobs):
 
 
 @click.command()
+def run_atari50m_a2c_benchmark():
+    agent = 'A2CAgent'
+    SEEDS = list(range(652, 752))
+
+    benchmark_name = 'Atari50M'
+
+    # Make a master log directory
+    experiment_dir = Experiment._get_experiment_dir(
+        benchmark_name)
+    base_log_path = experiment_utils._create_log_directory(
+        benchmark_name, experiment_dir)
+    benchmark = get_benchmarks(benchmark_name)
+    # write the json config for this baseline
+    j = []
+    print(benchmark['tasks'])
+    for t in benchmark['tasks']:
+        if t['env_id'] != 'PongNoFrameskip-v4':
+            continue
+        d = {
+            "env": {
+                "name": t['env_id'],
+                "is_atari": True,
+                "num_envs": 16,
+                "is_parallel": True
+            },
+            "agent": {
+                "type": agent,
+                "seeds": [SEEDS[0]],
+                "training_params": {},
+                "params": {
+                    "discount_factor": 0.99,
+                    "max_timesteps": t['num_timesteps'],
+                    "save_freq": 50000,
+                    # "policy_network_params": {"dueling": True},
+                    "policy_learning_rate_schedule": [
+                        [0, 1e-4],
+                        [50e6, 1e-12]
+                    ],
+                    "policy_network_params": {
+                        "final_dense_weights_initializer": 0.01
+                    },
+                    "value_network_params": {
+                        "final_dense_weights_initializer": 1.0
+                    },
+                    "gae_lambda": 0.98,
+                    "grad_norm_clipping": 0.5,
+                    "entropy_weight": 0.01,
+                    "value_fn_learning_rate": 7e-4,
+                    "n_steps": 5
+                }
+            }
+        }
+        j.append(d)
+
+    j = {"runs": j}
+    spec_file = os.path.join(base_log_path, 'spec.json')
+    json.dump(j, open(spec_file, 'w'))
+
+    # run the experiment
+    e = Experiment.from_json_spec(
+        spec_file, log_dir=base_log_path, video=True)
+    e.run(parallel=False)
+
+
+@click.command()
 @click.option('--spec-file',
               default='./experiment_configs/reinforce_experiment.json',
               help=('Path to json file spec if continue=False'
@@ -496,7 +561,8 @@ def make_plots(directory, by_field):
 
 
 cli.add_command(run_mujoco1m_benchmark)
-cli.add_command(run_atari10m_benchmark)
+cli.add_command(run_atari10m_ddqn_benchmark)
+cli.add_command(run_atari50m_a2c_benchmark)
 cli.add_command(run_experiment)
 cli.add_command(upload_to_openai)
 cli.add_command(compare_benchmark)

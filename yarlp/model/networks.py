@@ -48,7 +48,8 @@ def mlp(inputs, num_outputs, final_activation_fn=None,
 
 
 def cnn(*args, **kwargs):
-    return cnn2(*args, **kwargs)
+    # return cnn2(*args, **kwargs)
+    return nature_cnn(*args, **kwargs)
 
 
 def cnn1(inputs, num_outputs,
@@ -98,7 +99,12 @@ def cnn2(inputs, num_outputs,
          hidden_units=[512],
          final_activation_fn=None,
          dueling=False,
+         final_dense_weights_initializer=tf.contrib.layers.xavier_initializer(),
          padding='same'):
+
+    if isinstance(final_dense_weights_initializer, float):
+        final_dense_weights_initializer = normc_initializer(
+            final_dense_weights_initializer)
 
     with tf.variable_scope('cnn'):
         x = inputs
@@ -121,7 +127,7 @@ def cnn2(inputs, num_outputs,
                     kernel_initializer=tf.contrib.layers.xavier_initializer())
             x_a = tf.layers.dense(
                 x_a, num_outputs, activation=final_activation_fn,
-                kernel_initializer=tf.contrib.layers.xavier_initializer())
+                kernel_initializer=final_dense_weights_initializer)
 
         output = x_a
         if dueling:
@@ -132,9 +138,30 @@ def cnn2(inputs, num_outputs,
                     kernel_initializer=tf.contrib.layers.xavier_initializer())
             x_s = tf.layers.dense(
                 x_s, 1, activation=final_activation_fn,
-                kernel_initializer=tf.contrib.layers.xavier_initializer())
+                kernel_initializer=final_dense_weights_initializer)
             x_a_mean = tf.reduce_mean(x_a, axis=1)
             x_a_centered = x_a - tf.expand_dims(x_a_mean, 1)
             output = x_s + x_a_centered
 
     return output
+
+
+from yarlp.external.baselines.baselines.a2c.utils import conv, fc, conv_to_fc
+
+count = 0
+
+def nature_cnn(inputs, num_outputs, final_dense_weights_initializer, **kwargs):
+    """
+    CNN from Nature paper.
+    """
+    global count
+    scaled_images = inputs
+    activ = tf.nn.relu
+    h = activ(conv(scaled_images, 'c1', nf=32, rf=8, stride=4, init_scale=np.sqrt(2)))
+    h2 = activ(conv(h, 'c2', nf=64, rf=4, stride=2, init_scale=np.sqrt(2)))
+    h3 = activ(conv(h2, 'c3', nf=64, rf=3, stride=1, init_scale=np.sqrt(2)))
+    h3 = conv_to_fc(h3)
+    z = activ(fc(h3, 'fc1', nh=512, init_scale=np.sqrt(2)))
+    count += 1
+    a = fc(z, str(count), num_outputs, init_scale=final_dense_weights_initializer)
+    return a

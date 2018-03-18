@@ -350,9 +350,11 @@ def worker(remote, parent_remote, env):
         elif cmd == 'seed':
             remote.send((env.seed(data)))
         elif cmd == 'get_episode_rewards':
-            remote.send(get_wrapper_by_name(env, 'MonitorEnv').get_episode_rewards())
+            remote.send(
+                get_wrapper_by_name(env, 'MonitorEnv').get_episode_rewards())
         elif cmd == 'get_total_steps':
-            remote.send(get_wrapper_by_name(env, 'MonitorEnv').get_total_steps())
+            remote.send(
+                get_wrapper_by_name(env, 'MonitorEnv').get_total_steps())
         else:
             raise NotImplementedError
 
@@ -362,7 +364,8 @@ class ParallelEnvs:
     Adapted from OpenAI baselines
     """
 
-    def __init__(self, env_id, num_envs, start_seed=1, is_atari=True, **kwargs):
+    def __init__(self, env_id, num_envs, start_seed=1, is_atari=True,
+                 **kwargs):
         """
         :param env_id: str, environment id
         :param num_envs: int, number of environments
@@ -378,7 +381,8 @@ class ParallelEnvs:
         self.waiting = False
         self.closed = False
         self.num_envs = len(envs)
-        self.parents, self.children = zip(*[Pipe() for _ in range(self.num_envs)])
+        self.parents, self.children = zip(
+            *[Pipe() for _ in range(self.num_envs)])
         self.ps = [
             Process(target=worker, args=(child, parent, env))
             for (child, parent, env) in

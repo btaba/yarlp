@@ -90,9 +90,6 @@ class Agent(ABC):
         tf_cache = []
         for t in self.tf_object_attributes:
             attr = getattr(self, t)
-            print(attr, t)
-            if hasattr(attr, 'env') or hasattr(attr, '_env'):
-                print(attr, 'has env')
             attr.save(path, name + t)
             tf_cache.append(attr)
             self.__setattr__(t, None)
@@ -286,14 +283,19 @@ def add_advantage(rollout, gamma, Lambda=0):
         rollout["baseline_preds"], rollout["next_baseline_pred"])
     T = len(rollout["rewards"])
     rollout["advantages"] = gaelam = np.empty(T, 'float32')
+    rollout["discounted_rewards"] = np.empty(T, 'float32')
     rewards = rollout["rewards"]
     lastgaelam = 0
+    r = rollout["next_baseline_pred"] if not rollout["dones"][-1] else 0
     for t in reversed(range(T)):
-        nonterminal = 1 - rollout['dones'][t]
+        nonterminal = 1 - rollout["dones"][t]
+        rollout["discounted_rewards"][t] = r = rewards[t] +\
+            gamma * r * nonterminal
         delta = rewards[t] + gamma * baseline_preds[t + 1] * nonterminal -\
             baseline_preds[t]
         gaelam[t] = lastgaelam = delta + \
             gamma * Lambda * nonterminal * lastgaelam
+
     rollout["discounted_future_reward"] = rollout["advantages"] +\
         rollout["baseline_preds"]
 

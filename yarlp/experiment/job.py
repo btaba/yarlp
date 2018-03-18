@@ -4,7 +4,7 @@ import click
 import traceback
 import tensorflow as tf
 from yarlp.utils import experiment_utils
-from yarlp.utils.env_utils import NormalizedGymEnv
+from yarlp.utils.env_utils import NormalizedGymEnv, ParallelEnvs
 
 
 class Job(object):
@@ -17,7 +17,6 @@ class Job(object):
     def _load(self):
         existing_dirs = [d for d in os.listdir(self._log_dir)
                          if d.startswith(self._spec_dict['run_name'])]
-        print(existing_dirs, self._load_agent)
         if self._load_agent and len(existing_dirs) > 0:
             # load the agent from a saved directory if it exists
             self._job_dir = os.path.join(self._log_dir, existing_dirs[0])
@@ -42,11 +41,15 @@ class Job(object):
     def _get_env(self, job_dir):
         env_name = self._spec_dict['env']['name']
         kwargs = {k: v for k, v in self._spec_dict['env'].items()
-                  if k != 'name'}
+                  if k != 'name' and k != 'is_parallel'}
         kwargs['video'] = self._video
-        env = NormalizedGymEnv(
-            env_name, log_dir=job_dir, force_reset=True,
-            **kwargs)
+        if not self._spec_dict['env'].get('is_parallel', False):
+            env = NormalizedGymEnv(
+                env_name, log_dir=job_dir, force_reset=True,
+                **kwargs)
+        else:
+            env = ParallelEnvs(
+                env_name, log_dir=job_dir, force_reset=True, **kwargs)
         if 'timestep_limit' in self._spec_dict['env']:
             env.spec.timestep_limit = self._spec_dict['env']['timestep_limit']
         return env

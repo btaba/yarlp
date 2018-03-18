@@ -67,7 +67,7 @@ class MetricLogger:
 
         logger.setLevel(20)
         logger.propagate = False
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+        # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
         return logger
 
     def _validate_header_name(self, header_name):
@@ -139,3 +139,10 @@ class MetricLogger:
             self['std_reward'] = np.std(rollout['episode_returns'])
             self['total_reward'] = np.sum(rollout['episode_returns'])
             self['time_elapsed'] = t
+
+
+def explained_variance(y, pred):
+    explained_variance = np.nan if np.var(y) == 0\
+        else 1 - np.var(y - pred) /\
+        np.var(y)
+    return explained_variance

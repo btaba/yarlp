@@ -9,19 +9,19 @@ from functools import partial
 
 
 def main():
-    env = ParallelEnvs('BeamRiderNoFrameskip-v4', 4)
-    # env = ParallelEnvs('CartPole-v1', 4, is_atari=False)
+    # env = ParallelEnvs('PongNoFrameskip-v4', 12)
+    env = ParallelEnvs('CartPole-v1', 4, is_atari=False)
 
-    # net = partial(mlp, hidden_units=[64])
+    net = partial(mlp, hidden_units=[64])
     agent = A2CAgent(
         env=env,
-        policy_network=cnn,
-        # policy_network=net,
+        # policy_network=cnn,
+        policy_network=net,
         policy_network_params={},
-        entropy_weight=0.001,
+        entropy_weight=0.01,
         max_timesteps=1000000,
-        checkpoint_freq=1000,
-        policy_learning_rate_schedule=[[0, 1e-4], [1e6, 1e-5]],
+        checkpoint_freq=10000,
+        policy_learning_rate_schedule=[[0, 7e-4], [1e6, 1e-16]],
         seed=65)
     agent.train()
 

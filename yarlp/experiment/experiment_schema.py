@@ -39,7 +39,13 @@ schema = {
                     },
                     "normalize_obs": {
                         "type": "boolean",
-                        "description": "whether to normalize the observation space",
+                        "description": "whether to normalize the observation space"
+                    },
+                    "is_parallel": {
+                        "type": "boolean"
+                    },
+                    "is_atari": {
+                        "type": "boolean"
                     }
                 },
                 "required": ["name"]
