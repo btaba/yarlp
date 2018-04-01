@@ -10,7 +10,7 @@ def readme():
 def setup_package():
     config = {
         'name': 'yarlp',
-        'version': '0.0.9',
+        'version': '0.1.0',
         'description': 'yarlp',
         'long_description': readme(),
         'author': 'Baruch Tabanpour',
