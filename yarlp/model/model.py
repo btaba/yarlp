@@ -175,7 +175,7 @@ class Model:
             self.G['set_weight_op:' + w.name] = w.assign(w_input)
 
     def create_gradient_ops_for_node(self, optimizer,
-                                     node, transform_grad_func=lambda x: x,
+                                     node, transform_grad_func=None,
                                      tvars=None, add_optimizer_op=False,
                                      optimizer_op_name=''):
 
@@ -185,16 +185,14 @@ class Model:
             node, tvars)
 
         # clip by global norm instead
-        grads, grad_norm = transform_grad_func(
-            [g[0] for g in grads_and_vars])
-        grads_and_vars = list(zip(grads, tvars))
-
-        # for g, v in grads_and_vars:
-        #     key = 'gradients:' + node.name + ':' + v.name
-        #     self.G[key] = transform_grad_func(g)
-        # grads_and_vars = [
-        #     (transform_grad_func(g), v)
-        #     for g, v in grads_and_vars]
+        if transform_grad_func:
+            grads, grad_norm = transform_grad_func(
+                [g[0] for g in grads_and_vars])
+            grads_and_vars = list(zip(grads, tvars))
+        else:
+            grads_and_vars = [
+                (g, v)
+                for g, v in grads_and_vars]
 
         self.G['gradients_ops:' + node.name] = optimizer.apply_gradients(
             grads_and_vars)

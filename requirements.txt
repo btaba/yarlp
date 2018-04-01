@@ -1,7 +1,6 @@
 setuptools
 click
 gym
-gym[atari]
 numpy
 pyglet
 scipy
@@ -17,3 +16,4 @@ PyOpenGL
 joblib
 cloudpickle
 joblib
+gym[atari]

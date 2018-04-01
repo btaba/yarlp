@@ -9,8 +9,7 @@ import numpy as np
 from yarlp.agent.base_agent import Agent, add_advantage
 from yarlp.model.networks import cnn
 from yarlp.utils.experiment_utils import get_network
-from yarlp.model.model_factories import value_function_model_factory
-from yarlp.model.model_factories import pg_model_factory
+from yarlp.model.model_factories import a2c_model_factory
 from yarlp.utils.env_utils import ParallelEnvs
 from yarlp.utils.metric_logger import explained_variance
 from yarlp.utils.schedules import PiecewiseSchedule, ConstantSchedule
@@ -26,7 +25,6 @@ class A2CAgent(Agent):
                 'final_dense_weights_initializer': 0.01
             },
             policy_learning_rate=5e-4,
-            value_fn_learning_rate=1e-4,
             value_network_params={
                 'final_dense_weights_initializer': 1.0
             },
@@ -52,9 +50,10 @@ class A2CAgent(Agent):
 
         pn = get_network(policy_network, policy_network_params)
 
-        self._policy = pg_model_factory(
+        self._policy = a2c_model_factory(
             env, network=pn,
-            network_params=policy_network_params,
+            policy_network_params=policy_network_params,
+            value_network_params=value_network_params,
             learning_rate=policy_learning_rate,
             has_learning_rate_schedule=True,
             entropy_weight=entropy_weight,
@@ -62,18 +61,7 @@ class A2CAgent(Agent):
             grad_norm_clipping=grad_norm_clipping,
             model_file_path=model_file_path)
 
-        vn = get_network(policy_network, value_network_params)
-
-        self._value_fn = value_function_model_factory(
-            env, network=vn,
-            network_params=value_network_params,
-            learning_rate=value_fn_learning_rate,
-            has_learning_rate_schedule=True,
-            grad_norm_clipping=grad_norm_clipping,
-            model_file_path=model_file_path)
-
         self.tf_object_attributes.add('_policy')
-        self.tf_object_attributes.add('_value_fn')
         self.unserializables.add('_env')
 
         policy_weight_sums = sum(
@@ -83,7 +71,6 @@ class A2CAgent(Agent):
 
         self.n_steps = n_steps
         self.max_timesteps = max_timesteps
-        self._gae_lambda = gae_lambda
         self.t = 0
         self.checkpoint_freq = checkpoint_freq
         self.save_freq = save_freq
@@ -119,7 +106,9 @@ class A2CAgent(Agent):
             for n in range(self.n_steps):
 
                 actions = self.get_batch_actions(obs)
-                values = self._value_fn.predict(obs)
+                values = self._policy.G(
+                    self._policy['vf'],
+                    {self._policy['state']: obs})
 
                 mb_obs.append(obs)
                 mb_actions.append(actions)
@@ -134,60 +123,40 @@ class A2CAgent(Agent):
             mb_actions = np.asarray(mb_actions).swapaxes(1, 0)
             mb_values = np.asarray(mb_values).swapaxes(1, 0)
             mb_dones = np.asarray(mb_dones).swapaxes(1, 0)
-            last_values = self._value_fn.predict(obs)
+            last_values = self._policy.G(
+                self._policy['vf'],
+                {self._policy['state']: obs})
 
-            # generalized advantage estimation
-            mb_advantages = []
             mb_discounted_rewards = []
             for n in range(self._env.num_envs):
-
-                dones = mb_dones[n]
-                rewards = mb_rewards[n]
-                value = last_values[n]
-                if dones[-1] == 0:
-                    rewards = discount_with_dones(list(rewards) + list(value), list(dones)+[0], self._discount)[:-1]
-                else:
-                    rewards = discount_with_dones(rewards, dones, self._discount)
-                mb_discounted_rewards.append(rewards)
-                mb_advantages.append((np.array(rewards) - mb_values[n].flatten()))
-
-                # rollout = {
-                #     "baseline_preds": mb_values[n].flatten(),
-                #     "next_baseline_pred": last_values[n].flatten(),
-                #     "dones": mb_dones[n],
-                #     "rewards": mb_rewards[n]
-                # }
-                # add_advantage(rollout, self._discount, Lambda=0)
-                        # Lambda=self._gae_lambda)
-                # mb_advantages.append(rollout["advantages"])
-                # mb_discounted_rewards.append(rollout["discounted_rewards"])
-                # print(rollout["discounted_rewards"])
-                # print(mb_discounted_rewards[n])
-                
-                # These two are outputting different results
-                # we do r + gamma * V(+1) - V(), which is 1-step, they do n-step reward
-                # print(mb_advantages[n])
-                # print(rollout["advantages"])
+                rollout = {
+                    "baseline_preds": mb_values[n].flatten(),
+                    "next_baseline_pred": last_values[n].flatten(),
+                    "dones": mb_dones[n],
+                    "rewards": mb_rewards[n]
+                }
+                add_advantage(rollout, self._discount, Lambda=0)
+                mb_discounted_rewards.append(rollout["discounted_rewards"])
 
             mb_actions = mb_actions.flatten()
             mb_values = mb_values.flatten()
-            mb_advantages = np.asarray(mb_advantages).flatten()
             mb_discounted_rewards = np.asarray(mb_discounted_rewards).flatten()
+            mb_rewards = mb_discounted_rewards
 
-            # print(mb_advantages.shape, mb_values.shape, mb_actions.shape, mb_rewards.shape)
             lr = self.lr_schedule.value(self.t)
 
-            # mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
             # fit the value and policy networks
             policy_loss = self._policy.update(
-                mb_obs, mb_advantages,
-                mb_actions, lr)
+                mb_obs, mb_rewards,
+                mb_actions, mb_rewards - mb_values, lr)
             policy_update_feed_dict = self._policy.build_update_feed_dict(
-                self._policy, mb_obs, mb_advantages, mb_actions, lr)
+                self._policy, mb_obs, mb_rewards,
+                mb_actions, mb_rewards - mb_values, lr)
             policy_entropy = self._policy.G(
                 self._policy['entropy'], policy_update_feed_dict)
-            vf_loss = self._value_fn.update(mb_obs, mb_discounted_rewards, lr)
-            ev = explained_variance(mb_discounted_rewards, mb_values)
+            vf_loss = self._policy.G(
+                self._policy['vf_loss'], policy_update_feed_dict)
+            ev = explained_variance(mb_rewards, mb_values)
 
             if self.t > 0 \
                     and self.t % self.checkpoint_freq == 0 \
@@ -229,12 +198,3 @@ class A2CAgent(Agent):
 
                 self.logger.logger.info('Saving model for checkpoint')
                 self.save(self.logger._log_dir)
-
-
-def discount_with_dones(rewards, dones, gamma):
-    discounted = []
-    r = 0
-    for reward, done in zip(rewards[::-1], dones[::-1]):
-        r = reward + gamma*r*(1.-done) # fixed off by one bug
-        discounted.append(r)
-    return discounted[::-1]

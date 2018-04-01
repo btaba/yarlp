@@ -450,11 +450,11 @@ def run_atari10m_ddqn_benchmark(n_jobs):
 
 
 @click.command()
-def run_atari50m_a2c_benchmark():
+def run_atari10m_a2c_benchmark():
     agent = 'A2CAgent'
     SEEDS = list(range(652, 752))
 
-    benchmark_name = 'Atari50M'
+    benchmark_name = 'Atari10M'
 
     # Make a master log directory
     experiment_dir = Experiment._get_experiment_dir(
@@ -466,8 +466,6 @@ def run_atari50m_a2c_benchmark():
     j = []
     print(benchmark['tasks'])
     for t in benchmark['tasks']:
-        if t['env_id'] != 'PongNoFrameskip-v4':
-            continue
         d = {
             "env": {
                 "name": t['env_id'],
@@ -483,21 +481,18 @@ def run_atari50m_a2c_benchmark():
                     "discount_factor": 0.99,
                     "max_timesteps": t['num_timesteps'],
                     "save_freq": 50000,
-                    # "policy_network_params": {"dueling": True},
                     "policy_learning_rate_schedule": [
-                        [0, 1e-4],
-                        [50e6, 1e-12]
+                        [0, 7e-4],
+                        [20e6, 1e-12]
                     ],
                     "policy_network_params": {
-                        "final_dense_weights_initializer": 0.01
+                        "final_dense_weights_initializer": 0.1
                     },
                     "value_network_params": {
                         "final_dense_weights_initializer": 1.0
                     },
-                    "gae_lambda": 0.98,
-                    "grad_norm_clipping": 0.5,
+                    "grad_norm_clipping": 1,
                     "entropy_weight": 0.01,
-                    "value_fn_learning_rate": 7e-4,
                     "n_steps": 5
                 }
             }
@@ -562,7 +557,7 @@ def make_plots(directory, by_field):
 
 cli.add_command(run_mujoco1m_benchmark)
 cli.add_command(run_atari10m_ddqn_benchmark)
-cli.add_command(run_atari50m_a2c_benchmark)
+cli.add_command(run_atari10m_a2c_benchmark)
 cli.add_command(run_experiment)
 cli.add_command(upload_to_openai)
 cli.add_command(compare_benchmark)

@@ -6,11 +6,13 @@ branches:
 python:
   - "3.5"
 install:
-  - pip install -r requirements.txt
-  - python setup.py install
   - pwd=$PWD
-  - cd `python3 -c "import gym; import os; print(os.path.dirname(gym.__file__) + '/..')"` 
-  - cd atari_py-0.1.1-py3.5.egg/atari_py/ale_interface
+  - git clone https://github.com/openai/atari-py
+  - cd atari-py
+  - pip3 install .
+  - cd atari_py/ale_interface
   - make
   - cd $pwd
+  - pip3 install -r requirements.txt
+  - python3 setup.py install
 script: pytest

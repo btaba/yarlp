@@ -33,6 +33,19 @@ def build_pg_update_feed_dict(model, state, return_, action, lr=None):
     return feed_dict
 
 
+def build_a2c_update_feed_dict(model, state, return_, action,
+                               advantage, lr=None):
+    if len(action.shape) == 1:
+        action = action.reshape(-1, 1)
+    feed_dict = {model['state']: state,
+                 model['Return']: np.squeeze([return_]),
+                 model['action']: action,
+                 model['advantage']: advantage}
+    if lr is not None:
+        feed_dict[model['learning_rate']] = lr
+    return feed_dict
+
+
 def build_ddqn_update_feed_dict(
         model, state, action, reward, state_t1,
         done, importance_weights, learning_rate):
@@ -45,6 +58,21 @@ def build_ddqn_update_feed_dict(
         model['learning_rate']: learning_rate
     }
     return feed_dict
+
+
+def apply_grad_norm_clipping(model, optimizer, tvars, grad_norm_clipping):
+    if grad_norm_clipping is not None:
+        grad_clipping_func = partial(
+            tf.clip_by_global_norm, clip_norm=grad_norm_clipping)
+        model.create_gradient_ops_for_node(
+            optimizer, model['loss'],
+            transform_grad_func=grad_clipping_func,
+            tvars=tvars,
+            add_optimizer_op=True)
+    else:
+        model.add_optimizer(
+            optimizer, model['loss'],
+            var_list=tvars)
 
 
 def value_function_model_factory(
@@ -84,16 +112,9 @@ def value_function_model_factory(
         optimizer = tf.train.RMSPropOptimizer(
             learning_rate=lr, decay=0.99, epsilon=1e-5)
 
-        if grad_norm_clipping is not None:
-            grad_clipping_func = partial(
-                tf.clip_by_global_norm, clip_norm=grad_norm_clipping)
-            model.create_gradient_ops_for_node(
-                optimizer, model['loss'],
-                transform_grad_func=grad_clipping_func,
-                add_optimizer_op=True)
-        else:
-            model.add_optimizer(
-                optimizer, model['loss'])
+        apply_grad_norm_clipping(model, optimizer,
+                                 model.G.TRAINABLE_VARIABLES,
+                                 grad_norm_clipping)
 
         model.add_loss(loss)
         model.add_optimizer(optimizer, loss)
@@ -183,17 +204,9 @@ def ddqn_model_factory(
 
         optimizer = tf.train.AdamOptimizer(
             learning_rate=model['learning_rate'])
-        if grad_norm_clipping is not None:
-            grad_clipping_func = partial(
-                tf.clip_by_norm, clip_norm=grad_norm_clipping)
-            model.create_gradient_ops_for_node(
-                optimizer, model['loss'],
-                transform_grad_func=grad_clipping_func,
-                tvars=q_vars, add_optimizer_op=True)
-        else:
-            model.add_optimizer(
-                optimizer, model['loss'],
-                var_list=q_vars)
+
+        apply_grad_norm_clipping(
+            model, optimizer, q_vars, grad_norm_clipping)
 
         model['update_target_network'] = tf.group(*[
             qt.assign(q) for (q, qt) in
@@ -242,6 +255,68 @@ def cem_model_factory(
                  empty_feed_dict, name=name)
 
 
+def a2c_model_factory(
+        env, network=mlp, policy_network_params={},
+        value_network_params={}, learning_rate=0.01,
+        has_learning_rate_schedule=False,
+        entropy_weight=0.01,
+        min_std=1e-6, init_std=1.0, adaptive_std=False,
+        grad_norm_clipping=None,
+        model_file_path=None, name='a2c'):
+
+    def build_graph(model, network=network, lr=learning_rate,
+                    init_std=init_std, adaptive_std=adaptive_std):
+
+        policy = make_policy(
+            env, 'pi', model,
+            network_params=policy_network_params,
+            init_std=init_std, adaptive_std=adaptive_std, network=network)
+
+        model['policy'] = policy
+        model['state'] = model['input:observations']
+        model['advantage'] = tf.placeholder(
+            dtype=tf.float32, shape=(None,), name='advantage')
+        model['Return'] = tf.placeholder(
+            dtype=tf.float32, shape=(None,), name='return')
+        model['output_node'] = policy.distribution.output_node
+        model.add_output_node(model['output_node'])
+
+        with tf.variable_scope('pi', reuse=tf.AUTO_REUSE):
+            vf = network(
+                inputs=model['state'],
+                num_outputs=1, final_scope='vf',
+                **value_network_params)
+        model['vf'] = vf
+        model['log_pi'] = policy.distribution.log_likelihood(model['action'])
+        entropy = tf.reduce_mean(policy.distribution.entropy())
+        model['entropy'] = entropy
+
+        model['vf_loss'] = 0.5 * tf.reduce_mean(
+            tf.square(tf.squeeze(vf) - model['Return']))
+        model['loss'] = -tf.reduce_mean(
+            model['log_pi'] * model['advantage']) -\
+            entropy_weight * entropy + model['vf_loss']
+
+        model.add_loss(model['loss'])
+
+        if has_learning_rate_schedule:
+            lr = tf.placeholder(tf.float32, (), name="learning_rate")
+            model['learning_rate'] = lr
+
+        # optimizer = tf.train.AdamOptimizer(learning_rate=lr)
+        optimizer = tf.train.RMSPropOptimizer(
+            learning_rate=lr, epsilon=1e-5, decay=0.99)
+
+        apply_grad_norm_clipping(
+            model, optimizer, policy.get_trainable_variables(),
+            grad_norm_clipping)
+
+    if model_file_path is not None:
+        return Model.load(model_file_path, name)
+    return Model(env, build_graph, build_a2c_update_feed_dict,
+                 name=name)
+
+
 def pg_model_factory(
         env, network=mlp, network_params={}, learning_rate=0.01,
         has_learning_rate_schedule=False,
@@ -257,15 +332,6 @@ def pg_model_factory(
                     network_params=network_params,
                     init_std=init_std, adaptive_std=adaptive_std):
 
-
-        # params = find_trainable_variables("model")
-        # grads = tf.gradients(loss, params)
-        # if max_grad_norm is not None:
-        #     grads, grad_norm = tf.clip_by_global_norm(grads, max_grad_norm)
-        # grads = list(zip(grads, params))
-        # trainer = tf.train.RMSPropOptimizer(learning_rate=LR, decay=alpha, epsilon=epsilon)
-        # _train = trainer.apply_gradients(grads)
-
         policy = make_policy(
             env, 'pi', model,
             network_params=network_params,
@@ -277,45 +343,23 @@ def pg_model_factory(
         model['output_node'] = policy.distribution.output_node
         model.add_output_node(model['output_node'])
 
-        # model['log_pi'] = policy.distribution.log_likelihood(model['action'])
-        # entropy = tf.reduce_mean(policy.distribution.entropy())
-        # model['entropy'] = entropy
+        model['log_pi'] = policy.distribution.log_likelihood(model['action'])
+        entropy = tf.reduce_mean(policy.distribution.entropy())
+        model['entropy'] = entropy
 
-        # model['loss'] = -tf.reduce_mean(
-        #     model['log_pi'] * model['Return']) -\
-        #     entropy_weight * entropy
-
-        neglogpac = tf.nn.sparse_softmax_cross_entropy_with_logits(
-            logits=model['pi:logits'], labels=tf.squeeze(model['action']))
-        pg_loss = tf.reduce_mean(model['Return'] * neglogpac)
-        # vf_loss = tf.reduce_mean(mse(tf.squeeze(train_model.vf), R))
-        from yarlp.external.baselines.baselines.a2c.utils import cat_entropy
-        model['entropy'] = entropy = tf.reduce_mean(cat_entropy(model['pi:logits']))
-        loss = pg_loss - entropy * entropy_weight
-        model['loss'] = loss
-
+        model['loss'] = -tf.reduce_mean(
+            model['log_pi'] * model['Return']) -\
+            entropy_weight * entropy
         model.add_loss(model['loss'])
-
         if has_learning_rate_schedule:
             lr = tf.placeholder(tf.float32, (), name="learning_rate")
             model['learning_rate'] = lr
 
-        # optimizer = tf.train.AdamOptimizer(learning_rate=lr)
-        optimizer = tf.train.RMSPropOptimizer(
-            learning_rate=lr, decay=0.99, epsilon=1e-5)
+        optimizer = tf.train.AdamOptimizer(learning_rate=lr)
 
-        if grad_norm_clipping is not None:
-            grad_clipping_func = partial(
-                tf.clip_by_global_norm, clip_norm=grad_norm_clipping)
-            model.create_gradient_ops_for_node(
-                optimizer, model['loss'],
-                transform_grad_func=grad_clipping_func,
-                tvars=policy.get_trainable_variables(),
-                add_optimizer_op=True)
-        else:
-            model.add_optimizer(
-                optimizer, model['loss'],
-                var_list=policy.get_trainable_variables())
+        apply_grad_norm_clipping(
+            model, optimizer, policy.get_trainable_variables(),
+            grad_norm_clipping)
 
     if model_file_path is not None:
         return Model.load(model_file_path, name)

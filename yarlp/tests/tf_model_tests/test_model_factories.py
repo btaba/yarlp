@@ -9,6 +9,7 @@ from yarlp.model.model_factories import cem_model_factory
 from yarlp.model.model_factories import pg_model_factory
 from yarlp.model.model_factories import trpo_model_factory
 from yarlp.model.model_factories import ddqn_model_factory
+from yarlp.model.model_factories import a2c_model_factory
 
 
 def test_value_function():
@@ -89,3 +90,13 @@ def test_ddqn_function():
     ddqn_model_factory(
         env, model_file_path='test_load_and_save_ddqn')
     shutil.rmtree('test_load_and_save_ddqn')
+
+
+def test_a2c_function():
+    env = gym.make('Pong-v0')
+    M = a2c_model_factory(env)
+    M.save('test_load_and_save_a2c')
+    del M
+    a2c_model_factory(
+        env, model_file_path='test_load_and_save_a2c')
+    shutil.rmtree('test_load_and_save_a2c')

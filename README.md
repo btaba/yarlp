@@ -4,7 +4,7 @@
 
 **Yet Another Reinforcement Learning Package**
 
-Implementations of [`CEM`](/yarlp/agent/cem_agent.py), [`REINFORCE`](/yarlp/agent/pg_agents.py), [`TRPO`](/yarlp/agent/trpo_agent.py), [`DDQN`](/yarlp/agent/ddqn_agent.py) with reproducible benchmarks. Experiments are templated using `jsonschema` and are compared to published results. This is meant to be a starting point for working implementations of classic RL algorithms. Unfortunately even implementations from OpenAI baselines are [not always reproducible](https://github.com/openai/baselines/issues/176).
+Implementations of [`CEM`](/yarlp/agent/cem_agent.py), [`REINFORCE`](/yarlp/agent/pg_agents.py), [`TRPO`](/yarlp/agent/trpo_agent.py), [`DDQN`](/yarlp/agent/ddqn_agent.py), [`A2C`](/yarlp/agent/a2c_agent.py) with reproducible benchmarks. Experiments are templated using `jsonschema` and are compared to published results. This is meant to be a starting point for working implementations of classic RL algorithms. Unfortunately even implementations from OpenAI baselines are [not always reproducible](https://github.com/openai/baselines/issues/176).
 
 A working Dockerfile with `yarlp` installed can be run with:
 
@@ -16,7 +16,7 @@ To run a benchmark, simply:
 `python yarlp/experiment/experiment.py --help`
 
 
-If you want to run things manually:
+If you want to run things manually, look in `examples` or look at this:
 
 ```python
 from yarlp.agent.trpo_agent import TRPOAgent
@@ -31,24 +31,11 @@ agent.train(max_timesteps=1000000)
 
 We benchmark against published results and Openai [`baselines`](https://github.com/openai/baselines) where available using [`yarlp/experiment/experiment.py`](/yarlp/experiment/experiment.py). Benchmark scripts for Openai `baselines` were made ad-hoc, such as [this one](https://github.com/btaba/baselines/blob/master/baselines/trpo_mpi/run_trpo_experiment.py).
 
-### Mujoco1M
-
-#### TRPO
-
-`python yarlp/experiment/experiment.py run_mujoco1m_benchmark`
-
-We average over 5 random seeds instead of 3 for both `baselines` and `yarlp`. More seeds probably wouldn't hurt here, we report 95th percent confidence intervals.
-
-|   |   |   |   |
-|---|---|---|---|
-|![Hopper-v1](/assets/mujoco1m/trpo/Hopper-v1.png)|![HalfCheetah-v1](/assets/mujoco1m/trpo/HalfCheetah-v1.png)|![Reacher-v1](/assets/mujoco1m/trpo/Reacher-v1.png)|![Swimmer-v1](/assets/mujoco1m/trpo/Swimmer-v1.png)|
-|![InvertedDoublePendulum-v1](/assets/mujoco1m/trpo/InvertedDoublePendulum-v1.png)|![Walker2d-v1](/assets/mujoco1m/trpo/Walker2d-v1.png)|![InvertedPendulum-v1](/assets/mujoco1m/trpo/InvertedPendulum-v1.png)|
-
 ### Atari10M
 
 #### DDQN with dueling networks and prioritized replay
 
-`python yarlp/experiment/experiment.py run_atari10m_benchmark`
+`python yarlp/experiment/experiment.py run_atari10m_ddqn_benchmark`
 
 
 I trained 6 Atari environments for 10M time-steps (**40M frames**), using 1 random seed, since I only have 1 GPU and limited time on this Earth. I used DDQN with dueling networks, but no prioritized replay (although it's implemented). I compare the final mean 100 episode raw scores for yarlp (with exploration of 0.01) with results from [Hasselt et al, 2015](https://arxiv.org/pdf/1509.06461.pdf) and [Wang et al, 2016](https://arxiv.org/pdf/1511.06581.pdf) which train for **200M frames** and evaluate on 100 episodes (exploration of 0.05).
@@ -76,6 +63,42 @@ I don't compare to OpenAI baselines because the OpenAI DDQN implementation is **
 |![BeamRider](/assets/atari10m/ddqn/beamrider.gif)|![Breakout](/assets/atari10m/ddqn/breakout.gif)|![Pong](/assets/atari10m/ddqn/pong.gif)|
 |![QBert](/assets/atari10m/ddqn/qbert.gif)|![Seaquest](/assets/atari10m/ddqn/seaquest.gif)|![SpaceInvaders](/assets/atari10m/ddqn/spaceinvaders.gif)|
 
+
+#### A2C
+
+`python yarlp/experiment/experiment.py run_atari10m_a2c_benchmark`
+
+
+A2C on 10M time-steps (**40M frames**) with 1 random seed. Results compared to learning curves from [Mnih et al, 2016](https://arxiv.org/pdf/1602.01783.pdf) extracted at 10M time-steps from Figure 3. You are invited to run for multiple seeds and the full 200M frames for a better comparison
+
+|env|yarlp A2C 40M|Mnih et al A3C 40M 16-threads|
+|---|---|---|---|
+|BeamRider|3150|~3000|
+|Breakout|418|~150|
+|Pong|20|~20|
+|QBert|3644|~1000|
+|SpaceInvaders|805|~600|
+
+|   |   |   |   |
+|---|---|---|---|
+|![BeamRiderNoFrameskip-v4](/assets/atari10m/a2c/BeamRiderNoFrameskip-v4.png)|![BreakoutNoFrameskip-v4](/assets/atari10m/a2c/BreakoutNoFrameskip-v4.png)|![PongNoFrameskip-v4](/assets/atari10m/a2c/PongNoFrameskip-v4.png)|![QbertNoFrameskip-v4](/assets/atari10m/a2c/QbertNoFrameskip-v4.png)|
+|![SeaquestNoFrameskip-v4](/assets/atari10m/a2c/SeaquestNoFrameskip-v4.png)|![SpaceInvadersNoFrameskip-v4](/assets/atari10m/a2c/SpaceInvadersNoFrameskip-v4.png)||
+
+
+### Mujoco1M
+
+#### TRPO
+
+`python yarlp/experiment/experiment.py run_mujoco1m_benchmark`
+
+We average over 5 random seeds instead of 3 for both `baselines` and `yarlp`. More seeds probably wouldn't hurt here, we report 95th percent confidence intervals.
+
+|   |   |   |   |
+|---|---|---|---|
+|![Hopper-v1](/assets/mujoco1m/trpo/Hopper-v1.png)|![HalfCheetah-v1](/assets/mujoco1m/trpo/HalfCheetah-v1.png)|![Reacher-v1](/assets/mujoco1m/trpo/Reacher-v1.png)|![Swimmer-v1](/assets/mujoco1m/trpo/Swimmer-v1.png)|
+|![InvertedDoublePendulum-v1](/assets/mujoco1m/trpo/InvertedDoublePendulum-v1.png)|![Walker2d-v1](/assets/mujoco1m/trpo/Walker2d-v1.png)|![InvertedPendulum-v1](/assets/mujoco1m/trpo/InvertedPendulum-v1.png)|
+
+
 ## CLI scripts
 
 CLI convenience scripts will be installed with the package:
@@ -89,13 +112,3 @@ CLI convenience scripts will be installed with the package:
 	* Example: `run_yarlp_experiment --spec-file experiment_configs/trpo_experiment_mult_params.json`
 * Experiment plots:
 	* `make_plots <experiment-dir>`
-
-
-##### TODO:
-
-* A2C
-    - maybe add grad norm clipping to VF
-    - Run experiments
-    - Add LSTM policy
-* docs
-* pypi

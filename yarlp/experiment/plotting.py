@@ -82,7 +82,7 @@ def subsample(t, vt, bins):
     np.add.at(v_cnts, bin_idx, 1)
     # ensure graph has no holes
     zs = np.where(v_cnts == 0)
-    assert v_cnts[0] > 0
+    # assert v_cnts[0] > 0
     for zero_idx in zs:
         v_sums[zero_idx] = v_sums[zero_idx - 1]
         v_cnts[zero_idx] = v_cnts[zero_idx - 1]

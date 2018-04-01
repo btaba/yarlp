@@ -61,8 +61,8 @@ class CategoricalPolicy(Policy):
             input_node = tf_utils.get_placeholder(
                 name=input_node_name,
                 dtype=tf.uint8, shape=input_shape)
-            model.add_input_node(input_node, input_node_name)
             input_node = tf.cast(input_node, tf.float32) / 255.0
+            model.add_input_node(input_node, input_node_name)
         else:
             input_node = tf_utils.get_placeholder(
                 name=input_node_name,
