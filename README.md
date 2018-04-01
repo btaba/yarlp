@@ -33,6 +33,12 @@ We benchmark against published results and Openai [`baselines`](https://github.c
 
 ### Atari10M
 
+||||
+|---|---|---|
+|![BeamRider](/assets/atari10m/ddqn/beamrider.gif)|![Breakout](/assets/atari10m/ddqn/breakout.gif)|![Pong](/assets/atari10m/ddqn/pong.gif)|
+|![QBert](/assets/atari10m/ddqn/qbert.gif)|![Seaquest](/assets/atari10m/ddqn/seaquest.gif)|![SpaceInvaders](/assets/atari10m/ddqn/spaceinvaders.gif)|
+
+
 #### DDQN with dueling networks and prioritized replay
 
 `python yarlp/experiment/experiment.py run_atari10m_ddqn_benchmark`
@@ -58,12 +64,6 @@ I don't compare to OpenAI baselines because the OpenAI DDQN implementation is **
 |![SeaquestNoFrameskip-v4](/assets/atari10m/ddqn/SeaquestNoFrameskip-v4.png)|![SpaceInvadersNoFrameskip-v4](/assets/atari10m/ddqn/SpaceInvadersNoFrameskip-v4.png)||
 
 
-||||
-|---|---|---|
-|![BeamRider](/assets/atari10m/ddqn/beamrider.gif)|![Breakout](/assets/atari10m/ddqn/breakout.gif)|![Pong](/assets/atari10m/ddqn/pong.gif)|
-|![QBert](/assets/atari10m/ddqn/qbert.gif)|![Seaquest](/assets/atari10m/ddqn/seaquest.gif)|![SpaceInvaders](/assets/atari10m/ddqn/spaceinvaders.gif)|
-
-
 #### A2C
 
 `python yarlp/experiment/experiment.py run_atari10m_a2c_benchmark`
@@ -72,7 +72,7 @@ I don't compare to OpenAI baselines because the OpenAI DDQN implementation is **
 A2C on 10M time-steps (**40M frames**) with 1 random seed. Results compared to learning curves from [Mnih et al, 2016](https://arxiv.org/pdf/1602.01783.pdf) extracted at 10M time-steps from Figure 3. You are invited to run for multiple seeds and the full 200M frames for a better comparison.
 
 |env|yarlp A2C 40M|Mnih et al A3C 40M 16-threads|
-|---|---|---|---|
+|---|---|---|
 |BeamRider|3150|~3000|
 |Breakout|418|~150|
 |Pong|20|~20|
