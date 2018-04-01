@@ -2,14 +2,21 @@ from distutils.core import setup
 from setuptools import find_packages
 
 
+def readme():
+    with open('README.rst') as f:
+        return f.read()
+
+
 def setup_package():
     config = {
         'name': 'yarlp',
-        'version': '0.0.6',
+        'version': '0.0.9',
         'description': 'yarlp',
+        'long_description': readme(),
         'author': 'Baruch Tabanpour',
         'author_email': 'baruch@tabanpour.info',
         'url': 'https://github.com/btaba/yarlp',
+        'license': 'MIT',
         'install_requires': [
             'Click',
         ],
@@ -23,8 +30,15 @@ def setup_package():
         'install_requires': [
             'gym[mujoco,atari,classic_control]'
         ],
+        'tests_require': ['nose'],
         'packages': find_packages(
-            exclude=("tests", ))
+            exclude=("tests", )),
+        'keywords': [
+            'reinforcement learning',
+            'deep reinforcement learning',
+            'experiment',
+            'benchmark'
+        ]
     }
 
     setup(**config)
