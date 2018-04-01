@@ -8,8 +8,8 @@ def setup_package():
         'version': '0.0.5',
         'description': 'yarlp',
         'author': 'Baruch Tabanpour',
-        'author_email': '',
-        'url': '',
+        'author_email': 'baruch@tabanpour.info',
+        'url': 'https://github.com/btaba/yarlp',
         'install_requires': [
             'Click',
         ],
