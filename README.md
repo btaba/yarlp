@@ -69,7 +69,7 @@ I don't compare to OpenAI baselines because the OpenAI DDQN implementation is **
 `python yarlp/experiment/experiment.py run_atari10m_a2c_benchmark`
 
 
-A2C on 10M time-steps (**40M frames**) with 1 random seed. Results compared to learning curves from [Mnih et al, 2016](https://arxiv.org/pdf/1602.01783.pdf) extracted at 10M time-steps from Figure 3. You are invited to run for multiple seeds and the full 200M frames for a better comparison
+A2C on 10M time-steps (**40M frames**) with 1 random seed. Results compared to learning curves from [Mnih et al, 2016](https://arxiv.org/pdf/1602.01783.pdf) extracted at 10M time-steps from Figure 3. You are invited to run for multiple seeds and the full 200M frames for a better comparison.
 
 |env|yarlp A2C 40M|Mnih et al A3C 40M 16-threads|
 |---|---|---|---|
@@ -84,6 +84,7 @@ A2C on 10M time-steps (**40M frames**) with 1 random seed. Results compared to l
 |![BeamRiderNoFrameskip-v4](/assets/atari10m/a2c/BeamRiderNoFrameskip-v4.png)|![BreakoutNoFrameskip-v4](/assets/atari10m/a2c/BreakoutNoFrameskip-v4.png)|![PongNoFrameskip-v4](/assets/atari10m/a2c/PongNoFrameskip-v4.png)|![QbertNoFrameskip-v4](/assets/atari10m/a2c/QbertNoFrameskip-v4.png)|
 |![SeaquestNoFrameskip-v4](/assets/atari10m/a2c/SeaquestNoFrameskip-v4.png)|![SpaceInvadersNoFrameskip-v4](/assets/atari10m/a2c/SpaceInvadersNoFrameskip-v4.png)||
 
+Here are some [more plots](https://github.com/openai/baselines-results/blob/master/acktr_ppo_acer_a2c_atari.ipynb) from OpenAI to compare against.
 
 ### Mujoco1M
 
